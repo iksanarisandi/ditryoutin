@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paket Tryout — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head">
+        <h1>Paket Tryout</h1>
+        <div class="right"><button class="btn" id="add-btn">+ Tambah Paket</button></div>
+      </div>
+      <div class="card"><div id="list"><p class="muted">Memuat…</p></div></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="form-modal" hidden>
+    <div class="modal">
+      <h3 id="fm-title">Paket</h3>
+      <form id="fm-form">
+        <div class="form-group"><label for="fm-title-i">Nama Paket</label><input type="text" id="fm-title-i" required maxlength="200" placeholder="UPKP Imipas Paket 1"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fm-type">Jenis Ujian</label>
+            <input type="text" id="fm-type" list="type-list" required maxlength="50" placeholder="UPKP">
+            <datalist id="type-list">
+              <option value="UPKP"></option>
+              <option value="UJIAN_DINAS_1"></option>
+              <option value="UJIAN_DINAS_2"></option>
+            </datalist>
+          </div>
+          <div class="form-group"><label for="fm-dur">Durasi (menit)</label><input type="number" id="fm-dur" required min="1" max="600" value="90"></div>
+        </div>
+        <div class="form-group"><label for="fm-desc">Deskripsi</label><textarea id="fm-desc" rows="2" maxlength="1000"></textarea></div>
+        <div class="form-group">
+          <label for="fm-pgt">Passing Grade Total (poin)</label>
+          <input type="number" id="fm-pgt" min="0" max="5000" step="0.5" placeholder="kosong = tanpa PG total">
+          <p class="muted small">Dipakai hanya jika tidak ada passing grade per kategori. Skor = 5 poin per jawaban benar; maksimum = jumlah soal &times; 5.</p>
+        </div>
+        <div class="form-group"><label class="checkbox-line"><input type="checkbox" id="fm-active" checked> Aktif</label></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="fm-cancel">Batal</button>
+          <button type="submit" class="btn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="pg-modal" hidden>
+    <div class="modal">
+      <h3>Passing Grade — <span id="pg-title"></span></h3>
+      <p class="muted small">Nilai minimum dalam <strong>poin</strong> (5 poin per jawaban benar). Kosongkan untuk menghapus aturan kategori tersebut. LULUS jika semua kategori terisi terpenuhi. Jika semua kategori dikosongkan, kelulusan dinilai dari <strong>Passing Grade Total</strong> (atur di Edit Paket).</p>
+      <form id="pg-form"><div id="pg-list"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="pg-cancel">Batal</button>
+          <button type="submit" class="btn">Simpan Passing Grade</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/packages.html');
+      if (!me) return;
+
+      const listEl = document.getElementById('list');
+      let editId = 0;
+      let pgPackageId = 0;
+      let cache = [];
+
+      async function load() {
+        try {
+          const { packages } = await TO.api('/api/admin/packages');
+          cache = packages;
+          if (!packages.length) { listEl.innerHTML = '<p class="muted">Belum ada paket.</p>'; return; }
+          listEl.innerHTML = `
+            <div class="table-wrap"><table class="table">
+              <thead><tr><th>Nama</th><th>Jenis</th><th class="num">Durasi</th><th class="num">Soal</th><th class="num">Percobaan</th><th>Status</th><th></th></tr></thead>
+              <tbody>${packages.map((p) => `
+                <tr>
+                  <td><strong>${TO.esc(p.title)}</strong>${p.description ? `<div class="small muted">${TO.esc(p.description)}</div>` : ''}</td>
+                  <td>${TO.esc(p.exam_type)}</td>
+                  <td class="num">${p.duration_minutes} mnt</td>
+                  <td class="num">${p.question_count}</td>
+                  <td class="num">${p.attempt_count}</td>
+                  <td>${p.active ? '<span class="badge badge-success">AKTIF</span>' : '<span class="badge">NONAKTIF</span>'}</td>
+                  <td class="nowrap">
+                    <button class="btn btn-sm btn-outline edit-btn" data-id="${p.id}">Edit</button>
+                    <button class="btn btn-sm btn-outline pg-btn" data-id="${p.id}">Passing Grade</button>
+                    <button class="btn btn-sm btn-danger del-btn" data-id="${p.id}" data-n="${TO.esc(p.title)}">Hapus</button>
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table></div>`;
+          listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
+          listEl.querySelectorAll('.pg-btn').forEach((b) => b.addEventListener('click', () => openPg(Number(b.dataset.id))));
+          listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', async () => {
+            if (!confirm(`Hapus paket "${b.dataset.n}"? (hanya bisa jika belum ada yang mengerjakan)`)) return;
+            try { await TO.api('/api/admin/packages/' + b.dataset.id, { method: 'DELETE' }); TO.toast('Paket dihapus', 'success'); load(); }
+            catch (e) { TO.toast(e.message, 'error'); }
+          }));
+        } catch (e) { listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; }
+      }
+
+      function openForm(id) {
+        editId = id;
+        const p = cache.find((x) => x.id === id);
+        document.getElementById('fm-title').textContent = id ? 'Edit Paket' : 'Tambah Paket';
+        document.getElementById('fm-title-i').value = p ? p.title : '';
+        document.getElementById('fm-type').value = p ? p.exam_type : 'UPKP';
+        document.getElementById('fm-dur').value = p ? p.duration_minutes : 90;
+        document.getElementById('fm-desc').value = p && p.description ? p.description : '';
+        document.getElementById('fm-pgt').value = p && p.passing_grade_total != null ? p.passing_grade_total : '';
+        document.getElementById('fm-active').checked = p ? !!p.active : true;
+        TO.openModal('form-modal');
+      }
+
+      async function openPg(id) {
+        pgPackageId = id;
+        const p = cache.find((x) => x.id === id);
+        document.getElementById('pg-title').textContent = p ? p.title : '';
+        let d;
+        try { d = await TO.api(`/api/admin/packages/${id}/passing-grades`); }
+        catch (e) { TO.toast(e.message, 'error'); return; }
+        document.getElementById('pg-list').innerHTML = d.rules.map((r) => `
+          <div class="form-group" style="display:flex;align-items:center;gap:10px">
+            <span style="flex:1">${TO.esc(r.name)} <span class="muted small">(${r.question_count} soal &bull; maks ${r.question_count * 5} poin)</span></span>
+            <input type="number" min="0" max="1000" step="0.5" style="width:110px" class="pg-min" data-cat="${r.category_id}"
+              value="${r.minimum_score === null ? '' : r.minimum_score}" placeholder="—">
+          </div>`).join('') || '<p class="muted">Belum ada kategori untuk jenis ujian ini.</p>';
+        TO.openModal('pg-modal');
+      }
+
+      document.getElementById('add-btn').addEventListener('click', () => openForm(0));
+      document.getElementById('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
+      document.getElementById('fm-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+          title: document.getElementById('fm-title-i').value,
+          exam_type: document.getElementById('fm-type').value,
+          duration_minutes: Number(document.getElementById('fm-dur').value),
+          description: document.getElementById('fm-desc').value,
+          passing_grade_total: document.getElementById('fm-pgt').value === '' ? null : Number(document.getElementById('fm-pgt').value),
+          active: document.getElementById('fm-active').checked,
+        };
+        try {
+          if (editId) await TO.api('/api/admin/packages/' + editId, { method: 'PUT', body });
+          else await TO.api('/api/admin/packages', { method: 'POST', body });
+          TO.closeModal('form-modal');
+          TO.toast('Paket disimpan', 'success');
+          load();
+        } catch (err) { TO.toast(err.message, 'error'); }
+      });
+
+      document.getElementById('pg-cancel').addEventListener('click', () => TO.closeModal('pg-modal'));
+      document.getElementById('pg-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const rules = [...document.querySelectorAll('.pg-min')].map((inp) => ({
+          category_id: Number(inp.dataset.cat),
+          minimum_score: inp.value === '' ? null : Number(inp.value),
+        })).filter((r) => r.minimum_score === null || (r.minimum_score >= 0 && r.minimum_score <= 1000));
+        try {
+          await TO.api(`/api/admin/packages/${pgPackageId}/passing-grades`, { method: 'PUT', body: { rules } });
+          TO.closeModal('pg-modal');
+          TO.toast('Passing grade disimpan', 'success');
+        } catch (err) { TO.toast(err.message, 'error'); }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

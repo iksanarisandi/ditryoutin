@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tryout-upkp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tryout-upkp-db",
+      "database_id": "cce67d3f-0dc7-4a20-9988-b6ceaa7b59b7",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  // Bukan rahasia — boleh di config. "manual" = QRIS pribadi + konfirmasi WA
+  // (dipakai selama Pakasir masih sandbox). Ganti ke "pakasir" saat sudah produksi.
+  "vars": {
+    "PAYMENT_MODE": "manual",
+    "MANUAL_WA": "6282347303153"
+  },
+  "workers_dev": true,
+  // Rate limiting (open beta Cloudflare) — bucket terpisah per namespace_id.
+  // API=300/menit per IP; AUTH=12/menit; REGISTER=6/menit; WRITE=90/menit per user.
+  "unsafe": {
+    "bindings": [
+      { "name": "RATE_LIMIT_API", "type": "ratelimit", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } },
+      { "name": "RATE_LIMIT_AUTH", "type": "ratelimit", "namespace_id": "1002", "simple": { "limit": 12, "period": 60 } },
+      { "name": "RATE_LIMIT_REGISTER", "type": "ratelimit", "namespace_id": "1003", "simple": { "limit": 6, "period": 60 } },
+      { "name": "RATE_LIMIT_WRITE", "type": "ratelimit", "namespace_id": "1004", "simple": { "limit": 90, "period": 60 } }
+    ]
+  },
+  // Bersihkan session kedaluwarsa harian (03:17 WIB = 20:17 UTC).
+  "triggers": {
+    "crons": ["17 20 * * *"]
+  },
+  "routes": [
+    { "pattern": "ditryout.in", "custom_domain": true },
+    { "pattern": "www.ditryout.in", "custom_domain": true }
+  ]
+}

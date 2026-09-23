@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tryout UPKP — Simulasi &amp; Latihan Ujian Imipas</title>
+  <meta name="description" content="Tryout UPKP Imipas: latihan ujian berbasis simulasi dengan sistem timer, penilaian otomatis, dan riwayat hasil.">
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+    {"@type":"Question","name":"Apakah soalnya sama dengan soal ujian resmi?","acceptedAnswer":{"@type":"Answer","text":"Tidak. Tryout ini merupakan media latihan mandiri. Soal disusun sebagai simulasi pola ujian, bukan salinan soal resmi."}},
+    {"@type":"Question","name":"Apa saja kategori soal UPKP Imipas?","acceptedAnswer":{"@type":"Answer","text":"TWK, TKT, TSI, TKP Bahasa Inggris, dan Literasi Digital — mengikuti pola umum UPKP Imipas."}},
+    {"@type":"Question","name":"Kalau akses saya aktif, paket soal baru bisa dikerjakan?","acceptedAnswer":{"@type":"Answer","text":"Ya. Selama masa akses berjalan, semua paket tryout yang tersedia bisa Anda kerjakan tanpa biaya tambahan."}},
+    {"@type":"Question","name":"Bagaimana jika saya membeli lagi sebelum akses habis?","acceptedAnswer":{"@type":"Answer","text":"Masa aktif ditambahkan ke sisa masa akses Anda (bukan dihitung ulang dari nol)."}}
+  ]}
+  </script>
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <section class="hero">
+    <div class="container">
+      <img src="/img/logo-192.png" alt="Tryout UPKP" width="76" height="76" style="border-radius:20px;display:block;margin:0 auto 18px;box-shadow:0 8px 24px rgba(0,0,0,.25)">
+      <h1>Tryout UPKP Imipas</h1>
+      <p>Latihan ujian berbasis simulasi dengan sistem timer, penilaian otomatis, dan riwayat hasil.</p>
+      <a class="btn btn-lg" href="/register.html" style="background:#fff;color:var(--primary-dark)">Mulai Tryout</a>
+      <a class="btn btn-lg btn-outline" href="/login.html" style="border-color:#fff;color:#fff;background:transparent">Sudah punya akun</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-title">
+        <h2>Fitur</h2>
+        <p>Semua yang Anda butuhkan untuk berlatih secara terukur.</p>
+      </div>
+      <div class="grid grid-4">
+        <div class="card stat-card">
+          <div class="feature-icon">⏱️</div>
+          <h3>Simulasi Timer</h3>
+          <p class="muted small">Ujian berdurasi seperti ujian sesungguhnya dengan waktu yang divalidasi server.</p>
+        </div>
+        <div class="card stat-card">
+          <div class="feature-icon">✅</div>
+          <h3>Penilaian Otomatis</h3>
+          <p class="muted small">Skor, rincian benar-salah, dan nilai per kategori dihitung otomatis saat submit.</p>
+        </div>
+        <div class="card stat-card">
+          <div class="feature-icon">📖</div>
+          <h3>Pembahasan</h3>
+          <p class="muted small">Setiap soal dilengkapi pembahasan singkat untuk belajar dari kesalahan.</p>
+        </div>
+        <div class="card stat-card">
+          <div class="feature-icon">🗂️</div>
+          <h3>Riwayat Hasil</h3>
+          <p class="muted small">Semua percobaan tersimpan — pantau perkembangan skor Anda dari waktu ke waktu.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background:#fff">
+    <div class="container">
+      <div class="section-title">
+        <h2>Pilihan Akses</h2>
+        <p>Satu kali beli — akses seluruh paket tryout yang tersedia.</p>
+      </div>
+      <div class="grid grid-2" id="pricing" style="max-width:640px;margin:0 auto">
+        <div class="card price-card">
+          <h3>7 Hari</h3>
+          <div class="price">Rp20.000</div>
+          <p class="muted">Akses penuh 7 hari ke semua paket soal</p>
+          <a class="btn" href="/register.html">Pilih Paket</a>
+        </div>
+        <div class="card price-card" style="border-color:var(--primary)">
+          <h3>6 Bulan <span class="badge badge-primary">Hemat</span></h3>
+          <div class="price">Rp50.000</div>
+          <p class="muted">Akses penuh 180 hari ke semua paket soal</p>
+          <a class="btn" href="/register.html">Pilih Paket</a>
+        </div>
+      </div>
+      <p class="muted small center" style="margin-top:14px">Pembayaran via QRIS. Soal-soal baru otomatis bisa diakses selama akses Anda aktif.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-title"><h2>Cara Kerja</h2></div>
+      <div class="steps" style="max-width:640px;margin:0 auto">
+        <div class="step"><div class="step-num">1</div><div><strong>Buat akun</strong><p class="muted small">Daftar dengan nama, email, dan password. Tanpa verifikasi email.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div><strong>Beli masa akses</strong><p class="muted small">Pilih akses 7 hari atau 6 bulan, bayar via QRIS.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div><strong>Kerjakan tryout</strong><p class="muted small">Pilih paket soal, kerjakan dengan timer, tandai soal ragu-ragu.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div><strong>Lihat hasil &amp; pembahasan</strong><p class="muted small">Skor, status lulus, nilai per kategori, dan pembahasan setiap soal.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background:#fff">
+    <div class="container">
+      <div class="section-title">
+        <h2>Artikel &amp; Panduan</h2>
+        <p>Belajar cara cerdas menghadapi UPKP Imipas — gratis, langsung dari perangkat Anda.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card stat-card">
+          <h3><a href="/artikel/panduan-lengkap-persiapan-upkp-imipas" style="color:inherit">Panduan Lengkap Persiapan UPKP</a></h3>
+          <p class="muted small">Peta persiapan menyeluruh: format ujian, siklus belajar 30 hari, hingga simulasi.</p>
+        </div>
+        <div class="card stat-card">
+          <h3><a href="/artikel/materi-twk-upkp" style="color:inherit">Materi TWK: Apa Saja yang Dipelajari?</a></h3>
+          <p class="muted small">Empat blok materi TWK dan strategi menguasainya.</p>
+        </div>
+        <div class="card stat-card">
+          <h3><a href="/artikel/tips-lulus-upkp-imipas" style="color:inherit">10 Tips Lulus UPKP Imipas</a></h3>
+          <p class="muted small">Kebiasaan belajar yang membedakan yang lulus dari yang mengulang.</p>
+        </div>
+      </div>
+      <p class="center" style="margin-top:16px"><a class="btn btn-outline" href="/artikel/">Lihat Semua Artikel →</a></p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="max-width:720px">
+      <div class="section-title"><h2>FAQ</h2></div>
+      <details class="card" style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-weight:600">Apakah soalnya sama dengan soal ujian resmi?</summary>
+        <p class="muted small mt">Tidak. Tryout ini merupakan media latihan mandiri. Soal disusun sebagai simulasi pola ujian, bukan salinan soal resmi.</p>
+      </details>
+      <details class="card" style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-weight:600">Apa saja kategori soal UPKP Imipas?</summary>
+        <p class="muted small mt">TWK, TKT, TSI, TKP Bahasa Inggris, dan Literasi Digital — mengikuti pola umum UPKP Imipas.</p>
+      </details>
+      <details class="card" style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-weight:600">Kalau akses saya aktif, paket soal baru bisa dikerjakan?</summary>
+        <p class="muted small mt">Ya. Selama masa akses berjalan, semua paket tryout yang tersedia bisa Anda kerjakan tanpa biaya tambahan.</p>
+      </details>
+      <details class="card">
+        <summary style="cursor:pointer;font-weight:600">Bagaimana jika saya membeli lagi sebelum akses habis?</summary>
+        <p class="muted small mt">Masa aktif ditambahkan ke sisa masa akses Anda (bukan dihitung ulang dari nol).</p>
+      </details>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="container">
+      <strong>TRYOUT UPKP</strong> — Simulasi &amp; Latihan Ujian<br>
+      <span class="small">Tryout ini merupakan media latihan dan simulasi, bukan situs resmi Kementerian Imigrasi dan Pemasyarakatan atau BKN.</span>
+    </div>
+  </footer>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      const me = await TO.fetchMe();
+      TO.renderHeader('/', me);
+      if (!me) return;
+      try {
+        const { products } = await TO.api('/api/products');
+        const el = document.getElementById('pricing');
+        if (products && products.length) {
+          el.innerHTML = products.map((p, i) => `
+            <div class="card price-card ${i === products.length - 1 ? '" style="border-color:var(--primary)' : ''}">
+              <h3>${TO.esc(p.name)}</h3>
+              <div class="price">${TO.rupiah(p.price)}</div>
+              <p class="muted">Akses penuh ${p.duration_days} hari ke semua paket soal</p>
+              <a class="btn" href="/payment.html?product=${p.id}">Pilih Paket</a>
+            </div>`).join('');
+        }
+      } catch (e) { /* fallback ke harga statis */ }
+    })();
+  </script>
+</body>
+</html>

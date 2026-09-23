@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Admin — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head"><h1>Dashboard</h1></div>
+      <div class="grid grid-4" id="stats"><div class="card muted">Memuat…</div></div>
+      <div class="card mt">
+        <h3>Transaksi Terbaru</h3>
+        <div id="recent"><p class="muted">Memuat…</p></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/');
+      if (!me) return;
+
+      try {
+        const { stats } = await TO.api('/api/admin/stats');
+        const items = [
+          ['Total User', stats.total_users],
+          ['User Online', stats.users_online],
+          ['Akses Aktif', stats.users_with_active_access],
+          ['Pendapatan', TO.rupiah(stats.revenue)],
+          ['Transaksi Sukses', stats.transactions_paid],
+          ['Paket Tryout', stats.total_packages],
+          ['Total Soal', stats.total_questions],
+          ['Percobaan', stats.total_attempts],
+        ];
+        document.getElementById('stats').innerHTML = items.map(([label, val]) => `
+          <div class="card stat-card"><div class="label">${label}</div><div class="value">${val}</div></div>`).join('');
+      } catch (e) {
+        document.getElementById('stats').innerHTML = '<div class="card"><div class="alert alert-danger">' + TO.esc(e.message) + '</div></div>';
+      }
+
+      try {
+        const { payments } = await TO.api('/api/admin/payments');
+        const el = document.getElementById('recent');
+        if (!payments.length) {
+          el.innerHTML = '<p class="muted">Belum ada transaksi.</p>';
+        } else {
+          el.innerHTML = `
+            <div class="table-wrap"><table class="table">
+              <thead><tr><th>Tanggal</th><th>User</th><th>Produk</th><th class="num">Nominal</th><th>Status</th></tr></thead>
+              <tbody>${payments.slice(0, 8).map((p) => `
+                <tr>
+                  <td class="nowrap">${TO.fmtDateTime(p.created_at)}</td>
+                  <td>${TO.esc(p.user_name)}<div class="small muted">${TO.esc(p.user_email)}</div></td>
+                  <td>${TO.esc(p.product_name)}</td>
+                  <td class="num">${TO.rupiah(p.amount)}</td>
+                  <td><span class="badge ${p.status === 'paid' ? 'badge-success' : p.status === 'pending' ? 'badge-warn' : 'badge-danger'}">${p.status.toUpperCase()}</span></td>
+                </tr>`).join('')}
+              </tbody>
+            </table></div>`;
+        }
+      } catch (e) { /* abaikan */ }
+    })();
+  </script>
+</body>
+</html>

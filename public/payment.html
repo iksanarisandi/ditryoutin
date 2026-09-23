@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pembayaran — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <div class="container mt mb" id="content">
+    <h1>Pembayaran Akses</h1>
+    <div id="stage"><div class="card"><p class="muted">Memuat…</p></div></div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      const me = await TO.requireUser();
+      if (!me) return;
+      TO.renderHeader('/dashboard.html', me);
+
+      const stage = document.getElementById('stage');
+      let pollTimer = null;
+      let paymentId = TO.qs('payment') ? Number(TO.qs('payment')) : null;
+
+      function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+      // ---------- Tahap 1: pilih produk ----------
+      async function showProducts() {
+        stopPolling();
+        let products = [];
+        try { products = (await TO.api('/api/products')).products; }
+        catch (e) { stage.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; return; }
+        const preset = Number(TO.qs('product')) || 0;
+        stage.innerHTML = `
+          ${me.access.active ? '<div class="alert alert-info mb">Akses Anda masih aktif. Pembelian baru akan <strong>ditambahkan</strong> ke sisa masa akses.</div>' : ''}
+          <div class="grid grid-2">
+            ${products.map((p) => `
+              <div class="card price-card">
+                <h3>${TO.esc(p.name)}</h3>
+                <div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">${TO.rupiah(p.price)}</div>
+                <p class="muted small">Akses ${p.duration_days} hari ke seluruh paket tryout</p>
+                <button class="btn buy-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Beli via QRIS</button>
+              </div>`).join('')}
+          </div>
+          <div class="alert alert-warn small" style="margin-top:14px">
+            Setelah menekan Beli, kode QRIS akan muncul. Scan dengan aplikasi e-wallet / m-banking Anda dan bayar sesuai nominal tepat.
+          </div>`;
+        stage.querySelectorAll('.buy-btn').forEach((btn) => {
+          btn.addEventListener('click', () => createPayment(Number(btn.dataset.id)));
+        });
+      }
+
+      // ---------- Buat transaksi ----------
+      async function createPayment(productId) {
+        stage.innerHTML = '<div class="card"><p class="muted">Membuat transaksi…</p></div>';
+        try {
+          const d = await TO.api('/api/payments/create', { method: 'POST', body: { product_id: productId } });
+          paymentId = d.payment.id;
+          if (d.manual) showManual(d);
+          else showQr(d);
+        } catch (e) {
+          stage.innerHTML = `
+            <div class="card">
+              <div class="alert alert-danger">${TO.esc(e.message)}</div>
+              <button class="btn" id="retry-btn">Coba Lagi</button>
+            </div>`;
+          document.getElementById('retry-btn').addEventListener('click', showProducts);
+        }
+      }
+
+      // ---------- Tahap 2a: mode manual (QRIS pribadi + konfirmasi WA) ----------
+      function showManual(d) {
+        stopPolling();
+        const ref = d.payment.reference;
+        const wa = (d.manual && d.manual.wa) || '6282347303153';
+        const waText = encodeURIComponent(
+          'Halo admin Tryout UPKP, saya sudah membayar via QRIS.\n' +
+          'Ref: ' + ref + '\n' +
+          'Produk: ' + (d.payment.product_name || '-') + '\n' +
+          'Nominal: ' + TO.rupiah(d.payment.amount) + '\n' +
+          'Nama akun: ' + (me.user ? me.user.name : '-') + '\n' +
+          'Mohon diverifikasi dan diaktifkan aksesnya. Terima kasih.'
+        );
+        stage.innerHTML = `
+          <div class="card">
+            <div class="pay-layout">
+              <div class="qr-box">
+                <div style="font-weight:700;font-size:1.05rem;margin-bottom:6px">QRIS</div>
+                <img src="/img/qris.jpg" alt="QRIS Tryout UPKP" style="width:100%;max-width:260px;border:1px solid var(--border);border-radius:8px;background:#fff;display:block">
+                <div class="small muted mt">Scan dengan aplikasi e-wallet / m-banking berlogo QRIS</div>
+              </div>
+              <div>
+                <div id="pay-status"><span class="badge badge-warn">MENUNGGU VERIFIKASI ADMIN</span></div>
+                <div class="pay-amount" style="margin:8px 0">${TO.rupiah(d.payment.amount)}</div>
+                <p class="small">Kode referensi: <span class="mono">${TO.esc(ref)}</span></p>
+                <ol class="small muted" style="padding-left:18px;line-height:1.8;margin:10px 0">
+                  <li>Scan QRIS di samping dan bayar dengan nominal <strong>tepat</strong> di atas.</li>
+                  <li>Klik tombol <strong>Konfirmasi via WhatsApp</strong> — pesan sudah terisi otomatis dengan referensi Anda.</li>
+                  <li>Akses aktif otomatis setelah admin memverifikasi pembayaran (biasanya &lt; 1 jam).</li>
+                </ol>
+                <a class="btn btn-lg" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener"
+                   href="https://wa.me/${TO.esc(wa)}?text=${waText}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.1c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1a13 13 0 0 1-5.9-5.2c-.6-1-.9-2-.7-2.8.1-.6.8-1.5 1.3-1.6h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2 0 .4-.1.6l-.4.5c-.2.2-.3.3-.1.6a8.5 8.5 0 0 0 3.8 3.3c.3.1.4.1.6-.1l.8-1c.2-.2.4-.2.6-.1l1.8.9c.5.2.5.4.5.6 0 .1 0 .8-.3 1.3Z"/></svg>
+                  Konfirmasi via WhatsApp
+                </a>
+                <p class="small muted" style="margin-top:12px">Halaman ini memeriksa status otomatis setiap beberapa detik — saat admin menandai lunas, akses langsung aktif tanpa perlu refresh.</p>
+              </div>
+            </div>
+          </div>`;
+        pollTimer = setInterval(checkStatus, 6000);
+      }
+
+      // ---------- Tahap 2: tampilkan QR & polling ----------
+      function showQr(d) {
+        stopPolling();
+        stage.innerHTML = `
+          <div class="card">
+            <div class="pay-layout">
+              <div class="qr-box">
+                <div style="font-weight:700;font-size:1.05rem;margin-bottom:6px">QRIS</div>
+                <div id="qr-slot">${d.qr_svg || '<p class="muted">QR tidak tersedia.</p>'}</div>
+                <div class="small muted mt">Berlaku sampai <span id="qr-exp">${d.txn.expired_at ? TO.fmtDateTime(d.txn.expired_at) : '-'}</span> WITA</div>
+              </div>
+              <div>
+                <div id="pay-status"><span class="badge badge-warn">MENUNGGU PEMBAYARAN</span></div>
+                <div class="pay-amount" id="pay-total" style="margin:8px 0">${TO.rupiah(d.txn.total_payment)}</div>
+                <p class="muted small">Nominal tagihan (sudah termasuk biaya layanan ${TO.rupiah(d.txn.fee)}). Bayar dengan nominal <strong>tepat sampai digit terakhir</strong>.</p>
+                <p class="small">Kode referensi: <span class="mono">${TO.esc(d.payment.reference)}</span></p>
+                ${d.txn.is_sandbox ? '<div class="alert alert-warn small">MODE SANDBOX — transaksi percobaan.</div>' : ''}
+                <div class="small muted">Status pembayaran diperiksa otomatis setiap beberapa detik. Halaman ini bisa tetap terbuka.</div>
+              </div>
+            </div>
+          </div>`;
+        pollTimer = setInterval(checkStatus, 5000);
+      }
+
+      async function checkStatus() {
+        if (!paymentId) return;
+        let d;
+        try { d = await TO.api('/api/payments/' + paymentId); }
+        catch (e) { return; /* coba lagi pada interval berikutnya */ }
+
+        if (d.payment.status === 'paid') {
+          stopPolling();
+          stage.innerHTML = `
+            <div class="card center" style="padding:40px 20px">
+              <div style="font-size:2.6rem">✅</div>
+              <h2>Pembayaran Berhasil!</h2>
+              <p class="muted">Akses tryout Anda aktif sampai <strong>${TO.fmtDate(d.access_expires_at)} WITA</strong>.</p>
+              <a class="btn btn-lg" href="/dashboard.html">Mulai Tryout</a>
+            </div>`;
+          setTimeout(() => (location.href = '/dashboard.html'), 2500);
+        } else if (d.payment.status === 'expired' || d.payment.status === 'failed') {
+          stopPolling();
+          stage.innerHTML = `
+            <div class="card center" style="padding:30px 20px">
+              <div style="font-size:2.2rem">⌛</div>
+              <h2>Transaksi ${d.payment.status === 'expired' ? 'Kedaluwarsa' : 'Gagal'}</h2>
+              <p class="muted">Silakan buat transaksi baru.</p>
+              <button class="btn" id="retry-btn">Buat Transaksi Baru</button>
+            </div>`;
+          document.getElementById('retry-btn').addEventListener('click', showProducts);
+        }
+        // pending: tetap menunggu
+      }
+
+      // Jika dibuka dengan ?payment=ID, langsung polling transaksi itu
+      if (paymentId) {
+        try {
+          const d = await TO.api('/api/payments/' + paymentId);
+          if (d.payment.status === 'pending' && d.manual) {
+            showManual(d);
+          } else if (d.payment.status === 'pending' && d.qr_svg) {
+            showQr({ qr_svg: d.qr_svg, payment: d.payment, txn: { ...d.txn, is_sandbox: false } });
+          } else if (d.payment.status === 'paid') {
+            checkStatus();
+          } else {
+            showProducts();
+          }
+        } catch (e) { showProducts(); }
+      } else {
+        showProducts();
+      }
+    })();
+  </script>
+</body>
+</html>

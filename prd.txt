@@ -1,0 +1,1899 @@
+# MASTER PROMPT — WEBSITE TRYOUT UPKP IMIPAS
+
+Saya ingin membangun website **Tryout UPKP** berbayar untuk persiapan ujian, dengan fokus awal pada **UPKP Kementerian Imigrasi dan Pemasyarakatan (Imipas)**.
+
+Bangun aplikasi ini sebagai aplikasi production-ready sederhana, ringan, mudah dipelihara, dan murah dijalankan.
+
+## 1. STACK WAJIB
+
+Gunakan:
+
+* Backend: **Hono**
+* Runtime: **Cloudflare Workers**
+* Database: **Cloudflare D1**
+* Frontend: HTML + CSS + Vanilla JavaScript
+* Jangan gunakan React/Vue/Next.js kecuali benar-benar diperlukan.
+* Jangan gunakan ORM berat.
+* Gunakan SQL langsung untuk D1.
+* Authentication menggunakan session berbasis cookie.
+* Password disimpan menggunakan algoritma hashing yang aman dan ringan. Prioritaskan **Argon2id** jika kompatibel dengan environment; jika tidak praktis di Cloudflare Workers, gunakan library bcrypt yang kompatibel.
+* Payment gateway: **Pakasir**
+* Deployment: Cloudflare Workers
+* Configuration/secrets menggunakan Cloudflare secrets / `.dev.vars`.
+* Jangan menyimpan API key Pakasir di source code.
+
+Tujuan utama: aplikasi ringan, cepat, sederhana, dan mudah dikembangkan.
+
+---
+
+# 2. KONSEP PRODUK
+
+Nama aplikasi:
+
+**Tryout UPKP**
+
+Fokus awal:
+
+**Tryout UPKP Imipas**
+
+Namun struktur database harus sudah mendukung:
+
+1. UPKP
+2. Ujian Dinas Tingkat I
+3. Ujian Dinas Tingkat II
+
+Jangan membuat sistem khusus UPKP yang sulit diperluas.
+
+User membeli **masa akses tryout**, bukan membeli paket soal tertentu.
+
+Paket akses awal:
+
+| Paket   |    Harga | Masa akses |
+| ------- | -------: | ---------: |
+| 7 Hari  | Rp20.000 |     7 hari |
+| 6 Bulan | Rp50.000 |    6 bulan |
+
+Jika user memiliki akses aktif, user dapat mengakses **seluruh paket soal yang tersedia**.
+
+Admin dapat menambahkan paket soal baru kapan saja dan user yang masih memiliki akses aktif otomatis dapat mengaksesnya.
+
+---
+
+# 3. USER FLOW
+
+Flow utama:
+
+Landing Page
+→ Register
+→ Login
+→ Dashboard
+→ Pilih paket tryout
+→ Kerjakan ujian
+→ Submit
+→ Hasil
+→ Riwayat
+
+Jika belum memiliki akses:
+
+Dashboard menampilkan:
+
+> Akses Anda telah berakhir. Silakan pilih paket akses.
+
+Kemudian:
+
+7 Hari — Rp20.000
+6 Bulan — Rp50.000
+
+User klik beli.
+
+→ Buat transaksi Pakasir
+→ User melakukan pembayaran
+→ Pakasir mengirim callback/webhook
+→ Sistem memvalidasi pembayaran
+→ Masa akses user diperpanjang/diaktifkan
+→ User dapat mengakses seluruh tryout.
+
+---
+
+# 4. REGISTRASI
+
+User dapat membuat akun tanpa email verification.
+
+Field:
+
+* nama
+* email
+* password
+
+Email harus unique.
+
+Password:
+
+* jangan pernah simpan plaintext
+* hash password
+* jangan membuat sistem password yang kompleks
+
+Login menggunakan:
+
+* email
+* password
+
+Tambahkan:
+
+* logout
+* lupa password
+* reset password
+
+Karena tidak menggunakan email verification dan kemungkinan belum ada SMTP, buat mekanisme reset password yang sederhana dan aman. Jangan membuat fitur reset password palsu.
+
+Jika implementasi email reset membutuhkan provider eksternal, struktur sistem harus memungkinkan integrasi nanti.
+
+---
+
+# 5. SATU AKUN = SATU SESI
+
+Satu akun hanya boleh memiliki **1 sesi login aktif pada satu waktu/perangkat**.
+
+Contoh:
+
+User login di laptop.
+
+Kemudian login menggunakan HP.
+
+→ sesi laptop dianggap tidak valid.
+
+Gunakan session token di database.
+
+Ketika login baru:
+
+* invalidate session lama
+* buat session baru
+* simpan session baru
+* cookie HTTP-only
+* Secure
+* SameSite=Lax atau Strict sesuai kebutuhan
+
+Jangan menggunakan localStorage untuk authentication token.
+
+---
+
+# 6. DASHBOARD USER
+
+Dashboard sederhana.
+
+Tampilkan:
+
+* Nama user
+* Status akses
+* tanggal mulai akses
+* tanggal berakhir
+* sisa hari
+* tombol beli/perpanjang akses
+
+Bagian:
+
+## Tryout UPKP
+
+Card:
+
+* nama paket
+* jumlah soal
+* durasi
+* kategori
+* jumlah percobaan
+* tombol "Mulai"
+
+Jika belum pernah dikerjakan:
+
+> Belum pernah mengerjakan
+
+Jika sudah:
+
+> Percobaan terakhir: 82%
+
+Tampilkan daftar paket yang aktif.
+
+---
+
+# 7. SISTEM PAKET SOAL
+
+Setiap paket memiliki:
+
+* ID
+* nama
+* jenis ujian
+* deskripsi
+* jumlah soal
+* durasi
+* status aktif/nonaktif
+* created_at
+* updated_at
+
+Contoh:
+
+```text
+UPKP Imipas Paket 1
+100 soal
+90 menit
+Aktif
+```
+
+Admin dapat membuat:
+
+```text
+UPKP Imipas Paket 2
+UPKP Imipas Paket 3
+UPKP Imipas Paket 4
+dst.
+```
+
+User dengan akses aktif dapat mengerjakan semuanya.
+
+---
+
+# 8. JUMLAH SOAL
+
+Untuk UPKP:
+
+**100 soal**
+
+Kategori awal:
+
+* TWK
+* TKT
+* TSI
+* TKP Bahasa Inggris
+* Literasi Digital
+
+Untuk struktur awal, siapkan target:
+
+```text
+TWK                 30
+TKT                 25
+TSI                 30
+TKP Bahasa Inggris  10
+Literasi Digital     5
+-----------------------
+TOTAL              100
+```
+
+Namun jangan hard-code jumlah tersebut di kode.
+
+Jumlah soal dan kategori harus dapat dikendalikan dari database/admin.
+
+---
+
+# 9. UJIAN DINAS
+
+Struktur harus mendukung:
+
+## Ujian Dinas Tingkat I
+
+Kategori:
+
+* TWK
+* TPU
+* TSI
+
+Passing grade default:
+
+```text
+TWK >= 100
+TPU >= 75
+TSI >= 35
+```
+
+Durasi default:
+
+**90 menit**
+
+## Ujian Dinas Tingkat II
+
+Kategori:
+
+* TWK
+* TPU
+* TPM
+* TSI
+
+Passing grade default:
+
+```text
+TWK >= 100
+TPU >= 90
+TPM >= 35
+TSI >= 40
+```
+
+Durasi:
+
+**120 menit**
+
+Passing grade bukan hard-coded.
+
+Admin harus dapat mengubahnya.
+
+---
+
+# 10. PASSING GRADE
+
+Sistem harus fleksibel.
+
+Setiap paket dapat memiliki aturan passing grade.
+
+Admin dapat mengatur:
+
+```text
+Kategori
+Minimum Score
+```
+
+Contoh:
+
+```text
+TWK       100
+TKT        75
+TSI        35
+```
+
+atau kategori lainnya.
+
+Sistem menentukan status:
+
+```text
+LULUS
+```
+
+atau
+
+```text
+BELUM LULUS
+```
+
+berdasarkan aturan passing grade paket.
+
+Jika sebuah paket menggunakan beberapa kategori, user harus memenuhi seluruh batas minimum kategori yang ditentukan.
+
+Tampilkan passing grade di halaman hasil.
+
+---
+
+# 11. SISTEM PENILAIAN
+
+Untuk versi awal sangat sederhana:
+
+* jawaban benar = 1
+* jawaban salah = 0
+* tidak dijawab = 0
+
+Termasuk TKP.
+
+Tidak menggunakan sistem bobot SKD.
+
+Hitung:
+
+```text
+total soal
+jawaban benar
+jawaban salah
+tidak dijawab
+skor
+persentase
+```
+
+Contoh:
+
+100 soal
+82 benar
+12 salah
+6 kosong
+
+Skor:
+
+82/100 × 100 = 82
+
+---
+
+# 12. DURASI UJIAN
+
+Default:
+
+**90 menit**
+
+Admin dapat mengubah durasi setiap paket.
+
+Untuk Ujian Dinas Tingkat II default:
+
+**120 menit**
+
+Timer harus berjalan di frontend tetapi waktu ujian juga harus divalidasi di server.
+
+Jangan hanya mengandalkan JavaScript timer.
+
+Ketika waktu habis:
+
+→ otomatis submit ujian.
+
+Jika browser direfresh:
+
+→ jawaban yang sudah dipilih tidak boleh hilang.
+
+---
+
+# 13. SISTEM SOAL
+
+Setiap soal:
+
+```text
+id
+package_id
+question
+option_a
+option_b
+option_c
+option_d
+option_e
+correct_answer
+category
+explanation
+created_at
+updated_at
+```
+
+Pilihan selalu A-E.
+
+Jawaban benar:
+
+```text
+A
+B
+C
+D
+E
+```
+
+Soal dapat diedit admin.
+
+---
+
+# 14. RANDOM SOAL
+
+Setiap percobaan:
+
+* urutan soal diacak
+* pilihan A-E TIDAK diacak
+
+Contoh:
+
+Percobaan pertama:
+
+1. Soal 50
+2. Soal 7
+3. Soal 82
+
+Percobaan berikutnya:
+
+1. Soal 12
+2. Soal 91
+3. Soal 5
+
+Tetapi opsi A-E tetap sama.
+
+Simpan urutan soal untuk setiap attempt agar ketika user refresh atau kembali ke attempt, urutannya tetap sama.
+
+---
+
+# 15. HALAMAN UJIAN
+
+Buat UI sederhana yang terinspirasi dari sistem ujian resmi pemerintah/BKN, tetapi jangan menyalin desain atau aset mereka secara identik.
+
+Desktop:
+
+```text
+┌───────────────────────────────────────────────┐
+│ TRYOUT UPKP             Sisa Waktu 89:32      │
+├─────────────────────────────┬─────────────────┤
+│                             │ Daftar Nomor    │
+│ Soal nomor 1                │                 │
+│                             │ 01 02 03 04 05  │
+│ Pertanyaan................  │ 06 07 08 09 10  │
+│                             │ 11 12 13 14 15  │
+│ ○ A. ....................... │ ...             │
+│ ○ B. ....................... │                 │
+│ ○ C. ....................... │                 │
+│ ○ D. ....................... │                 │
+│ ○ E. ....................... │                 │
+│                             │                 │
+│ [Ragu-ragu]                 │                 │
+│                             │                 │
+│ [Sebelumnya] [Selanjutnya]  │                 │
+└─────────────────────────────┴─────────────────┘
+```
+
+Harus responsive untuk HP.
+
+---
+
+# 16. NAVIGASI SOAL
+
+User harus bisa:
+
+* klik nomor soal
+* lompat langsung ke soal tertentu
+* next
+* previous
+* menandai ragu-ragu
+* mengganti jawaban
+* kembali ke soal sebelumnya
+
+Nomor soal memiliki status visual:
+
+* belum dijawab
+* sudah dijawab
+* ragu-ragu
+* soal aktif
+
+Pastikan user tidak dipaksa mengerjakan secara berurutan.
+
+---
+
+# 17. SUBMIT
+
+Tombol:
+
+**Selesai Ujian**
+
+Sebelum submit:
+
+> Apakah Anda yakin ingin mengakhiri ujian?
+
+Tampilkan:
+
+```text
+Sudah dijawab: 84
+Belum dijawab: 16
+Ragu-ragu: 5
+```
+
+Jika yakin:
+
+→ submit.
+
+Jika timer habis:
+
+→ otomatis submit tanpa menunggu konfirmasi.
+
+Server harus menghitung nilai sendiri.
+
+Jangan mempercayai nilai dari frontend.
+
+---
+
+# 18. HALAMAN HASIL
+
+Setelah submit:
+
+```text
+HASIL TRYOUT
+
+UPKP Imipas Paket 1
+
+SKOR
+82
+
+STATUS
+LULUS
+
+Benar        82
+Salah        12
+Tidak jawab   6
+
+Passing Grade
+75
+
+Waktu
+78 menit 32 detik
+```
+
+Jika passing grade berdasarkan beberapa kategori:
+
+```text
+Kategori       Skor      Minimum
+TWK             82        75       ✓
+TKT             78        75       ✓
+TSI             85        75       ✓
+...
+```
+
+Tampilkan status setiap kategori.
+
+Jangan hanya menentukan status berdasarkan frontend.
+
+---
+
+# 19. PEMBAHASAN
+
+Setelah selesai, user dapat melihat pembahasan.
+
+Untuk setiap soal:
+
+```text
+Soal 1
+
+Pertanyaan...
+
+Jawaban Anda:
+B
+
+Jawaban benar:
+C
+
+Status:
+SALAH
+
+Pembahasan:
+Penjelasan singkat...
+```
+
+Jika tidak menjawab:
+
+```text
+Jawaban Anda:
+Tidak dijawab
+```
+
+Pembahasan harus singkat.
+
+---
+
+# 20. RIWAYAT
+
+Simpan setiap percobaan.
+
+User dapat melihat:
+
+```text
+Riwayat Tryout
+
+UPKP Paket 1
+23 September 2026
+Skor 82
+Lulus
+
+UPKP Paket 1
+22 September 2026
+Skor 76
+Lulus
+
+UPKP Paket 2
+21 September 2026
+Skor 68
+Belum Lulus
+```
+
+User dapat membuka detail hasil lama.
+
+Jangan membuat database terlalu kompleks.
+
+---
+
+# 21. DATABASE
+
+Gunakan struktur D1 yang sederhana.
+
+Minimal tabel:
+
+### users
+
+```sql
+id
+name
+email
+password_hash
+role
+access_expires_at
+created_at
+updated_at
+```
+
+Role:
+
+```text
+user
+admin
+```
+
+### sessions
+
+```sql
+id
+user_id
+token_hash
+expires_at
+created_at
+```
+
+### products
+
+Untuk paket akses:
+
+```sql
+id
+name
+price
+duration_days
+active
+created_at
+```
+
+Contoh:
+
+```text
+7 Hari
+20000
+7
+
+6 Bulan
+50000
+180
+```
+
+### payments
+
+```sql
+id
+user_id
+product_id
+reference
+amount
+status
+paid_at
+created_at
+```
+
+Status:
+
+```text
+pending
+paid
+failed
+expired
+```
+
+### exam_packages
+
+```sql
+id
+title
+exam_type
+description
+duration_minutes
+active
+created_at
+updated_at
+```
+
+### categories
+
+```sql
+id
+name
+exam_type
+active
+created_at
+```
+
+### questions
+
+```sql
+id
+package_id
+category_id
+question
+option_a
+option_b
+option_c
+option_d
+option_e
+correct_answer
+explanation
+created_at
+updated_at
+```
+
+### passing_grades
+
+```sql
+id
+package_id
+category_id
+minimum_score
+```
+
+### attempts
+
+```sql
+id
+user_id
+package_id
+started_at
+submitted_at
+expires_at
+score
+correct_count
+wrong_count
+unanswered_count
+passed
+created_at
+```
+
+### attempt_questions
+
+Simpan snapshot urutan soal dan jawaban user.
+
+```sql
+id
+attempt_id
+question_id
+question_order
+user_answer
+marked_review
+```
+
+Tidak perlu membuat database terlalu rumit.
+
+Gunakan foreign key dan index yang diperlukan.
+
+---
+
+# 22. PENTING: SNAPSHOT ATTEMPT
+
+Ketika ujian dimulai:
+
+* pilih soal
+* acak urutannya
+* simpan soal yang digunakan ke `attempt_questions`
+
+Jangan setiap kali halaman dibuka melakukan random ulang.
+
+Jika admin mengedit soal setelah user memulai ujian, attempt yang sedang berjalan tetap menggunakan soal yang sudah tersimpan.
+
+---
+
+# 23. ADMIN
+
+Hanya satu admin.
+
+Dashboard:
+
+```text
+Dashboard
+Users
+Produk Akses
+Paket Tryout
+Kategori
+Soal
+Passing Grade
+Transaksi
+Hasil/Percobaan
+```
+
+---
+
+# 24. DASHBOARD ADMIN
+
+Tampilkan:
+
+```text
+Total User
+User Aktif
+User Akses Aktif
+Total Transaksi
+Pendapatan
+Total Paket Tryout
+Total Soal
+```
+
+Buat sederhana.
+
+Tidak perlu grafik berat pada versi pertama.
+
+---
+
+# 25. ADMIN USER
+
+Admin dapat:
+
+* melihat user
+* mencari user
+* melihat status akses
+* melihat tanggal expired
+* melihat riwayat pembayaran
+* melihat riwayat tryout
+
+Tidak perlu admin mengubah password user pada versi pertama kecuali diperlukan.
+
+---
+
+# 26. ADMIN PAKET TRYOUT
+
+CRUD:
+
+* tambah
+* edit
+* aktif/nonaktif
+* hapus jika aman
+
+Field:
+
+```text
+Nama paket
+Jenis ujian
+Deskripsi
+Durasi
+Status
+```
+
+Contoh:
+
+```text
+UPKP Imipas Paket 1
+UPKP
+90
+Aktif
+```
+
+---
+
+# 27. ADMIN KATEGORI
+
+Admin dapat:
+
+* tambah kategori
+* edit kategori
+* aktif/nonaktif
+
+Contoh:
+
+```text
+TWK
+TKT
+TSI
+TKP Bahasa Inggris
+Literasi Digital
+```
+
+Jangan hard-code kategori.
+
+---
+
+# 28. ADMIN SOAL
+
+Admin dapat:
+
+* tambah soal manual
+* edit soal
+* hapus soal
+* mencari soal
+* filter berdasarkan paket
+* filter berdasarkan kategori
+
+Form:
+
+```text
+Paket
+Kategori
+Pertanyaan
+A
+B
+C
+D
+E
+Jawaban benar
+Pembahasan
+```
+
+---
+
+# 29. IMPORT JSON
+
+Admin harus dapat mengimport banyak soal sekaligus menggunakan JSON.
+
+Format wajib:
+
+```json
+{
+  "title": "UPKP Imipas Paket 1",
+  "category": "UPKP",
+  "questions": [
+    {
+      "question": "Pertanyaan...",
+      "options": {
+        "A": "Pilihan A",
+        "B": "Pilihan B",
+        "C": "Pilihan C",
+        "D": "Pilihan D",
+        "E": "Pilihan E"
+      },
+      "answer": "C",
+      "category": "TWK",
+      "explanation": "Pembahasan singkat..."
+    }
+  ]
+}
+```
+
+Namun buat importer fleksibel sehingga:
+
+* dapat mengimpor paket baru
+* dapat mengimpor soal ke paket yang sudah ada
+* validasi semua field
+* validasi jawaban hanya A-E
+* validasi jumlah soal
+* tampilkan error yang jelas
+* jangan memasukkan sebagian data jika JSON invalid
+
+Gunakan database transaction ketika melakukan import.
+
+Admin harus melihat preview sebelum benar-benar menyimpan.
+
+---
+
+# 30. PAYMENT PAKASIR
+
+Integrasikan Pakasir.
+
+Credential:
+
+```env
+PAKASIR_API_KEY=
+PAKASIR_PROJECT=
+```
+
+Jangan commit credential.
+
+Flow:
+
+```text
+User pilih produk
+↓
+Server membuat transaksi
+↓
+Pakasir payment
+↓
+User membayar
+↓
+Pakasir callback/webhook
+↓
+Server memvalidasi transaksi
+↓
+Payment = PAID
+↓
+access_expires_at diperbarui
+```
+
+Pastikan webhook idempotent.
+
+Jika callback diterima dua kali, jangan menggandakan masa akses.
+
+Jika user masih memiliki akses:
+
+```text
+tanggal_expired_lama + durasi_produk
+```
+
+Jika sudah expired:
+
+```text
+tanggal_sekarang + durasi_produk
+```
+
+Contoh:
+
+Akses sampai 1 Oktober.
+
+Membeli 7 hari pada 25 September:
+
+→ menjadi 8 Oktober.
+
+Jika akses sudah habis:
+
+→ mulai dari waktu pembayaran sukses.
+
+Gunakan waktu UTC di database dan konversi ke WITA pada UI bila diperlukan.
+
+---
+
+# 31. KEAMANAN
+
+Implementasikan minimal:
+
+* password hashing
+* HTTP-only cookie
+* Secure cookie production
+* SameSite
+* session expiration
+* single-session enforcement
+* authorization middleware
+* admin middleware
+* validasi input
+* SQL parameter binding
+* jangan gunakan string interpolation untuk query SQL
+* rate limit sederhana untuk login
+* jangan expose API key
+* validasi webhook Pakasir
+* jangan percaya score dari frontend
+* server-side exam expiration
+* CSRF protection untuk aksi penting jika diperlukan
+* jangan expose jawaban benar melalui API sebelum ujian selesai
+
+Sangat penting:
+
+**Endpoint soal ujian jangan mengirim `correct_answer` ke browser sebelum submit.**
+
+Frontend hanya mendapatkan:
+
+```text
+question
+options
+category
+question number
+```
+
+Jawaban benar hanya dipakai server ketika menghitung hasil.
+
+---
+
+# 32. AKSES USER
+
+Buat middleware:
+
+```text
+requireAuth()
+requireAdmin()
+requireActiveSubscription()
+```
+
+User yang belum login:
+
+→ tidak dapat membuka dashboard/ujian.
+
+User login tetapi akses expired:
+
+→ dapat melihat dashboard dan membeli akses, tetapi tidak dapat memulai ujian.
+
+Admin:
+
+→ dapat mengakses dashboard admin tanpa membutuhkan subscription.
+
+---
+
+# 33. UI
+
+Desain:
+
+* bersih
+* sederhana
+* profesional
+* nuansa sistem ujian pemerintah
+* dominan putih/biru
+* tidak terlalu banyak animasi
+* tidak menggunakan gambar berat
+* mobile responsive
+* fokus pada usability
+
+Header:
+
+```text
+TRYOUT UPKP
+```
+
+Dashboard menggunakan card sederhana.
+
+Halaman ujian harus memprioritaskan:
+
+1. soal
+2. jawaban
+3. timer
+4. navigasi nomor
+
+Jangan membuat UI terlalu ramai.
+
+---
+
+# 34. LANDING PAGE
+
+Landing page sederhana:
+
+Hero:
+
+> Tryout UPKP Imipas
+
+Subheadline:
+
+> Latihan ujian berbasis simulasi dengan sistem timer, penilaian otomatis, dan riwayat hasil.
+
+CTA:
+
+**Mulai Tryout**
+
+Bagian:
+
+* Fitur
+* Pilihan akses
+* Cara kerja
+* FAQ
+* Login/Register
+
+Harga:
+
+```text
+7 Hari
+Rp20.000
+
+6 Bulan
+Rp50.000
+```
+
+Jangan membuat klaim bahwa soal sama dengan soal ujian resmi.
+
+Gunakan disclaimer:
+
+> Tryout ini merupakan media latihan dan simulasi, bukan situs resmi Kementerian Imigrasi dan Pemasyarakatan atau BKN.
+
+---
+
+# 35. API
+
+Gunakan route Hono yang jelas.
+
+Contoh:
+
+```text
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+
+GET    /api/packages
+GET    /api/packages/:id
+
+POST   /api/attempts
+GET    /api/attempts/:id
+POST   /api/attempts/:id/answer
+POST   /api/attempts/:id/submit
+
+GET    /api/results
+GET    /api/results/:id
+
+POST   /api/payments/create
+POST   /api/payments/webhook
+
+GET    /api/admin/users
+GET    /api/admin/packages
+POST   /api/admin/packages
+PUT    /api/admin/packages/:id
+
+GET    /api/admin/questions
+POST   /api/admin/questions
+PUT    /api/admin/questions/:id
+DELETE /api/admin/questions/:id
+
+POST   /api/admin/questions/import
+
+GET    /api/admin/categories
+POST   /api/admin/categories
+PUT    /api/admin/categories/:id
+
+GET    /api/admin/results
+```
+
+Sesuaikan jika struktur aplikasi membutuhkan route berbeda.
+
+---
+
+# 36. FRONTEND
+
+Gunakan Vanilla JS modular.
+
+Contoh:
+
+```text
+src/
+├── index.ts
+├── routes/
+├── middleware/
+├── services/
+├── utils/
+└── db/
+
+public/
+├── index.html
+├── login.html
+├── register.html
+├── dashboard.html
+├── exam.html
+├── result.html
+├── history.html
+├── payment.html
+├── admin/
+│   ├── index.html
+│   ├── packages.html
+│   ├── questions.html
+│   ├── categories.html
+│   ├── users.html
+│   ├── payments.html
+│   └── results.html
+├── css/
+└── js/
+```
+
+Sesuaikan struktur jika ada arsitektur yang lebih baik, tetapi jangan menambahkan framework frontend yang tidak diperlukan.
+
+---
+
+# 37. D1 MIGRATIONS
+
+Buat migration SQL:
+
+```text
+migrations/
+001_initial.sql
+002_indexes.sql
+```
+
+Gunakan foreign key.
+
+Buat index untuk:
+
+* users.email
+* sessions.user_id
+* questions.package_id
+* questions.category_id
+* attempts.user_id
+* attempts.package_id
+* attempt_questions.attempt_id
+* payments.user_id
+* payments.reference
+
+---
+
+# 38. SEED DATA
+
+Buat seed development:
+
+Admin:
+
+```text
+email: admin@example.com
+password: ubah-password-segera
+```
+
+Jangan gunakan password tersebut untuk production.
+
+Buat:
+
+Produk:
+
+```text
+7 Hari
+Rp20.000
+7 hari
+
+6 Bulan
+Rp50.000
+180 hari
+```
+
+Kategori:
+
+```text
+TWK
+TKT
+TSI
+TKP Bahasa Inggris
+Literasi Digital
+```
+
+Buat satu contoh paket:
+
+```text
+UPKP Imipas Paket 1
+100 soal
+90 menit
+```
+
+Tidak perlu membuat 100 soal palsu.
+
+---
+
+# 39. ENVIRONMENT
+
+Buat:
+
+`.dev.vars.example`
+
+Contoh:
+
+```env
+PAKASIR_API_KEY=
+PAKASIR_PROJECT=
+SESSION_SECRET=
+```
+
+Untuk production gunakan:
+
+```bash
+wrangler secret put PAKASIR_API_KEY
+wrangler secret put PAKASIR_PROJECT
+wrangler secret put SESSION_SECRET
+```
+
+Jangan memasukkan secret ke Git.
+
+---
+
+# 40. CLOUDFLARE
+
+Siapkan:
+
+* `wrangler.jsonc` atau konfigurasi terbaru yang sesuai
+* D1 binding
+* Worker
+* migrations
+* local development
+* production deployment
+
+Contoh konsep:
+
+```text
+DB = D1 database
+```
+
+Gunakan binding Cloudflare yang benar.
+
+---
+
+# 41. ERROR HANDLING
+
+Semua API harus memberikan JSON konsisten:
+
+Success:
+
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+Error:
+
+```json
+{
+  "success": false,
+  "error": "Pesan error"
+}
+```
+
+Jangan mengirim stack trace kepada user production.
+
+---
+
+# 42. VALIDASI
+
+Validasi:
+
+Register:
+
+* email valid
+* password minimum
+* email unique
+
+Soal:
+
+* semua pilihan A-E wajib
+* answer harus A-E
+* question wajib
+* category wajib
+
+Import:
+
+* JSON valid
+* format valid
+* tidak ada soal rusak
+* transaction rollback jika ada error
+
+Payment:
+
+* amount sesuai produk
+* reference unique
+* callback tervalidasi
+
+---
+
+# 43. PRIVASI
+
+User hanya dapat melihat:
+
+* data sendiri
+* attempt sendiri
+* hasil sendiri
+
+User A tidak boleh mengakses:
+
+```text
+/api/attempts/user-B
+```
+
+Admin dapat melihat data seluruh user.
+
+---
+
+# 44. ANTI-CHEAT SEDERHANA
+
+Jangan membuat sistem anti-cheat berlebihan.
+
+Minimal:
+
+* timer server-side
+* soal tidak mengirim jawaban benar
+* user tidak dapat mengubah score
+* attempt memiliki expiration
+* satu attempt tidak dapat disubmit berkali-kali
+* setelah submit attempt menjadi immutable
+
+Tidak perlu kamera, screen recording, atau webcam.
+
+---
+
+# 45. STATUS ATTEMPT
+
+Gunakan:
+
+```text
+in_progress
+submitted
+expired
+```
+
+Ketika:
+
+```text
+submitted
+```
+
+user tidak dapat mengubah jawaban.
+
+---
+
+# 46. ADMIN EDIT SOAL
+
+Jika soal belum digunakan:
+
+→ bebas diedit.
+
+Jika soal sudah digunakan pada attempt:
+
+→ perubahan soal tidak boleh mengubah hasil attempt lama.
+
+Karena `attempt_questions` harus menjadi snapshot referensi soal.
+
+Untuk versi sederhana, cukup simpan `question_id` dan jangan menghapus soal yang sudah digunakan secara hard delete.
+
+Gunakan soft delete jika diperlukan.
+
+---
+
+# 47. HASIL PER KATEGORI
+
+Walaupun scoring utama benar/salah, sistem tetap menghitung:
+
+```text
+TWK
+Benar: 25
+Salah: 5
+Score: 83.33
+
+TKT
+Benar: 20
+Salah: 5
+Score: 80
+
+TSI
+...
+```
+
+Ini diperlukan agar passing grade kategori dapat bekerja.
+
+---
+
+# 48. PENTING: JANGAN OVERENGINEERING
+
+Saya ingin aplikasi sederhana.
+
+Jangan tambahkan:
+
+* microservices
+* Redis
+* PostgreSQL
+* Docker wajib
+* Kubernetes
+* React
+* Next.js
+* ORM berat
+* state management kompleks
+* websocket jika tidak diperlukan
+* sistem permission kompleks
+
+Gunakan kemampuan native Cloudflare Workers + D1 + Hono semaksimal mungkin.
+
+---
+
+# 49. DEVELOPMENT WORKFLOW
+
+Jangan mencoba membuat seluruh aplikasi dalam satu file.
+
+Kerjakan bertahap:
+
+### PHASE 1
+
+Project setup:
+
+* Hono
+* Worker
+* D1
+* migration
+* frontend basic
+* environment
+
+### PHASE 2
+
+Authentication:
+
+* register
+* login
+* logout
+* session
+* single-session
+
+### PHASE 3
+
+Admin:
+
+* admin login
+* package CRUD
+* category CRUD
+* question CRUD
+
+### PHASE 4
+
+JSON import:
+
+* validation
+* preview
+* transaction
+* bulk insert
+
+### PHASE 5
+
+Exam:
+
+* create attempt
+* random questions
+* timer
+* answer saving
+* navigation
+* marked review
+* submit
+
+### PHASE 6
+
+Scoring:
+
+* correct
+* wrong
+* unanswered
+* category score
+* passing grade
+* result
+
+### PHASE 7
+
+History:
+
+* attempt history
+* result detail
+* explanation
+
+### PHASE 8
+
+Payment:
+
+* product
+* Pakasir
+* callback
+* subscription expiration
+* idempotency
+
+### PHASE 9
+
+UI polish:
+
+* responsive
+* mobile
+* loading state
+* error state
+* empty state
+
+### PHASE 10
+
+Security + testing + deployment.
+
+---
+
+# 50. ATURAN UNTUK AI CODING
+
+Jangan langsung membuat kode besar tanpa memeriksa struktur project.
+
+Sebelum coding:
+
+1. Jelaskan arsitektur singkat.
+2. Buat struktur folder.
+3. Buat database schema.
+4. Buat migration.
+5. Implementasikan secara bertahap.
+6. Setelah setiap phase, jalankan test/build/typecheck.
+7. Perbaiki error sebelum lanjut.
+8. Jangan meninggalkan TODO untuk fitur inti.
+9. Jangan membuat mock API untuk fitur production.
+10. Jangan menganggap payment berhasil hanya dari frontend.
+11. Jangan menyimpan password plaintext.
+12. Jangan mengirim correct answer ke client saat ujian.
+13. Jangan mempercayai score dari client.
+14. Jangan menggunakan credential Pakasir hard-coded.
+15. Jangan membuat dependency yang tidak diperlukan.
+
+Jika menemukan bagian yang belum jelas, pilih solusi paling sederhana yang konsisten dengan requirement ini dan dokumentasikan keputusan tersebut.
+
+---
+
+# 51. ACCEPTANCE CRITERIA
+
+Aplikasi dianggap selesai jika:
+
+### Authentication
+
+* User dapat register.
+* User dapat login.
+* Password ter-hash.
+* Satu user hanya memiliki satu sesi aktif.
+* Logout bekerja.
+
+### Subscription
+
+* User dapat membeli paket 7 hari.
+* User dapat membeli paket 6 bulan.
+* Payment Pakasir dapat diproses.
+* Callback memperbarui masa akses.
+* Callback tidak menggandakan akses jika diterima dua kali.
+* User dengan akses aktif dapat mengakses semua paket.
+
+### Admin
+
+* Admin dapat login.
+* Admin dapat membuat/edit/nonaktifkan paket.
+* Admin dapat membuat/edit kategori.
+* Admin dapat CRUD soal.
+* Admin dapat import JSON.
+* Admin dapat mengatur passing grade.
+* Admin dapat mengatur timer.
+
+### Exam
+
+* Paket berisi 100 soal.
+* Soal diacak.
+* Pilihan A-E tidak diacak.
+* Timer bekerja.
+* Timer divalidasi server.
+* User dapat lompat nomor.
+* User dapat menandai ragu-ragu.
+* Jawaban tersimpan.
+* Refresh tidak menghilangkan jawaban.
+* Waktu habis otomatis submit.
+
+### Result
+
+* Benar dihitung.
+* Salah dihitung.
+* Tidak dijawab dihitung.
+* Skor dihitung.
+* Skor per kategori dihitung.
+* Passing grade ditampilkan.
+* Status LULUS/BELUM LULUS dihitung server-side.
+* Pembahasan dapat dilihat.
+* Riwayat tersimpan.
+
+### Security
+
+* Correct answer tidak bocor sebelum submit.
+* User tidak dapat melihat attempt user lain.
+* Admin route terlindungi.
+* SQL injection dicegah.
+* Secret tidak masuk Git.
+
+---
+
+# 52. OUTPUT YANG SAYA INGINKAN DARI ANDA
+
+Setelah membaca requirement ini:
+
+1. Tampilkan architecture singkat.
+2. Tampilkan struktur folder.
+3. Tampilkan schema database.
+4. Tampilkan daftar API endpoint.
+5. Tampilkan dependency yang akan digunakan dan alasan singkat.
+6. Mulai implementasi Phase 1.
+7. Jangan hanya memberikan contoh kode.
+8. Buat kode yang benar-benar dapat dijalankan.
+9. Setelah selesai satu phase, test terlebih dahulu.
+10. Lanjutkan ke phase berikutnya.
+11. Jika ada error, perbaiki.
+12. Pastikan project akhirnya dapat dijalankan dengan:
+
+```bash
+npm install
+npm run dev
+```
+
+dan dapat dideploy dengan:
+
+```bash
+npm run deploy
+```
+
+Sesuaikan command dengan package.json yang dibuat.
+
+---
+
+# 53. PRIORITAS
+
+Prioritas implementasi:
+
+1. Authentication
+2. Database
+3. Admin soal
+4. JSON import
+5. Sistem ujian
+6. Timer
+7. Scoring
+8. Passing grade
+9. Riwayat
+10. Payment Pakasir
+11. UI polish
+
+Jangan menghabiskan waktu membuat landing page yang bagus sebelum core exam system berfungsi.
+
+---
+
+# 54. CATATAN PRODUK
+
+Website ini bukan website resmi BKN maupun Kementerian Imigrasi dan Pemasyarakatan.
+
+Jangan menggunakan logo resmi pemerintah tanpa izin.
+
+Gunakan branding:
+
+**TRYOUT UPKP**
+
+Subbranding:
+
+**Simulasi & Latihan Ujian**
+
+Fokus awal:
+
+**UPKP Imipas**
+
+Desain boleh mengambil inspirasi umum dari website ujian pemerintah dalam hal layout dan usability, tetapi jangan menyalin tampilan, logo, aset, atau kode situs tertentu.
+
+Mulai pembangunan sekarang secara bertahap dan pastikan setiap tahap benar-benar berfungsi sebelum melanjutkan.

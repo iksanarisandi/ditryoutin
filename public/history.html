@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Riwayat Tryout — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <div class="container mt mb">
+    <h1>Riwayat Tryout</h1>
+    <div class="card" id="list"><p class="muted">Memuat…</p></div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      const me = await TO.requireUser();
+      if (!me) return;
+      TO.renderHeader('/history.html', me);
+
+      const el = document.getElementById('list');
+      try {
+        const { results } = await TO.api('/api/results');
+        if (!results.length) {
+          el.innerHTML = '<p class="muted">Belum ada riwayat. <a href="/dashboard.html">Kerjakan tryout pertama Anda</a>.</p>';
+          return;
+        }
+        el.innerHTML = `
+          <div class="table-wrap"><table class="table">
+            <thead><tr><th>Tanggal</th><th>Paket</th><th class="num">Skor</th><th>Status</th><th>Benar / Salah / Kosong</th><th></th></tr></thead>
+            <tbody>
+              ${results.map((r) => `
+                <tr>
+                  <td class="nowrap">${TO.fmtDateTime(r.submitted_at)}<div class="small muted">WITA</div></td>
+                  <td>${TO.esc(r.title)}</td>
+                  <td class="num"><strong>${r.score}</strong> <span class="muted small">/ ${r.max_score}</span></td>
+                  <td>${r.passed === null ? '<span class="badge">-</span>' : (r.passed ? '<span class="badge badge-success">Lulus</span>' : '<span class="badge badge-danger">Belum Lulus</span>')}</td>
+                  <td class="small">${r.correct_count} / ${r.wrong_count} / ${r.unanswered_count}</td>
+                  <td><a class="btn btn-sm btn-outline" href="/result.html?id=${r.id}">Detail</a></td>
+                </tr>`).join('')}
+            </tbody>
+          </table></div>`;
+      } catch (e) {
+        el.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>';
+      }
+    })();
+  </script>
+</body>
+</html>

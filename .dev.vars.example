@@ -1,0 +1,25 @@
+# Salin file ini menjadi .dev.vars untuk pengembangan lokal.
+# .dev-vars DI-IGNORE GIT dan TIDAK BOLEH di-commit.
+
+# Pakasir (dari halaman detail Proyek di https://app.pakasir.com)
+PAKASIR_API_KEY=
+PAKASIR_PROJECT=
+# Secret validasi header X-Secret webhook Pakasir (lihat bawah halaman detail proyek)
+PAKASIR_WEBHOOK_SECRET=
+
+# Secret acak untuk derivasi hash sesi (generate: openssl rand -hex 32)
+SESSION_SECRET=
+
+# Opsional: mengunci halaman /setup dengan secret tambahan (wajib untuk production)
+SETUP_SECRET=
+
+# Cloudflare Turnstile (SANGAT DISARANKAN produksi) — anti-bot register/login.
+# Buat widget di dashboard Cloudflare: Turnstile -> Add site (mode Managed).
+# SITE_KEY boleh publik (dipakai frontend); SECRET_KEY jangan bocor.
+# Jika keduanya kosong, captcha nonaktif (register hanya dilindungi rate limit).
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
+
+# Mode pembayaran BUKAN rahasia — diatur di wrangler.jsonc bagian "vars":
+#   PAYMENT_MODE=manual  -> QRIS pribadi (/public/img/qris.jpg) + verifikasi admin via WA
+#   PAYMENT_MODE=pakasir -> gateway Pakasir (isi PAKASIR_* di atas)

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hasil Tryout — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <div class="container mt mb" id="content">
+    <div class="card muted">Memuat hasil…</div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      const me = await TO.requireUser();
+      if (!me) return;
+      TO.renderHeader('/history.html', me);
+
+      const id = TO.qs('id');
+      const root = document.getElementById('content');
+      let d;
+      try {
+        d = await TO.api('/api/results/' + id);
+      } catch (e) {
+        root.innerHTML = '<div class="card"><div class="alert alert-danger">' + TO.esc(e.message) + '</div><a class="btn" href="/dashboard.html">Kembali</a></div>';
+        return;
+      }
+
+      const r = d.result;
+      const statusBadge = !r.passing_available
+        ? '<span class="badge">TANPA PASSING GRADE</span>'
+        : (r.passed ? '<span class="badge badge-success">LULUS</span>' : '<span class="badge badge-danger">BELUM LULUS</span>');
+
+      let html = `
+        <div class="card score-hero">
+          <div class="muted" style="text-transform:uppercase;letter-spacing:1px;font-size:.8rem">Hasil Tryout — ${TO.esc(r.package.title)}</div>
+          <div class="score">${r.score}</div>
+          <div class="of">dari maks ${r.max_score} poin</div>
+          <div style="margin:10px 0">${statusBadge}</div>
+          ${r.passing_mode === 'total' ? `<div class="small muted">Minimum kelulusan: <strong>${r.passing_grade_total}</strong> poin (skor keseluruhan)</div>` : ''}
+          ${r.auto_submitted ? '<div class="small muted">Waktu habis — ujian otomatis disubmit.</div>' : ''}
+          <div class="grid grid-3 mt" style="max-width:520px;margin:14px auto 0">
+            <div class="card"><div class="stat-card"><div class="label">Benar <span class="muted small">(+5 poin)</span></div><div class="value" style="color:var(--green)">${r.correct_count}</div></div></div>
+            <div class="card"><div class="stat-card"><div class="label">Salah</div><div class="value" style="color:var(--red)">${r.wrong_count}</div></div></div>
+            <div class="card"><div class="stat-card"><div class="label">Tidak Jawab</div><div class="value" style="color:var(--muted)">${r.unanswered_count}</div></div></div>
+          </div>
+          <div class="small muted mt">Skor: 5 poin per jawaban benar. Waktu pengerjaan: ${TO.fmtDur(r.duration_seconds)} &bull; Selesai: ${TO.fmtDateTime(r.submitted_at)} WITA</div>
+        </div>`;
+
+      const csByName = new Map((d.category_scores || []).map((cs) => [cs.name, cs]));
+      const catMax = (name) => {
+        const cs = csByName.get(name);
+        return cs ? (cs.max_score != null ? cs.max_score : cs.total * 5) : null;
+      };
+
+      if (d.passing_grades && d.passing_grades.length) {
+        html += `
+        <div class="card result-tables">
+          <h3>Passing Grade per Kategori</h3>
+          <div class="table-wrap"><table class="table">
+            <thead><tr><th>Kategori</th><th class="num">Skor</th><th class="num">Maks</th><th class="num">Minimum</th><th>Status</th></tr></thead>
+            <tbody>
+              ${d.passing_grades.map((g) => `
+                <tr>
+                  <td>${TO.esc(g.name)}</td>
+                  <td class="num">${g.score === null ? '-' : g.score}</td>
+                  <td class="num muted">${catMax(g.name) ?? '-'}</td>
+                  <td class="num">${g.minimum_score}</td>
+                  <td>${g.passed === null ? '<span class="badge">-</span>' : (g.passed ? '<span class="badge badge-success">✓ LULUS</span>' : '<span class="badge badge-danger">✗ BELUM</span>')}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table></div>
+        </div>`;
+      } else if (d.category_scores && d.category_scores.length) {
+        html += `
+        <div class="card result-tables">
+          <h3>Skor per Kategori</h3>
+          <div class="table-wrap"><table class="table">
+            <thead><tr><th>Kategori</th><th class="num">Benar</th><th class="num">Salah</th><th class="num">Kosong</th><th class="num">Skor</th></tr></thead>
+            <tbody>
+              ${d.category_scores.map((cs) => `
+                <tr>
+                  <td>${TO.esc(cs.name)}</td>
+                  <td class="num">${cs.correct}</td>
+                  <td class="num">${cs.wrong}</td>
+                  <td class="num">${cs.unanswered}</td>
+                  <td class="num"><strong>${cs.score}</strong> <span class="muted small">/ ${cs.max_score != null ? cs.max_score : cs.total * 5}</span></td>
+                </tr>`).join('')}
+            </tbody>
+          </table></div>
+        </div>`;
+      }
+
+      html += `
+        <div class="card">
+          <h3>Pembahasan</h3>
+          ${d.review.map((rev) => {
+            const status = rev.user_answer == null
+              ? '<span class="badge">TIDAK DIJAWAB</span>'
+              : (rev.is_correct ? '<span class="badge badge-success">BENAR</span>' : '<span class="badge badge-danger">SALAH</span>');
+            return `
+            <details class="review-item">
+              <summary><span>Soal ${rev.question_order}</span> ${status} <span class="badge badge-primary">${TO.esc(rev.category)}</span></summary>
+              <div class="review-body">
+                <div class="q-text">${TO.esc(rev.question)}</div>
+                ${['A', 'B', 'C', 'D', 'E'].map((L) => {
+                  const val = rev['option_' + L.toLowerCase()];
+                  const isCorrect = rev.correct_answer === L;
+                  const isWrongPick = rev.user_answer === L && !isCorrect;
+                  return `<div class="rev-option ${isCorrect ? 'correct' : ''} ${isWrongPick ? 'wrong-pick' : ''}">${L}. ${TO.esc(val)} ${isCorrect ? '✓' : ''}</div>`;
+                }).join('')}
+                <div class="rev-meta">
+                  <div class="box"><div class="k">Jawaban Anda</div><strong>${rev.user_answer == null ? 'Tidak dijawab' : rev.user_answer}</strong></div>
+                  <div class="box"><div class="k">Jawaban Benar</div><strong style="color:var(--green)">${rev.correct_answer}</strong></div>
+                </div>
+                ${rev.explanation ? '<p><strong>Pembahasan:</strong> ' + TO.esc(rev.explanation) + '</p>' : '<p class="muted small">Belum ada pembahasan untuk soal ini.</p>'}
+              </div>
+            </details>`;
+          }).join('')}
+        </div>
+        <div class="card" style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn" href="/dashboard.html">Kembali ke Dashboard</a>
+          <a class="btn btn-ghost" href="/history.html">Lihat Riwayat</a>
+        </div>`;
+
+      root.innerHTML = html;
+    })();
+  </script>
+</body>
+</html>

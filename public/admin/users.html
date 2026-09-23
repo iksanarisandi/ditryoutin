@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kelola User — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head"><h1>Users</h1></div>
+      <div class="filter-bar">
+        <input type="text" id="q" placeholder="Cari nama / email…">
+        <button class="btn" id="search-btn">Cari</button>
+      </div>
+      <div class="card">
+        <div id="list"><p class="muted">Memuat…</p></div>
+        <div class="pager" id="pager"></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="detail-modal" hidden>
+    <div class="modal" style="max-width:680px">
+      <h3 id="d-title">Detail User</h3>
+      <div id="d-body"></div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="d-close" type="button">Tutup</button></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/users.html');
+      if (!me) return;
+
+      let page = 1;
+      const listEl = document.getElementById('list');
+      const pagerEl = document.getElementById('pager');
+
+      async function load() {
+        listEl.innerHTML = '<p class="muted">Memuat…</p>';
+        try {
+          const q = document.getElementById('q').value.trim();
+          const d = await TO.api('/api/admin/users' + (q ? `?q=${encodeURIComponent(q)}&` : '?') + 'page=' + page);
+          if (!d.users.length) { listEl.innerHTML = '<p class="muted">Tidak ada user.</p>'; }
+          else {
+            listEl.innerHTML = `
+              <div class="table-wrap"><table class="table">
+                <thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Akses</th><th>Status</th><th></th></tr></thead>
+                <tbody>${d.users.map((u) => {
+                  const active = u.access_expires_at && new Date(u.access_expires_at) > new Date();
+                  return `
+                    <tr>
+                      <td>${TO.esc(u.name)}</td>
+                      <td>${TO.esc(u.email)}</td>
+                      <td>${u.role === 'admin' ? '<span class="badge badge-primary">ADMIN</span>' : '<span class="badge">user</span>'}</td>
+                      <td>${active ? 's/d ' + TO.fmtDate(u.access_expires_at) : '<span class="muted">tidak aktif</span>'}</td>
+                      <td>${u.locked_until && new Date(u.locked_until) > new Date() ? '<span class="badge badge-danger">TERKUNCI</span>' : '<span class="badge badge-success">OK</span>'}</td>
+                      <td class="nowrap">
+                        <button class="btn btn-sm btn-outline detail-btn" data-id="${u.id}">Detail</button>
+                      </td>
+                    </tr>`;
+                }).join('')}
+                </tbody>
+              </table></div>`;
+            listEl.querySelectorAll('.detail-btn').forEach((b) => b.addEventListener('click', () => openDetail(Number(b.dataset.id))));
+          }
+          pagerEl.innerHTML = ADM.pagerHtml(d.total, d.page, d.per_page);
+          ADM.bindPager(pagerEl, (p) => { page = p; load(); });
+        } catch (e) {
+          listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>';
+        }
+      }
+
+      document.getElementById('search-btn').addEventListener('click', () => { page = 1; load(); });
+      document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); } });
+
+      async function openDetail(id) {
+        let d;
+        try { d = await TO.api('/api/admin/users/' + id); }
+        catch (e) { TO.toast(e.message, 'error'); return; }
+        const u = d.user;
+        document.getElementById('d-title').textContent = u.name + ' — ' + u.email;
+        document.getElementById('d-body').innerHTML = `
+          <div class="grid grid-2 small">
+            <div class="card"><strong>Role:</strong> ${u.role}<br><strong>Terdaftar:</strong> ${TO.fmtDateTime(u.created_at)} WITA<br>
+              <strong>Akses s/d:</strong> ${u.access_expires_at ? TO.fmtDateTime(u.access_expires_at) + ' WITA' : '-'}</div>
+            <div class="card">
+              <strong>Tambah akses manual:</strong>
+              <div class="form-row mt">
+                <input type="number" id="ext-days" min="1" max="3650" value="7">
+                <button class="btn btn-sm" id="ext-btn">Tambah (hari)</button>
+              </div>
+              <div class="mt"><button class="btn btn-sm btn-danger" id="reset-btn">Reset Password</button></div>
+              <div id="reset-result" class="mt"></div>
+            </div>
+          </div>
+          <h3 class="mt">Pembayaran</h3>
+          ${d.payments.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Tanggal</th><th>Produk</th><th class="num">Nominal</th><th>Status</th></tr></thead>
+            <tbody>${d.payments.map((p) => `<tr><td>${TO.fmtDateTime(p.created_at)}</td><td>${TO.esc(p.product_name)}</td><td class="num">${TO.rupiah(p.amount)}</td>
+              <td><span class="badge ${p.status === 'paid' ? 'badge-success' : p.status === 'pending' ? 'badge-warn' : 'badge-danger'}">${p.status}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Belum ada.</p>'}
+          <h3 class="mt">Riwayat Tryout</h3>
+          ${d.attempts.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Mulai</th><th>Paket</th><th class="num">Skor</th><th>Status</th></tr></thead>
+            <tbody>${d.attempts.map((a) => `<tr><td>${TO.fmtDateTime(a.started_at)}</td><td>${TO.esc(a.title)}</td><td class="num">${a.score ?? '-'}${a.score != null && a.max_score ? ' <span class="muted small">/ ' + a.max_score + '</span>' : ''}</td>
+              <td>${a.status === 'submitted' ? (a.passed == null ? '—' : (a.passed ? 'Lulus' : 'Belum Lulus')) : a.status}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Belum ada.</p>'}`;
+
+        document.getElementById('ext-btn').addEventListener('click', async () => {
+          const days = Number(document.getElementById('ext-days').value) || 0;
+          try {
+            const r = await TO.api(`/api/admin/users/${id}/extend-access`, { method: 'POST', body: { days } });
+            TO.toast('Akses ditambah ' + days + ' hari — s/d ' + TO.fmtDate(r.access_expires_at), 'success');
+          } catch (e) { TO.toast(e.message, 'error'); }
+        });
+        document.getElementById('reset-btn').addEventListener('click', async () => {
+          if (!confirm('Reset password user ini? Password sementara hanya ditampilkan sekali.')) return;
+          try {
+            const r = await TO.api(`/api/admin/users/${id}/reset-password`, { method: 'POST' });
+            document.getElementById('reset-result').innerHTML =
+              `<div class="alert alert-success">Password sementara: <strong class="mono">${TO.esc(r.temp_password)}</strong><br>Berikan ke user (ditampilkan sekali).</div>`;
+          } catch (e) { TO.toast(e.message, 'error'); }
+        });
+
+        TO.openModal('detail-modal');
+      }
+      document.getElementById('d-close').addEventListener('click', () => TO.closeModal('detail-modal'));
+
+      load();
+    })();
+  </script>
+</body>
+</html>

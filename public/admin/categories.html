@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kategori — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head">
+        <h1>Kategori</h1>
+        <div class="right"><button class="btn" id="add-btn">+ Tambah Kategori</button></div>
+      </div>
+      <div class="card"><div id="list"><p class="muted">Memuat…</p></div></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="form-modal" hidden>
+    <div class="modal">
+      <h3 id="fm-title">Kategori</h3>
+      <form id="fm-form">
+        <div class="form-group"><label for="fm-name">Nama Kategori</label><input type="text" id="fm-name" required maxlength="100" placeholder="TWK"></div>
+        <div class="form-group">
+          <label for="fm-type">Jenis Ujian</label>
+          <input type="text" id="fm-type" list="type-list" required maxlength="50" placeholder="UPKP">
+          <datalist id="type-list">
+            <option value="UPKP"></option>
+            <option value="UJIAN_DINAS_1"></option>
+            <option value="UJIAN_DINAS_2"></option>
+          </datalist>
+        </div>
+        <div class="form-group"><label class="checkbox-line"><input type="checkbox" id="fm-active" checked> Aktif</label></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="fm-cancel">Batal</button>
+          <button type="submit" class="btn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/categories.html');
+      if (!me) return;
+
+      const listEl = document.getElementById('list');
+      let editId = 0;
+      let cache = [];
+
+      async function load() {
+        try {
+          const { categories } = await TO.api('/api/admin/categories');
+          cache = categories;
+          if (!categories.length) { listEl.innerHTML = '<p class="muted">Belum ada kategori.</p>'; return; }
+          listEl.innerHTML = `
+            <div class="table-wrap"><table class="table">
+              <thead><tr><th>Nama</th><th>Jenis Ujian</th><th class="num">Jumlah Soal</th><th>Status</th><th></th></tr></thead>
+              <tbody>${categories.map((c) => `
+                <tr>
+                  <td>${TO.esc(c.name)}</td>
+                  <td>${TO.esc(c.exam_type)}</td>
+                  <td class="num">${c.question_count}</td>
+                  <td>${c.active ? '<span class="badge badge-success">AKTIF</span>' : '<span class="badge">NONAKTIF</span>'}</td>
+                  <td class="nowrap">
+                    <button class="btn btn-sm btn-outline edit-btn" data-id="${c.id}">Edit</button>
+                    <button class="btn btn-sm btn-danger del-btn" data-id="${c.id}" data-n="${TO.esc(c.name)}">Hapus</button>
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table></div>`;
+          listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
+          listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', async () => {
+            if (!confirm(`Hapus kategori "${b.dataset.n}"?`)) return;
+            try { await TO.api('/api/admin/categories/' + b.dataset.id, { method: 'DELETE' }); TO.toast('Kategori dihapus', 'success'); load(); }
+            catch (e) { TO.toast(e.message, 'error'); }
+          }));
+        } catch (e) { listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; }
+      }
+
+      function openForm(id) {
+        editId = id;
+        const c = cache.find((x) => x.id === id);
+        document.getElementById('fm-title').textContent = id ? 'Edit Kategori' : 'Tambah Kategori';
+        document.getElementById('fm-name').value = c ? c.name : '';
+        document.getElementById('fm-type').value = c ? c.exam_type : 'UPKP';
+        document.getElementById('fm-active').checked = c ? !!c.active : true;
+        TO.openModal('form-modal');
+      }
+
+      document.getElementById('add-btn').addEventListener('click', () => openForm(0));
+      document.getElementById('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
+      document.getElementById('fm-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+          name: document.getElementById('fm-name').value,
+          exam_type: document.getElementById('fm-type').value,
+          active: document.getElementById('fm-active').checked,
+        };
+        try {
+          if (editId) await TO.api('/api/admin/categories/' + editId, { method: 'PUT', body });
+          else await TO.api('/api/admin/categories', { method: 'POST', body });
+          TO.closeModal('form-modal');
+          TO.toast('Kategori disimpan', 'success');
+          load();
+        } catch (err) { TO.toast(err.message, 'error'); }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

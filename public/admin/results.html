@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hasil Ujian — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head"><h1>Hasil Ujian</h1></div>
+      <div class="filter-bar">
+        <input type="text" id="f-q" placeholder="Cari nama / email pengguna…">
+        <button class="btn" id="filter-btn">Cari</button>
+      </div>
+      <div class="card">
+        <div id="list"><p class="muted">Memuat…</p></div>
+        <div class="pager" id="pager"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/results.html');
+      if (!me) return;
+
+      const listEl = document.getElementById('list');
+      const pagerEl = document.getElementById('pager');
+      let page = 1;
+
+      function passedBadge(p, status) {
+        if (status !== 'submitted') return '<span class="badge">—</span>';
+        if (p === 1) return '<span class="badge badge-success">LULUS</span>';
+        if (p === 0) return '<span class="badge badge-danger">TIDAK LULUS</span>';
+        return '<span class="badge">TANPA PG</span>';
+      }
+
+      async function load() {
+        listEl.innerHTML = '<p class="muted">Memuat…</p>';
+        const params = new URLSearchParams();
+        const q = document.getElementById('f-q').value.trim();
+        if (q) params.set('q', q);
+        params.set('page', page);
+        try {
+          const d = await TO.api('/api/admin/results?' + params.toString());
+          if (!d.results.length) { listEl.innerHTML = '<p class="muted">Tidak ada hasil.</p>'; }
+          else {
+            listEl.innerHTML = `
+              <div class="table-wrap"><table class="table">
+                <thead><tr><th>ID</th><th>Pengguna</th><th>Paket</th><th>Status</th><th class="num">Skor</th><th>Lulus</th><th class="num">Durasi</th><th>Disubmit</th><th></th></tr></thead>
+                <tbody>${d.results.map((r) => `
+                  <tr>
+                    <td class="muted">${r.id}</td>
+                    <td>${TO.esc(r.user_name)}<div class="small muted">${TO.esc(r.user_email)}</div></td>
+                    <td class="small">${TO.esc(r.package_title)}</td>
+                    <td class="small">${r.status === 'submitted' ? 'Selesai' : (r.status === 'expired' ? 'Kedaluwarsa' : 'Berlangsung')}</td>
+                    <td class="num"><strong>${r.score === null ? '—' : r.score}</strong>${r.score !== null && r.max_score ? ` <span class="muted small">/ ${r.max_score}</span>` : ''}</td>
+                    <td>${passedBadge(r.passed, r.status)}</td>
+                    <td class="num small">${r.duration_seconds === null ? '—' : TO.fmtDur(r.duration_seconds)}</td>
+                    <td class="small">${r.submitted_at ? TO.fmtDateTime(r.submitted_at) : '<span class="muted">—</span>'}</td>
+                    <td>${r.status === 'submitted' ? `<a class="btn btn-sm btn-outline" href="/result.html?id=${r.id}">Lihat</a>` : ''}</td>
+                  </tr>`).join('')}
+                </tbody>
+              </table></div>`;
+          }
+          pagerEl.innerHTML = ADM.pagerHtml(d.total, d.page, d.per_page);
+          ADM.bindPager(pagerEl, (p) => { page = p; load(); });
+        } catch (e) { listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; }
+      }
+
+      document.getElementById('filter-btn').addEventListener('click', () => { page = 1; load(); });
+      document.getElementById('f-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); } });
+      load();
+    })();
+  </script>
+</body>
+</html>

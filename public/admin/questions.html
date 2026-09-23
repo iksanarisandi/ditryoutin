@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kelola Soal — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head">
+        <h1>Soal</h1>
+        <div class="right"><a class="btn" href="/admin/import.html">Import JSON</a><button class="btn" id="add-btn">+ Tambah Soal</button></div>
+      </div>
+      <div class="filter-bar">
+        <select id="f-package"><option value="">Semua Paket</option></select>
+        <select id="f-category"><option value="">Semua Kategori</option></select>
+        <input type="text" id="f-q" placeholder="Cari teks soal…">
+        <button class="btn" id="filter-btn">Filter</button>
+      </div>
+      <div class="card">
+        <div id="list"><p class="muted">Memuat…</p></div>
+        <div class="pager" id="pager"></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="form-modal" hidden>
+    <div class="modal" style="max-width:640px">
+      <h3 id="fm-title">Soal</h3>
+      <form id="fm-form">
+        <div class="form-row">
+          <div class="form-group"><label for="fm-package">Paket</label><select id="fm-package" required></select></div>
+          <div class="form-group"><label for="fm-category">Kategori</label><select id="fm-category" required></select></div>
+        </div>
+        <div class="form-group"><label for="fm-question">Pertanyaan</label><textarea id="fm-question" rows="3" required maxlength="4000"></textarea></div>
+        <div class="form-group"><label for="fm-a">A</label><input type="text" id="fm-a" required maxlength="2000"></div>
+        <div class="form-group"><label for="fm-b">B</label><input type="text" id="fm-b" required maxlength="2000"></div>
+        <div class="form-group"><label for="fm-c">C</label><input type="text" id="fm-c" required maxlength="2000"></div>
+        <div class="form-group"><label for="fm-d">D</label><input type="text" id="fm-d" required maxlength="2000"></div>
+        <div class="form-group"><label for="fm-e">E</label><input type="text" id="fm-e" required maxlength="2000"></div>
+        <div class="form-group"><label for="fm-answer">Jawaban Benar</label>
+          <select id="fm-answer" required>
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="fm-exp">Pembahasan (opsional)</label><textarea id="fm-exp" rows="2" maxlength="4000"></textarea></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="fm-cancel">Batal</button>
+          <button type="submit" class="btn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/questions.html');
+      if (!me) return;
+
+      const listEl = document.getElementById('list');
+      const pagerEl = document.getElementById('pager');
+      let page = 1;
+      let editId = 0;
+      let cache = [];
+
+      async function load() {
+        listEl.innerHTML = '<p class="muted">Memuat…</p>';
+        const params = new URLSearchParams();
+        if (document.getElementById('f-package').value) params.set('package_id', document.getElementById('f-package').value);
+        if (document.getElementById('f-category').value) params.set('category_id', document.getElementById('f-category').value);
+        const q = document.getElementById('f-q').value.trim();
+        if (q) params.set('q', q);
+        params.set('page', page);
+        try {
+          const d = await TO.api('/api/admin/questions?' + params.toString());
+          cache = d.questions;
+
+          // isi dropdown filter & form sekali
+          const pkgSel = document.getElementById('f-package');
+          const catSel = document.getElementById('f-category');
+          if (pkgSel.options.length <= 1) {
+            d.packages.forEach((p) => pkgSel.insertAdjacentHTML('beforeend', `<option value="${p.id}">${TO.esc(p.title)}</option>`));
+            d.categories.forEach((c) => catSel.insertAdjacentHTML('beforeend', `<option value="${c.id}">${TO.esc(c.exam_type)} — ${TO.esc(c.name)}</option>`));
+          }
+          const fp = document.getElementById('fm-package');
+          const fc = document.getElementById('fm-category');
+          if (fp.options.length <= 1) {
+            d.packages.forEach((p) => fp.insertAdjacentHTML('beforeend', `<option value="${p.id}">${TO.esc(p.title)}</option>`));
+            d.categories.forEach((c) => fc.insertAdjacentHTML('beforeend', `<option value="${c.id}">${TO.esc(c.exam_type)} — ${TO.esc(c.name)}</option>`));
+          }
+
+          if (!d.questions.length) { listEl.innerHTML = '<p class="muted">Tidak ada soal.</p>'; }
+          else {
+            listEl.innerHTML = `
+              <div class="table-wrap"><table class="table">
+                <thead><tr><th>ID</th><th>Soal</th><th>Kategori</th><th>Paket</th><th>Jwb</th><th>Dipakai</th><th></th></tr></thead>
+                <tbody>${d.questions.map((q2) => `
+                  <tr>
+                    <td class="muted">${q2.id}</td>
+                    <td style="max-width:340px">${TO.esc(q2.question.slice(0, 140))}${q2.question.length > 140 ? '…' : ''}</td>
+                    <td>${TO.esc(q2.category)}</td>
+                    <td class="small">${TO.esc(q2.package_title)}</td>
+                    <td><strong>${q2.correct_answer}</strong></td>
+                    <td>${q2.used ? '<span class="badge badge-warn">pernah</span>' : '-'}</td>
+                    <td class="nowrap">
+                      <button class="btn btn-sm btn-outline edit-btn" data-id="${q2.id}">Edit</button>
+                      <button class="btn btn-sm btn-danger del-btn" data-id="${q2.id}">Hapus</button>
+                    </td>
+                  </tr>`).join('')}
+                </tbody>
+              </table></div>`;
+            listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
+            listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', async () => {
+              if (!confirm('Hapus soal ini? Soal yang sudah dipakai attempt hanya disembunyikan (soft delete).')) return;
+              try { await TO.api('/api/admin/questions/' + b.dataset.id, { method: 'DELETE' }); TO.toast('Soal dihapus', 'success'); load(); }
+              catch (e) { TO.toast(e.message, 'error'); }
+            }));
+          }
+          pagerEl.innerHTML = ADM.pagerHtml(d.total, d.page, d.per_page);
+          ADM.bindPager(pagerEl, (p) => { page = p; load(); });
+        } catch (e) { listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; }
+      }
+
+      function openForm(id) {
+        editId = id;
+        const q = cache.find((x) => x.id === id);
+        document.getElementById('fm-title').textContent = id ? 'Edit Soal #' + id : 'Tambah Soal';
+        document.getElementById('fm-package').value = q ? q.package_id : (document.getElementById('f-package').value || '');
+        document.getElementById('fm-category').value = q ? q.category_id : '';
+        document.getElementById('fm-question').value = q ? q.question : '';
+        document.getElementById('fm-a').value = q ? q.option_a : '';
+        document.getElementById('fm-b').value = q ? q.option_b : '';
+        document.getElementById('fm-c').value = q ? q.option_c : '';
+        document.getElementById('fm-d').value = q ? q.option_d : '';
+        document.getElementById('fm-e').value = q ? q.option_e : '';
+        document.getElementById('fm-answer').value = q ? q.correct_answer : 'A';
+        document.getElementById('fm-exp').value = q && q.explanation ? q.explanation : '';
+        TO.openModal('form-modal');
+      }
+
+      document.getElementById('add-btn').addEventListener('click', () => openForm(0));
+      document.getElementById('filter-btn').addEventListener('click', () => { page = 1; load(); });
+      document.getElementById('f-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); } });
+      document.getElementById('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
+      document.getElementById('fm-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+          package_id: Number(document.getElementById('fm-package').value),
+          category_id: Number(document.getElementById('fm-category').value),
+          question: document.getElementById('fm-question').value,
+          option_a: document.getElementById('fm-a').value,
+          option_b: document.getElementById('fm-b').value,
+          option_c: document.getElementById('fm-c').value,
+          option_d: document.getElementById('fm-d').value,
+          option_e: document.getElementById('fm-e').value,
+          correct_answer: document.getElementById('fm-answer').value,
+          explanation: document.getElementById('fm-exp').value,
+        };
+        try {
+          if (editId) await TO.api('/api/admin/questions/' + editId, { method: 'PUT', body });
+          else await TO.api('/api/admin/questions', { method: 'POST', body });
+          TO.closeModal('form-modal');
+          TO.toast('Soal disimpan', 'success');
+          load();
+        } catch (err) { TO.toast(err.message, 'error'); }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

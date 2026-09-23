@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Import Soal JSON — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head"><h1>Import Soal (JSON)</h1></div>
+
+      <div class="card">
+        <div class="form-group">
+          <label for="file-input">Atau pilih file .json</label>
+          <input type="file" id="file-input" accept=".json,application/json">
+        </div>
+        <div class="form-group">
+          <label for="json-input">Tempel JSON di sini</label>
+          <textarea id="json-input" rows="10" class="mono" style="font-size:.82rem" placeholder='{
+  "title": "UPKP Imipas Paket 1",
+  "category": "UPKP",
+  "questions": [
+    {
+      "question": "Pertanyaan...",
+      "options": { "A": "Pilihan A", "B": "Pilihan B", "C": "Pilihan C", "D": "Pilihan D", "E": "Pilihan E" },
+      "answer": "C",
+      "category": "TWK",
+      "explanation": "Pembahasan singkat..."
+    }
+  ]
+}'></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="target-pkg">Paket Tujuan</label>
+            <select id="target-pkg"><option value="">— Buat paket baru (dari "title") —</option></select>
+          </div>
+          <div class="form-group">
+            <label for="import-mode">Jika paket sudah berisi soal</label>
+            <select id="import-mode">
+              <option value="append">Tambahkan (append)</option>
+              <option value="replace">Ganti semua (replace)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="checkbox-line"><input type="checkbox" id="create-cats" checked> Buat kategori otomatis jika belum ada</label>
+          </div>
+          <div class="form-group">
+            <label for="new-dur">Durasi paket baru (menit)</label>
+            <input type="number" id="new-dur" min="1" max="600" value="90">
+          </div>
+        </div>
+        <button class="btn" id="preview-btn">Preview</button>
+      </div>
+
+      <div id="preview-panel" class="card mt" hidden>
+        <h3>Preview Import</h3>
+        <div id="preview-body"></div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn btn-success" id="commit-btn" disabled>Simpan Import</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/import.html');
+      if (!me) return;
+
+      let lastPayload = null;
+
+      // daftar paket untuk dropdown
+      try {
+        const { packages } = await TO.api('/api/admin/packages');
+        const sel = document.getElementById('target-pkg');
+        packages.forEach((p) => sel.insertAdjacentHTML('beforeend', `<option value="${p.id}">${TO.esc(p.title)} (${TO.esc(p.exam_type)}, ${p.question_count} soal)</option>`));
+      } catch (e) { /* abaikan */ }
+
+      document.getElementById('file-input').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => { document.getElementById('json-input').value = String(reader.result); };
+        reader.readAsText(file);
+      });
+
+      function buildBody(mode) {
+        let data = document.getElementById('json-input').value;
+        try { JSON.parse(data); } catch (e) {
+          TO.toast('JSON tidak valid: ' + e.message, 'error');
+          return null;
+        }
+        const body = { data, mode };
+        const pkg = document.getElementById('target-pkg').value;
+        if (pkg) body.package_id = Number(pkg);
+        body.import_mode = document.getElementById('import-mode').value;
+        body.create_categories = document.getElementById('create-cats').checked;
+        body.duration_minutes = Number(document.getElementById('new-dur').value) || 90;
+        return body;
+      }
+
+      document.getElementById('preview-btn').addEventListener('click', async () => {
+        const body = buildBody('preview');
+        if (!body) return;
+        const panel = document.getElementById('preview-panel');
+        const pb = document.getElementById('preview-body');
+        const commitBtn = document.getElementById('commit-btn');
+        panel.hidden = false;
+        pb.innerHTML = '<p class="muted">Memeriksa…</p>';
+        commitBtn.disabled = true;
+        try {
+          const d = await TO.api('/api/admin/questions/import', { method: 'POST', body });
+          lastPayload = body;
+          const catRows = Object.entries(d.summary.per_category)
+            .map(([name, n]) => `<tr><td>${TO.esc(name)}</td><td class="num">${n}</td></tr>`).join('');
+          pb.innerHTML = `
+            ${d.valid
+              ? '<div class="alert alert-success">JSON valid — siap diimpor.</div>'
+              : `<div class="alert alert-danger">Ditemukan ${d.errors.length} error — perbaiki dulu, tidak ada data yang disimpan.</div>
+                 <div class="table-wrap"><table class="table"><thead><tr><th>Soal #</th><th>Field</th><th>Error</th></tr></thead>
+                 <tbody>${d.errors.slice(0, 25).map((er) => `<tr><td>${er.index === null ? '-' : er.index + 1}</td><td class="mono small">${TO.esc(er.field)}</td><td>${TO.esc(er.message)}</td></tr>`).join('')}</tbody></table></div>
+                 ${d.errors.length > 25 ? '<p class="muted small">…dan ' + (d.errors.length - 25) + ' error lain.</p>' : ''}`}
+            <div class="grid grid-2 mt">
+              <div class="card"><strong>Judul:</strong> ${TO.esc(d.summary.title)}<br>
+                <strong>Jenis ujian:</strong> ${TO.esc(d.summary.exam_type)}<br>
+                <strong>Total soal:</strong> ${d.summary.total}<br>
+                <strong>Tujuan:</strong> ${d.target.will_create ? 'paket BARU' : 'paket ADA — ' + TO.esc(d.target.title)}</div>
+              <div class="card"><strong>Sebaran kategori:</strong>
+                <div class="table-wrap mt"><table class="table">${catRows}</table></div>
+              </div>
+            </div>`;
+          commitBtn.disabled = !d.valid;
+        } catch (e) {
+          pb.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>';
+        }
+      });
+
+      document.getElementById('commit-btn').addEventListener('click', async () => {
+        if (!lastPayload) return;
+        if (!confirm('Simpan import ini? Data akan ditulis ke database.')) return;
+        const btn = document.getElementById('commit-btn');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan…';
+        try {
+          const d = await TO.api('/api/admin/questions/import', {
+            method: 'POST',
+            body: { ...lastPayload, mode: 'commit' },
+          });
+          TO.toast(`Berhasil: ${d.inserted} soal diimpor${d.created_new_package ? ' ke paket baru' : ''}.`, 'success');
+          document.getElementById('preview-body').innerHTML =
+            `<div class="alert alert-success">Import selesai — ${d.inserted} soal, ${d.categories_created} kategori dibuat, paket ID ${d.package_id}.</div>`;
+          btn.textContent = 'Selesai';
+        } catch (e) {
+          TO.toast(e.message, 'error');
+          btn.disabled = false;
+          btn.textContent = 'Simpan Import';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

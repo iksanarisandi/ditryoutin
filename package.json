@@ -1,0 +1,23 @@
+{
+  "name": "tryout-upkp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:local": "wrangler d1 migrations apply tryout-upkp-db --local",
+    "db:remote": "wrangler d1 migrations apply tryout-upkp-db --remote",
+    "seed:local": "wrangler d1 execute tryout-upkp-db --local --file=scripts/seed-local.sql"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.4.0",
+    "hono": "^4.7.0",
+    "qrcode-generator": "^1.4.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260921.1",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.63.0"
+  }
+}

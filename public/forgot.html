@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lupa Password — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <div class="auth-wrap">
+    <div class="container-sm">
+      <div class="card auth-card">
+        <img class="auth-logo" src="/img/logo-192.png" alt="Tryout UPKP" width="64" height="64">
+        <h1>Lupa Password</h1>
+        <div class="alert alert-info">
+          Saat ini reset password dilakukan melalui admin. Silakan hubungi admin dengan menyebutkan
+          email akun Anda; admin akan memberikan password sementara yang bisa Anda ganti setelah masuk.
+        </div>
+        <form id="forgot-form">
+          <div class="form-group">
+            <label for="email">Email Akun Anda</label>
+            <input type="email" id="email" required placeholder="nama@email.com">
+          </div>
+          <button class="btn btn-block" type="submit">Kirim</button>
+        </form>
+        <div id="done" hidden><div class="alert alert-success">Permintaan terkirim. Silakan hubungi admin untuk menindaklanjuti.</div></div>
+        <p class="mt small"><a href="/login.html">&larr; Kembali ke halaman masuk</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      TO.renderHeader('/forgot.html', await TO.fetchMe());
+      document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await TO.api('/api/auth/forgot-password', { method: 'POST', body: { email: document.getElementById('email').value } });
+        } catch (err) { /* respons selalu netral */ }
+        document.getElementById('forgot-form').hidden = true;
+        document.getElementById('done').hidden = false;
+      });
+    })();
+  </script>
+</body>
+</html>

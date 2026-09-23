@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ujian — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="exam-page">
+  <div class="exam-topbar">
+    <div class="container inner">
+      <span class="title"><img src="/img/favicon-48.png" alt="" width="22" height="22" style="border-radius:6px;vertical-align:-5px;margin-right:7px">TRYOUT UPKP</span>
+      <span id="pkg-title" class="muted" style="color:#dbeafe"></span>
+      <div class="timer" id="timer"><span class="timer-label">Sisa waktu</span><span id="timer-val">--:--</span></div>
+    </div>
+  </div>
+
+  <div class="container exam-layout">
+    <div class="card question-card">
+      <div class="q-head">
+        <span class="qno" id="q-no">Soal nomor 1</span>
+        <span class="badge badge-primary" id="q-cat"></span>
+        <span class="save-ind" id="save-ind"></span>
+      </div>
+      <div class="q-text" id="q-text"></div>
+      <div class="options" id="options"></div>
+      <div class="q-actions">
+        <button class="btn btn-mark" id="btn-mark" type="button">Ragu-ragu</button>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost" id="btn-prev" type="button">&#8592; Sebelumnya</button>
+        <button class="btn" id="btn-next" type="button">Selanjutnya &#8594;</button>
+      </div>
+    </div>
+
+    <div class="card nav-panel">
+      <h3 style="margin-bottom:4px">Daftar Nomor</h3>
+      <div class="legend">
+        <div><span class="chip"></span>Belum dijawab</div>
+        <div><span class="chip answered"></span>Sudah dijawab</div>
+        <div><span class="chip marked"></span>Ragu-ragu</div>
+      </div>
+      <div class="qgrid" id="qgrid"></div>
+      <button class="btn btn-danger btn-block" id="btn-finish" type="button" style="margin-top:14px">Selesai Ujian</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="confirm-modal" hidden>
+    <div class="modal">
+      <h3>Akhiri Ujian?</h3>
+      <p>Periksa kembali jawaban Anda sebelum mengakhiri.</p>
+      <div class="alert alert-info" id="confirm-stats"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirm-cancel" type="button">Kembali ke Ujian</button>
+        <button class="btn btn-danger" id="confirm-ok" type="button">Ya, Akhiri Ujian</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      const attemptId = TO.qs('id');
+      if (!attemptId) { location.href = '/dashboard.html'; return; }
+
+      const me = await TO.requireUser();
+      if (!me) return;
+
+      let data;
+      try {
+        data = await TO.api('/api/attempts/' + attemptId);
+      } catch (e) {
+        TO.toast(e.message, 'error');
+        setTimeout(() => (location.href = '/dashboard.html'), 1200);
+        return;
+      }
+      if (data.status === 'submitted') {
+        location.href = '/result.html?id=' + data.result_id;
+        return;
+      }
+
+      document.getElementById('pkg-title').textContent = data.package.title;
+
+      const qs = data.questions;
+      const answers = data.answers || {};
+      const marked = new Set(data.marked || []);
+      let current = 0;
+      let remaining = data.attempt.remaining_seconds;
+      let submitting = false;
+      let saveTimer = null;
+      let pendingPick = null; // jawaban yang belum tersimpan (debounce)
+
+      // ---------- render ----------
+      // Jawaban efektif = jawaban tersimpan + pilihan yang belum tersimpan (debounce).
+      function effectiveAnswers() {
+        const eff = { ...answers };
+        if (pendingPick) {
+          if (pendingPick.cleared) delete eff[pendingPick.qid];
+          else eff[pendingPick.qid] = pendingPick.answer;
+        }
+        return eff;
+      }
+
+      function counts() {
+        const answered = Object.keys(effectiveAnswers()).length;
+        return { answered, unanswered: qs.length - answered, marked: marked.size };
+      }
+
+      function renderQuestion() {
+        const q = qs[current];
+        document.getElementById('q-no').textContent = 'Soal nomor ' + q.order;
+        document.getElementById('q-cat').textContent = q.category;
+        document.getElementById('q-text').textContent = q.question;
+
+        const sel = pendingPick && pendingPick.qid === q.id
+          ? (pendingPick.cleared ? null : pendingPick.answer)
+          : answers[q.id] || null;
+
+        document.getElementById('options').innerHTML = ['A', 'B', 'C', 'D', 'E'].map((L) => `
+          <label class="option ${sel === L ? 'selected' : ''}">
+            <input type="radio" name="opt" value="${L}" ${sel === L ? 'checked' : ''}>
+            <span><span class="letter">${L}.</span> ${TO.esc(q.options[L])}</span>
+          </label>`).join('');
+
+        document.querySelectorAll('#options input[type=radio]').forEach((inp) => {
+          inp.addEventListener('change', () => pick(inp.value));
+        });
+
+        const markBtn = document.getElementById('btn-mark');
+        markBtn.classList.toggle('on', marked.has(q.id));
+        markBtn.textContent = marked.has(q.id) ? 'Ragu-ragu ✓' : 'Ragu-ragu';
+
+        document.getElementById('btn-prev').disabled = current === 0;
+        document.getElementById('btn-next').disabled = current === qs.length - 1;
+        renderGrid();
+      }
+
+      function renderGrid() {
+        const grid = document.getElementById('qgrid');
+        const eff = effectiveAnswers();
+        grid.innerHTML = qs.map((q, i) => {
+          const isMarked = marked.has(q.id);
+          const isAnswered = !!eff[q.id];
+          const cls = [
+            isMarked ? 'marked' : (isAnswered ? 'answered' : ''),
+            i === current ? 'active' : '',
+          ].filter(Boolean).join(' ');
+          return `<button type="button" class="qn ${cls}" data-i="${i}">${q.order}</button>`;
+        }).join('');
+        grid.querySelectorAll('.qn').forEach((b) => {
+          b.addEventListener('click', () => goTo(Number(b.dataset.i)));
+        });
+      }
+
+      // Pindah soal: di mobile (layout 1 kolom) scroll otomatis ke atas agar
+      // soal berikutnya langsung terbaca dari awal, bukan dari tengah halaman.
+      const isMobile = window.matchMedia('(max-width: 760px)');
+      function goTo(i) {
+        current = i;
+        renderQuestion();
+        if (isMobile.matches) window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      // ---------- autosave ----------
+      async function saveAnswer(qid, answer, markedReview) {
+        const body = { question_id: qid };
+        if (answer !== undefined) body.answer = answer;
+        if (markedReview !== undefined) body.marked_review = markedReview;
+        try {
+          const res = await TO.api(`/api/attempts/${attemptId}/answer`, { method: 'POST', body });
+          if (typeof res.remaining_seconds === 'number') remaining = res.remaining_seconds;
+          document.getElementById('save-ind').textContent = 'Tersimpan ✓';
+          setTimeout(() => (document.getElementById('save-ind').textContent = ''), 1500);
+        } catch (err) {
+          if (err.status === 410) { finish(true); return; }
+          document.getElementById('save-ind').textContent = 'Gagal menyimpan — mencoba lagi';
+          TO.toast(err.message, 'error');
+        }
+      }
+
+      function pick(letter) {
+        const q = qs[current];
+        pendingPick = { qid: q.id, answer: letter, cleared: false };
+        renderQuestion();
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          const p = pendingPick;
+          pendingPick = null;
+          if (p) { answers[p.qid] = p.answer; saveAnswer(p.qid, p.answer); }
+          renderQuestion();
+        }, 500);
+      }
+
+      function clearPick() {
+        const q = qs[current];
+        pendingPick = { qid: q.id, cleared: true };
+        delete answers[q.id];
+        renderQuestion();
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          const p = pendingPick;
+          pendingPick = null;
+          if (p) saveAnswer(p.qid, null);
+          renderQuestion();
+        }, 500);
+      }
+
+      // klik ganda pada pilihan terpilih = hapus jawaban
+      document.getElementById('options').addEventListener('click', (e) => {
+        const lbl = e.target.closest('.option');
+        if (!lbl) return;
+        const inp = lbl.querySelector('input');
+        const q = qs[current];
+        const cur = pendingPick && pendingPick.qid === q.id
+          ? (pendingPick.cleared ? null : pendingPick.answer)
+          : answers[q.id] || null;
+        if (cur && inp.value === cur) {
+          e.preventDefault();
+          setTimeout(clearPick, 0);
+        }
+      });
+
+      document.getElementById('btn-mark').addEventListener('click', () => {
+        const q = qs[current];
+        if (marked.has(q.id)) marked.delete(q.id); else marked.add(q.id);
+        saveAnswer(q.id, undefined, marked.has(q.id));
+        renderQuestion();
+      });
+
+      document.getElementById('btn-prev').addEventListener('click', () => {
+        if (current > 0) goTo(current - 1);
+      });
+      document.getElementById('btn-next').addEventListener('click', () => {
+        if (current < qs.length - 1) goTo(current + 1);
+      });
+
+      // ---------- timer ----------
+      const timerVal = document.getElementById('timer-val');
+      const timerEl = document.getElementById('timer');
+      function tick() {
+        remaining = Math.max(0, remaining - 1);
+        timerVal.textContent = TO.fmtClock(remaining);
+        timerEl.classList.toggle('warn', remaining <= 300);
+        if (remaining <= 0) finish(true);
+      }
+      timerVal.textContent = TO.fmtClock(remaining);
+      timerEl.classList.toggle('warn', remaining <= 300);
+      setInterval(tick, 1000);
+
+      // ---------- submit ----------
+      async function finish(auto) {
+        if (submitting) return;
+        submitting = true;
+        try {
+          await TO.api(`/api/attempts/${attemptId}/submit`, { method: 'POST' });
+        } catch (e) { /* sudah di-submit server-side saat auto */ }
+        location.href = '/result.html?id=' + attemptId;
+      }
+
+      document.getElementById('btn-finish').addEventListener('click', () => {
+        const c = counts();
+        document.getElementById('confirm-stats').innerHTML =
+          `Sudah dijawab: <strong>${c.answered}</strong><br>Belum dijawab: <strong>${c.unanswered}</strong><br>Ragu-ragu: <strong>${c.marked}</strong>`;
+        TO.openModal('confirm-modal');
+      });
+      document.getElementById('confirm-cancel').addEventListener('click', () => TO.closeModal('confirm-modal'));
+      document.getElementById('confirm-ok').addEventListener('click', () => finish(false));
+
+      window.addEventListener('beforeunload', (e) => {
+        if (!submitting) { e.preventDefault(); e.returnValue = ''; }
+      });
+
+      renderQuestion();
+    })();
+  </script>
+</body>
+</html>

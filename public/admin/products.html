@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produk Akses — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head">
+        <h1>Produk Akses</h1>
+        <div class="right"><button class="btn" id="add-btn">+ Tambah Produk</button></div>
+      </div>
+      <div class="card"><div id="list"><p class="muted">Memuat…</p></div></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="form-modal" hidden>
+    <div class="modal">
+      <h3 id="fm-title">Produk</h3>
+      <form id="fm-form">
+        <div class="form-group"><label for="fm-name">Nama</label><input type="text" id="fm-name" required maxlength="100" placeholder="Akses 7 Hari"></div>
+        <div class="form-row">
+          <div class="form-group"><label for="fm-price">Harga (Rp)</label><input type="number" id="fm-price" required min="0" step="500"></div>
+          <div class="form-group"><label for="fm-days">Durasi (hari)</label><input type="number" id="fm-days" required min="1" max="3650"></div>
+        </div>
+        <div class="form-group"><label class="checkbox-line"><input type="checkbox" id="fm-active" checked> Aktif (tampil & bisa dibeli)</label></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="fm-cancel">Batal</button>
+          <button type="submit" class="btn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/products.html');
+      if (!me) return;
+
+      const listEl = document.getElementById('list');
+      let editId = 0;
+
+      async function load() {
+        try {
+          const { products } = await TO.api('/api/admin/products');
+          if (!products.length) { listEl.innerHTML = '<p class="muted">Belum ada produk.</p>'; return; }
+          listEl.innerHTML = `
+            <div class="table-wrap"><table class="table">
+              <thead><tr><th>Nama</th><th class="num">Harga</th><th class="num">Durasi</th><th class="num">Terjual</th><th>Status</th><th></th></tr></thead>
+              <tbody>${products.map((p) => `
+                <tr>
+                  <td>${TO.esc(p.name)}</td>
+                  <td class="num">${TO.rupiah(p.price)}</td>
+                  <td class="num">${p.duration_days} hari</td>
+                  <td class="num">${p.paid_count}</td>
+                  <td>${p.active ? '<span class="badge badge-success">AKTIF</span>' : '<span class="badge">NONAKTIF</span>'}</td>
+                  <td class="nowrap">
+                    <button class="btn btn-sm btn-outline edit-btn" data-id="${p.id}">Edit</button>
+                    <button class="btn btn-sm btn-danger del-btn" data-id="${p.id}" data-n="${TO.esc(p.name)}">Hapus</button>
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table></div>`;
+          listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
+          listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', async () => {
+            if (!confirm(`Hapus produk "${b.dataset.n}"?`)) return;
+            try { await TO.api('/api/admin/products/' + b.dataset.id, { method: 'DELETE' }); TO.toast('Produk dihapus', 'success'); load(); }
+            catch (e) { TO.toast(e.message, 'error'); }
+          }));
+        } catch (e) { listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; }
+      }
+
+      function openForm(id) {
+        editId = id;
+        document.getElementById('fm-title').textContent = id ? 'Edit Produk' : 'Tambah Produk';
+        if (id) {
+          const row = document.querySelector(`.edit-btn[data-id="${id}"]`).closest('tr');
+          document.getElementById('fm-name').value = row.cells[0].textContent;
+          document.getElementById('fm-price').value = parseInt(row.cells[1].textContent.replace(/\D/g, '')) || 0;
+          document.getElementById('fm-days').value = parseInt(row.cells[2].textContent) || 7;
+          document.getElementById('fm-active').checked = row.cells[4].textContent.includes('AKTIF');
+        } else {
+          document.getElementById('fm-form').reset();
+        }
+        TO.openModal('form-modal');
+      }
+
+      document.getElementById('add-btn').addEventListener('click', () => openForm(0));
+      document.getElementById('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
+      document.getElementById('fm-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+          name: document.getElementById('fm-name').value,
+          price: Number(document.getElementById('fm-price').value),
+          duration_days: Number(document.getElementById('fm-days').value),
+          active: document.getElementById('fm-active').checked,
+        };
+        try {
+          if (editId) await TO.api('/api/admin/products/' + editId, { method: 'PUT', body });
+          else await TO.api('/api/admin/products', { method: 'POST', body });
+          TO.closeModal('form-modal');
+          TO.toast('Produk disimpan', 'success');
+          load();
+        } catch (err) { TO.toast(err.message, 'error'); }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>
