@@ -114,3 +114,6 @@ export default {
     await cleanupExpiredSessions(env);
   },
 } satisfies ExportedHandler<Env>;
+
+// Durable Object rate limiter — wajib di-export dari modul utama.
+export { RateLimiter } from './do/ratelimit';

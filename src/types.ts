@@ -14,11 +14,8 @@ export type Env = {
   // Cloudflare Turnstile (anti-bot register/login). Aktif jika keduanya terisi.
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
-  // Rate limiting bindings (wrangler.jsonc -> unsafe.bindings).
-  RATE_LIMIT_API: RateLimit;
-  RATE_LIMIT_AUTH: RateLimit;
-  RATE_LIMIT_REGISTER: RateLimit;
-  RATE_LIMIT_WRITE: RateLimit;
+  // Durable Object rate limiter (counter per limiter+key).
+  RATE_LIMIT_DO: DurableObjectNamespace;
 };
 
 export type SessionUser = {

@@ -25,16 +25,12 @@
     "MANUAL_WA": "6282347303153"
   },
   "workers_dev": true,
-  // Rate limiting (open beta Cloudflare) — bucket terpisah per namespace_id.
-  // API=300/menit per IP; AUTH=12/menit; REGISTER=6/menit; WRITE=90/menit per user.
-  "unsafe": {
-    "bindings": [
-      { "name": "RATE_LIMIT_API", "type": "ratelimit", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } },
-      { "name": "RATE_LIMIT_AUTH", "type": "ratelimit", "namespace_id": "1002", "simple": { "limit": 12, "period": 60 } },
-      { "name": "RATE_LIMIT_REGISTER", "type": "ratelimit", "namespace_id": "1003", "simple": { "limit": 6, "period": 60 } },
-      { "name": "RATE_LIMIT_WRITE", "type": "ratelimit", "namespace_id": "1004", "simple": { "limit": 90, "period": 60 } }
-    ]
+  // Rate limiter via Durable Object (binding "ratelimit" bawaan tidak enforce
+  // pada akun ini). Batasan limit ada di kode: src/middleware/ratelimit.ts.
+  "durable_objects": {
+    "bindings": [{ "name": "RATE_LIMIT_DO", "class_name": "RateLimiter" }]
   },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimiter"] }],
   // Bersihkan session kedaluwarsa harian (03:17 WIB = 20:17 UTC).
   "triggers": {
     "crons": ["17 20 * * *"]
