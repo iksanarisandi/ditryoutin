@@ -81,7 +81,7 @@ Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id
 
 Selama project Pakasir masih sandbox (QRIS tidak memindahkan uang nyata), ada dua cara masuk alur manual:
 
-- **Per-transaksi (default)**: di halaman bayar, tiap kartu paket punya tombol **Bayar Manual** di samping tombol gateway. User bebas memilih.
+- **Per-transaksi (default)**: di halaman bayar, tiap kartu paket punya tombol **Bayar Manual** (primer) dan **QRIS Otomatis** (ghost + badge "Pengembangan" — selama sandbox, gateway hanya untuk review tim Pakasir). User bebas memilih.
 - **Global**: `PAYMENT_MODE=manual` memaksa semua transaksi ke alur manual.
 
 1. User memilih produk → sistem membuat referensi (`TO-XXXX`) **tanpa memanggil Pakasir** (`method='manual'`).
@@ -98,6 +98,7 @@ Catatan: payment manual tidak pernah auto-expire — uang bisa saja sudah masuk 
 2. Salin **Webhook Secret** dari detail project Pakasir → `npx wrangler secret put PAKASIR_WEBHOOK_SECRET`.
 3. Set URL webhook di dashboard Pakasir: `https://ditryout.in/api/payments/webhook`.
 4. `npm run deploy`, lalu selesaikan pembayaran manual pending (Tandai Lunas) sebelum berganti — transaksi lama tetap bisa ditandai kapan saja.
+5. Balik penekanan tombol di `public/payment.html` (tahap pilih produk): **QRIS Otomatis** jadi primer tanpa badge "Pengembangan", **Bayar Manual** jadi ghost.
 
 ## Skrip npm
 

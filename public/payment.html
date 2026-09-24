@@ -59,13 +59,13 @@
                 <h3>${TO.esc(p.name)}</h3>
                 <div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">${TO.rupiah(p.price)}</div>
                 <p class="muted small">Akses ${p.duration_days} hari ke seluruh paket tryout</p>
-                <button class="btn btn-block buy-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Beli via QRIS Otomatis</button>
-                <button class="btn btn-block btn-ghost manual-btn" data-id="${p.id}" style="margin:8px 0 0">Bayar Manual</button>
+                <button class="btn btn-block manual-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Bayar Manual</button>
+                <button class="btn btn-block btn-ghost buy-btn" data-id="${p.id}" style="margin:8px 0 0">QRIS Otomatis <span class="badge badge-warn">Pengembangan</span></button>
               </div>`).join('')}
           </div>
           <div class="alert alert-warn small" style="margin-top:14px">
-            <strong>QRIS Otomatis</strong>: scan, bayar nominal tepat, akses aktif otomatis.<br>
-            <strong>Bayar Manual</strong>: scan QRIS, lalu konfirmasi via WhatsApp ke admin — akses diaktifkan setelah diverifikasi.
+            <strong>Bayar Manual</strong> (aktif): scan QRIS, lalu konfirmasi via WhatsApp ke admin — akses diaktifkan setelah diverifikasi.<br>
+            <strong>QRIS Otomatis</strong> (pengembangan, khusus review tim Pakasir): scan dan bayar nominal tepat — akses aktif otomatis.
           </div>`;
         stage.querySelectorAll('.buy-btn').forEach((btn) => {
           btn.addEventListener('click', () => createPayment(Number(btn.dataset.id)));
