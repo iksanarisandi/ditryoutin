@@ -9,6 +9,7 @@ import {
   parseImportPayload,
   validateImport,
 } from '../../services/importer';
+import { defaultMinimumScore } from '../../services/passing-grades';
 import type { AppEnv } from '../../types';
 
 const adminQuestions = new Hono<AppEnv>();
@@ -56,12 +57,19 @@ function validateQuestionInput(q: QuestionInput): string | null {
   return null;
 }
 
-async function validateRefs(db: D1Database, q: QuestionInput): Promise<string | null> {
-  const pkg = await db.prepare('SELECT id FROM exam_packages WHERE id=?').bind(q.package_id).first();
-  if (!pkg) return 'Paket tidak ditemukan';
-  const cat = await db.prepare('SELECT id FROM categories WHERE id=?').bind(q.category_id).first();
-  if (!cat) return 'Kategori tidak ditemukan';
-  return null;
+// Validasi referensi paket & kategori; mengembalikan exam_type/nama kategori
+// agar pemanggil bisa menerapkan passing grade default tanpa query ulang.
+async function validateRefs(
+  db: D1Database,
+  q: QuestionInput,
+): Promise<{ error: string | null; examType: string | null; categoryName: string | null }> {
+  const pkg = await db.prepare('SELECT id, exam_type FROM exam_packages WHERE id=?')
+    .bind(q.package_id).first<{ id: number; exam_type: string }>();
+  if (!pkg) return { error: 'Paket tidak ditemukan', examType: null, categoryName: null };
+  const cat = await db.prepare('SELECT id, name FROM categories WHERE id=?')
+    .bind(q.category_id).first<{ id: number; name: string }>();
+  if (!cat) return { error: 'Kategori tidak ditemukan', examType: null, categoryName: null };
+  return { error: null, examType: pkg.exam_type, categoryName: cat.name };
 }
 
 adminQuestions.get('/', async (c) => {
@@ -126,8 +134,8 @@ adminQuestions.post('/', async (c) => {
   const input = questionInput(body);
   const err = validateQuestionInput(input);
   if (err) return fail(c, err, 422);
-  const refErr = await validateRefs(c.env.DB, input);
-  if (refErr) return fail(c, refErr, 422);
+  const refs = await validateRefs(c.env.DB, input);
+  if (refs.error) return fail(c, refs.error, 422);
 
   const res = await c.env.DB.prepare(
     `INSERT INTO questions (package_id, category_id, question, option_a, option_b, option_c, option_d, option_e, correct_answer, explanation)
@@ -139,6 +147,16 @@ adminQuestions.post('/', async (c) => {
       input.correct_answer, input.explanation,
     )
     .run();
+
+  // Terapkan passing grade default untuk kategori ini jika paket belum punya aturannya.
+  const def = defaultMinimumScore(refs.examType!, refs.categoryName!);
+  if (def != null) {
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO passing_grades (package_id, category_id, minimum_score) VALUES (?, ?, ?)',
+    )
+      .bind(input.package_id, input.category_id, def)
+      .run();
+  }
   return ok(c, { id: Number(res.meta.last_row_id) }, 201);
 });
 
@@ -149,8 +167,8 @@ adminQuestions.put('/:id', async (c) => {
   const input = questionInput(body);
   const err = validateQuestionInput(input);
   if (err) return fail(c, err, 422);
-  const refErr = await validateRefs(c.env.DB, input);
-  if (refErr) return fail(c, refErr, 422);
+  const refs = await validateRefs(c.env.DB, input);
+  if (refs.error) return fail(c, refs.error, 422);
 
   const res = await c.env.DB.prepare(
     `UPDATE questions SET package_id=?, category_id=?, question=?, option_a=?, option_b=?, option_c=?, option_d=?, option_e=?,
@@ -288,6 +306,20 @@ adminQuestions.post('/import', async (c) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(packageIdFinal, catId, q.question, q.options.A, q.options.B, q.options.C, q.options.D, q.options.E, q.answer, q.explanation || null),
     );
+  }
+
+  // Passing grade default per jenis ujian untuk kategori yang di-import.
+  // INSERT OR IGNORE: aturan yang sudah diatur manual admin tidak ditimpa.
+  for (const catName of needed) {
+    const catId = catMap.get(catName.toLowerCase());
+    const def = defaultMinimumScore(examType, catName);
+    if (catId && def != null) {
+      stmts.push(
+        c.env.DB.prepare(
+          'INSERT OR IGNORE INTO passing_grades (package_id, category_id, minimum_score) VALUES (?, ?, ?)',
+        ).bind(packageIdFinal, catId, def),
+      );
+    }
   }
 
   await c.env.DB.batch(stmts);
