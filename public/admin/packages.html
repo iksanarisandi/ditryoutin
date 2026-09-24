@@ -104,10 +104,11 @@
             </table></div>`;
           listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
           listEl.querySelectorAll('.pg-btn').forEach((b) => b.addEventListener('click', () => openPg(Number(b.dataset.id))));
-          listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', async () => {
+          listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', () => {
             if (!confirm(`Hapus paket "${b.dataset.n}"? (hanya bisa jika belum ada yang mengerjakan)`)) return;
-            try { await TO.api('/api/admin/packages/' + b.dataset.id, { method: 'DELETE' }); TO.toast('Paket dihapus', 'success'); load(); }
-            catch (e) { TO.toast(e.message, 'error'); }
+            TO.busy(b, 'Menghapus…', () => TO.api('/api/admin/packages/' + b.dataset.id, { method: 'DELETE' }))
+              .then(() => { TO.toast('Paket dihapus', 'success'); load(); })
+              .catch((e) => TO.toast(e.message, 'error'));
           }));
         } catch (e) { listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; }
       }
@@ -143,7 +144,7 @@
 
       document.getElementById('add-btn').addEventListener('click', () => openForm(0));
       document.getElementById('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
-      document.getElementById('fm-form').addEventListener('submit', async (e) => {
+      document.getElementById('fm-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const body = {
           title: document.getElementById('fm-title-i').value,
@@ -153,27 +154,27 @@
           passing_grade_total: document.getElementById('fm-pgt').value === '' ? null : Number(document.getElementById('fm-pgt').value),
           active: document.getElementById('fm-active').checked,
         };
-        try {
+        TO.busy(e.submitter || e.currentTarget.querySelector('button[type="submit"]'), 'Menyimpan…', async () => {
           if (editId) await TO.api('/api/admin/packages/' + editId, { method: 'PUT', body });
           else await TO.api('/api/admin/packages', { method: 'POST', body });
           TO.closeModal('form-modal');
           TO.toast('Paket disimpan', 'success');
           load();
-        } catch (err) { TO.toast(err.message, 'error'); }
+        }).catch((err) => TO.toast(err.message, 'error'));
       });
 
       document.getElementById('pg-cancel').addEventListener('click', () => TO.closeModal('pg-modal'));
-      document.getElementById('pg-form').addEventListener('submit', async (e) => {
+      document.getElementById('pg-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const rules = [...document.querySelectorAll('.pg-min')].map((inp) => ({
           category_id: Number(inp.dataset.cat),
           minimum_score: inp.value === '' ? null : Number(inp.value),
         })).filter((r) => r.minimum_score === null || (r.minimum_score >= 0 && r.minimum_score <= 1000));
-        try {
+        TO.busy(e.submitter || e.currentTarget.querySelector('button[type="submit"]'), 'Menyimpan…', async () => {
           await TO.api(`/api/admin/packages/${pgPackageId}/passing-grades`, { method: 'PUT', body: { rules } });
           TO.closeModal('pg-modal');
           TO.toast('Passing grade disimpan', 'success');
-        } catch (err) { TO.toast(err.message, 'error'); }
+        }).catch((err) => TO.toast(err.message, 'error'));
       });
 
       load();

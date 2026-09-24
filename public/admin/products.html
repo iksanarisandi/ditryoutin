@@ -71,10 +71,11 @@
               </tbody>
             </table></div>`;
           listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
-          listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', async () => {
+          listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', () => {
             if (!confirm(`Hapus produk "${b.dataset.n}"?`)) return;
-            try { await TO.api('/api/admin/products/' + b.dataset.id, { method: 'DELETE' }); TO.toast('Produk dihapus', 'success'); load(); }
-            catch (e) { TO.toast(e.message, 'error'); }
+            TO.busy(b, 'Menghapus…', () => TO.api('/api/admin/products/' + b.dataset.id, { method: 'DELETE' }))
+              .then(() => { TO.toast('Produk dihapus', 'success'); load(); })
+              .catch((e) => TO.toast(e.message, 'error'));
           }));
         } catch (e) { listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; }
       }
@@ -96,7 +97,7 @@
 
       document.getElementById('add-btn').addEventListener('click', () => openForm(0));
       document.getElementById('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
-      document.getElementById('fm-form').addEventListener('submit', async (e) => {
+      document.getElementById('fm-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const body = {
           name: document.getElementById('fm-name').value,
@@ -104,13 +105,13 @@
           duration_days: Number(document.getElementById('fm-days').value),
           active: document.getElementById('fm-active').checked,
         };
-        try {
+        TO.busy(e.submitter || e.currentTarget.querySelector('button[type="submit"]'), 'Menyimpan…', async () => {
           if (editId) await TO.api('/api/admin/products/' + editId, { method: 'PUT', body });
           else await TO.api('/api/admin/products', { method: 'POST', body });
           TO.closeModal('form-modal');
           TO.toast('Produk disimpan', 'success');
           load();
-        } catch (err) { TO.toast(err.message, 'error'); }
+        }).catch((err) => TO.toast(err.message, 'error'));
       });
 
       load();

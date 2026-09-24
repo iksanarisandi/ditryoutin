@@ -111,20 +111,20 @@
             <tbody>${d.attempts.map((a) => `<tr><td>${TO.fmtDateTime(a.started_at)}</td><td>${TO.esc(a.title)}</td><td class="num">${a.score ?? '-'}${a.score != null && a.max_score ? ' <span class="muted small">/ ' + a.max_score + '</span>' : ''}</td>
               <td>${a.status === 'submitted' ? (a.passed == null ? '—' : (a.passed ? 'Lulus' : 'Belum Lulus')) : a.status}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Belum ada.</p>'}`;
 
-        document.getElementById('ext-btn').addEventListener('click', async () => {
+        document.getElementById('ext-btn').addEventListener('click', () => {
           const days = Number(document.getElementById('ext-days').value) || 0;
-          try {
+          TO.busy(document.getElementById('ext-btn'), 'Menambah…', async () => {
             const r = await TO.api(`/api/admin/users/${id}/extend-access`, { method: 'POST', body: { days } });
             TO.toast('Akses ditambah ' + days + ' hari — s/d ' + TO.fmtDate(r.access_expires_at), 'success');
-          } catch (e) { TO.toast(e.message, 'error'); }
+          }).catch((e) => TO.toast(e.message, 'error'));
         });
-        document.getElementById('reset-btn').addEventListener('click', async () => {
+        document.getElementById('reset-btn').addEventListener('click', () => {
           if (!confirm('Reset password user ini? Password sementara hanya ditampilkan sekali.')) return;
-          try {
+          TO.busy(document.getElementById('reset-btn'), 'Meriset…', async () => {
             const r = await TO.api(`/api/admin/users/${id}/reset-password`, { method: 'POST' });
             document.getElementById('reset-result').innerHTML =
               `<div class="alert alert-success">Password sementara: <strong class="mono">${TO.esc(r.temp_password)}</strong><br>Berikan ke user (ditampilkan sekali).</div>`;
-          } catch (e) { TO.toast(e.message, 'error'); }
+          }).catch((e) => TO.toast(e.message, 'error'));
         });
 
         TO.openModal('detail-modal');

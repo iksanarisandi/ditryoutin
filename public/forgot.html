@@ -37,13 +37,15 @@
   <script>
     (async function () {
       TO.renderHeader('/forgot.html', await TO.fetchMe());
-      document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+      document.getElementById('forgot-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        try {
-          await TO.api('/api/auth/forgot-password', { method: 'POST', body: { email: document.getElementById('email').value } });
-        } catch (err) { /* respons selalu netral */ }
-        document.getElementById('forgot-form').hidden = true;
-        document.getElementById('done').hidden = false;
+        TO.busy(e.submitter || e.currentTarget.querySelector('button[type="submit"]'), 'Memproses…', async () => {
+          try {
+            await TO.api('/api/auth/forgot-password', { method: 'POST', body: { email: document.getElementById('email').value } });
+          } catch (err) { /* respons selalu netral */ }
+          document.getElementById('forgot-form').hidden = true;
+          document.getElementById('done').hidden = false;
+        });
       });
     })();
   </script>

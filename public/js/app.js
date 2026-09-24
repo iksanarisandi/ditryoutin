@@ -74,6 +74,24 @@
     setTimeout(() => el.remove(), 3800);
   }
 
+  // ---- Tombol sibuk: disable + spinner selama aksi async berjalan (cegah klik ganda) ----
+  async function busy(btn, text, fn) {
+    if (!btn || btn.disabled) return; // sudah diproses — abaikan klik/submit berulang
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('is-busy');
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>' + esc(text);
+    try {
+      return await fn();
+    } finally {
+      btn.classList.remove('is-busy');
+      btn.removeAttribute('aria-busy');
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+
   // ---- Auth guard ----
   async function fetchMe() {
     try { return await api('/api/auth/me'); }
@@ -141,7 +159,7 @@
 
   window.TO = {
     api, esc, rupiah, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft,
-    toast, fetchMe, requireUser, requireAdmin, logout,
+    toast, busy, fetchMe, requireUser, requireAdmin, logout,
     renderHeader, openModal, closeModal,
   };
 })();

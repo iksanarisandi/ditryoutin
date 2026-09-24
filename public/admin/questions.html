@@ -119,10 +119,11 @@
                 </tbody>
               </table></div>`;
             listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
-            listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', async () => {
+            listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', () => {
               if (!confirm('Hapus soal ini? Soal yang sudah dipakai attempt hanya disembunyikan (soft delete).')) return;
-              try { await TO.api('/api/admin/questions/' + b.dataset.id, { method: 'DELETE' }); TO.toast('Soal dihapus', 'success'); load(); }
-              catch (e) { TO.toast(e.message, 'error'); }
+              TO.busy(b, 'Menghapus…', () => TO.api('/api/admin/questions/' + b.dataset.id, { method: 'DELETE' }))
+                .then(() => { TO.toast('Soal dihapus', 'success'); load(); })
+                .catch((e) => TO.toast(e.message, 'error'));
             }));
           }
           pagerEl.innerHTML = ADM.pagerHtml(d.total, d.page, d.per_page);
@@ -151,7 +152,7 @@
       document.getElementById('filter-btn').addEventListener('click', () => { page = 1; load(); });
       document.getElementById('f-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); } });
       document.getElementById('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
-      document.getElementById('fm-form').addEventListener('submit', async (e) => {
+      document.getElementById('fm-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const body = {
           package_id: Number(document.getElementById('fm-package').value),
@@ -165,13 +166,13 @@
           correct_answer: document.getElementById('fm-answer').value,
           explanation: document.getElementById('fm-exp').value,
         };
-        try {
+        TO.busy(e.submitter || e.currentTarget.querySelector('button[type="submit"]'), 'Menyimpan…', async () => {
           if (editId) await TO.api('/api/admin/questions/' + editId, { method: 'PUT', body });
           else await TO.api('/api/admin/questions', { method: 'POST', body });
           TO.closeModal('form-modal');
           TO.toast('Soal disimpan', 'success');
           load();
-        } catch (err) { TO.toast(err.message, 'error'); }
+        }).catch((err) => TO.toast(err.message, 'error'));
       });
 
       load();

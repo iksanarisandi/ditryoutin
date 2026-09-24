@@ -121,6 +121,17 @@ p { margin: .35rem 0 .7rem; }
 .btn-sm { padding: 5px 10px; font-size: .82rem; border-radius: 6px; }
 .btn-lg { padding: 12px 26px; font-size: 1.05rem; }
 .btn-block { width: 100%; }
+/* Tombol sedang memproses (dipasang otomatis oleh TO.busy) */
+.btn.is-busy { cursor: progress; }
+.spinner {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== Cards & grids ===== */
 .card {

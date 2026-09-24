@@ -110,7 +110,7 @@
         return body;
       }
 
-      document.getElementById('preview-btn').addEventListener('click', async () => {
+      document.getElementById('preview-btn').addEventListener('click', () => {
         const body = buildBody('preview');
         if (!body) return;
         const panel = document.getElementById('preview-panel');
@@ -119,7 +119,7 @@
         panel.hidden = false;
         pb.innerHTML = '<p class="muted">Memeriksa…</p>';
         commitBtn.disabled = true;
-        try {
+        TO.busy(document.getElementById('preview-btn'), 'Memeriksa…', async () => {
           const d = await TO.api('/api/admin/questions/import', { method: 'POST', body });
           lastPayload = body;
           const catRows = Object.entries(d.summary.per_category)
@@ -141,18 +141,16 @@
               </div>
             </div>`;
           commitBtn.disabled = !d.valid;
-        } catch (e) {
+        }).catch((e) => {
           pb.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>';
-        }
+        });
       });
 
-      document.getElementById('commit-btn').addEventListener('click', async () => {
+      document.getElementById('commit-btn').addEventListener('click', () => {
         if (!lastPayload) return;
         if (!confirm('Simpan import ini? Data akan ditulis ke database.')) return;
         const btn = document.getElementById('commit-btn');
-        btn.disabled = true;
-        btn.textContent = 'Menyimpan…';
-        try {
+        TO.busy(btn, 'Menyimpan…', async () => {
           const d = await TO.api('/api/admin/questions/import', {
             method: 'POST',
             body: { ...lastPayload, mode: 'commit' },
@@ -160,12 +158,11 @@
           TO.toast(`Berhasil: ${d.inserted} soal diimpor${d.created_new_package ? ' ke paket baru' : ''}.`, 'success');
           document.getElementById('preview-body').innerHTML =
             `<div class="alert alert-success">Import selesai — ${d.inserted} soal, ${d.categories_created} kategori dibuat, paket ID ${d.package_id}.</div>`;
+        }).then(() => {
+          // Import sudah selesai — kunci permanen agar tidak bisa dijalankan dua kali.
           btn.textContent = 'Selesai';
-        } catch (e) {
-          TO.toast(e.message, 'error');
-          btn.disabled = false;
-          btn.textContent = 'Simpan Import';
-        }
+          btn.disabled = true;
+        }).catch((e) => TO.toast(e.message, 'error'));
       });
     })();
   </script>

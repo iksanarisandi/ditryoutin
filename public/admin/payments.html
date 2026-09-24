@@ -78,24 +78,18 @@
                 </tbody>
               </table></div>`;
             listEl.querySelectorAll('.mark-paid').forEach((btn) => {
-              btn.addEventListener('click', async () => {
+              btn.addEventListener('click', () => {
                 const { id, ref, name, amount } = btn.dataset;
                 if (!confirm(
                   `Tandai transaksi ${ref} (${name}, ${TO.rupiah(Number(amount))}) sebagai LUNAS?\n\n` +
                   'Pastikan uang BENAR-BENAR sudah masuk (cek mutasi QRIS / e-wallet Anda) — ' +
                   'aksi ini langsung memperpanjang masa akses pengguna dan tidak bisa dibatalkan.'
                 )) return;
-                btn.disabled = true;
-                btn.textContent = 'Menandai…';
-                try {
+                TO.busy(btn, 'Menandai…', async () => {
                   await TO.api(`/api/admin/payments/${id}/mark-paid`, { method: 'POST', body: {} });
                   TO.toast('Transaksi ditandai lunas — akses pengguna aktif', 'success');
                   load();
-                } catch (e) {
-                  TO.toast(e.message, 'error');
-                  btn.disabled = false;
-                  btn.textContent = 'Tandai Lunas';
-                }
+                }).catch((e) => TO.toast(e.message, 'error'));
               });
             });
           }
