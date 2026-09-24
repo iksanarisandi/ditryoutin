@@ -41,7 +41,9 @@ payments.post('/create', requireAuth, async (c) => {
   }
 
   // Amount SELALU dari database, bukan dari client.
-  const manualMode = c.env.PAYMENT_MODE === 'manual';
+  // Manual bisa dipilih per-transaksi dari halaman bayar (transisi Pakasir sandbox)
+  // atau dipaksa global lewat PAYMENT_MODE=manual.
+  const manualMode = c.env.PAYMENT_MODE === 'manual' || body?.method === 'manual';
   let paymentId = 0;
   let reference = '';
   for (let i = 0; i < 3; i++) {

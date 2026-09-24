@@ -40,7 +40,7 @@ Dua var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 
 | Nama | Keterangan |
 |---|---|
-| `PAYMENT_MODE` | `pakasir` = gateway otomatis (aktif, dipakai untuk review produksi Pakasir); `manual` = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah). |
+| `PAYMENT_MODE` | `pakasir` = gateway otomatis (aktif, dipakai untuk review produksi Pakasir); `manual` = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah). Apa pun nilainya, user tetap bisa memilih **Bayar Manual** per-transaksi di halaman bayar (`method='manual'` di `POST /api/payments/create`). |
 | `MANUAL_WA` | Nomor WA admin (format internasional tanpa `+`, mis. `6282347303153`). Dipakai untuk konfirmasi pembayaran manual **dan** tombol "Kendala pembayaran?" di halaman bayar gateway (`support_wa`). |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
@@ -79,7 +79,10 @@ Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id
 
 ## Mode pembayaran manual (transisi selama Pakasir sandbox)
 
-Selama project Pakasir masih sandbox (QRIS tidak memindahkan uang nyata), `PAYMENT_MODE=manual` membuat alur bayar menjadi:
+Selama project Pakasir masih sandbox (QRIS tidak memindahkan uang nyata), ada dua cara masuk alur manual:
+
+- **Per-transaksi (default)**: di halaman bayar, tiap kartu paket punya tombol **Bayar Manual** di samping tombol gateway. User bebas memilih.
+- **Global**: `PAYMENT_MODE=manual` memaksa semua transaksi ke alur manual.
 
 1. User memilih produk → sistem membuat referensi (`TO-XXXX`) **tanpa memanggil Pakasir** (`method='manual'`).
 2. Halaman pembayaran menampilkan QRIS pribadi (`public/img/qris.jpg`, aset lokal) + nominal tepat + tombol **Konfirmasi via WhatsApp** dengan pesan otomatis berisi referensi & produk.

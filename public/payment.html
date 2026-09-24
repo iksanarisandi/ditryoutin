@@ -59,22 +59,30 @@
                 <h3>${TO.esc(p.name)}</h3>
                 <div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">${TO.rupiah(p.price)}</div>
                 <p class="muted small">Akses ${p.duration_days} hari ke seluruh paket tryout</p>
-                <button class="btn buy-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Beli via QRIS</button>
+                <button class="btn btn-block buy-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Beli via QRIS Otomatis</button>
+                <button class="btn btn-block btn-ghost manual-btn" data-id="${p.id}" style="margin:8px 0 0">Bayar Manual</button>
               </div>`).join('')}
           </div>
           <div class="alert alert-warn small" style="margin-top:14px">
-            Setelah menekan Beli, kode QRIS akan muncul. Scan dengan aplikasi e-wallet / m-banking Anda dan bayar sesuai nominal tepat.
+            <strong>QRIS Otomatis</strong>: scan, bayar nominal tepat, akses aktif otomatis.<br>
+            <strong>Bayar Manual</strong>: scan QRIS, lalu konfirmasi via WhatsApp ke admin — akses diaktifkan setelah diverifikasi.
           </div>`;
         stage.querySelectorAll('.buy-btn').forEach((btn) => {
           btn.addEventListener('click', () => createPayment(Number(btn.dataset.id)));
         });
+        stage.querySelectorAll('.manual-btn').forEach((btn) => {
+          btn.addEventListener('click', () => createPayment(Number(btn.dataset.id), 'manual'));
+        });
       }
 
       // ---------- Buat transaksi ----------
-      async function createPayment(productId) {
+      async function createPayment(productId, method) {
         stage.innerHTML = '<div class="card"><p class="muted">Membuat transaksi…</p></div>';
         try {
-          const d = await TO.api('/api/payments/create', { method: 'POST', body: { product_id: productId } });
+          const d = await TO.api('/api/payments/create', {
+            method: 'POST',
+            body: method ? { product_id: productId, method } : { product_id: productId },
+          });
           paymentId = d.payment.id;
           if (d.manual) showManual(d);
           else showQr(d);
