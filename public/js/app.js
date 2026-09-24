@@ -4,7 +4,10 @@
 
   // ---- API fetch wrapper: selalu JSON { success, data | error } ----
   async function api(path, opts = {}) {
-    const init = { method: opts.method || 'GET', credentials: 'same-origin', headers: {} };
+    // no-store: zona Cloudflare menimpa max-age jadi 4 jam (Browser Cache TTL),
+    // sehingga browser bisa menyajikan data API basi (mis. produk baru tak muncul).
+    // Ini hanya bypass cache BROWSER — cache edge 60 detik tetap bekerja.
+    const init = { method: opts.method || 'GET', credentials: 'same-origin', headers: {}, cache: 'no-store' };
     if (opts.body !== undefined) {
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(opts.body);
