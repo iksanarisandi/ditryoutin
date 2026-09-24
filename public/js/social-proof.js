@@ -1,6 +1,7 @@
 /* Popup bukti sosial di landing page: hasil tryout terbaru yang lulus.
-   Muncul sebentar lalu hilang, bergantian antar peserta. Diam total jika
-   data kurang dari 3, dan nonaktif permanen setelah pengunjung menutupnya. */
+   Muncul sebentar lalu hilang, bergantian antar peserta. Jika data kurang
+   dari 3, tiap peserta hanya ditampilkan sekali (tidak berulang) agar tidak
+   terlihat repetitif. Nonaktif permanen setelah pengunjung menutupnya. */
 (function () {
   'use strict';
   if (localStorage.getItem('sproof-off')) return;
@@ -31,7 +32,9 @@
     var data;
     try { data = (await TO.api('/api/recent-results')).results; }
     catch (e) { return; }
-    if (!Array.isArray(data) || data.length < 3) return; // terlalu sedikit = repetitif, diam saja
+    if (!Array.isArray(data) || data.length === 0) return;
+    // Data cukup banyak: berputar terus. Data sedikit: satu putaran lalu berhenti.
+    var loop = data.length >= 3;
 
     var el = document.createElement('div');
     el.className = 'sproof';
@@ -56,6 +59,7 @@
     var idx = 0, last = null;
     function next() {
       if (idx >= order.length) {
+        if (!loop) return null; // mode sedikit data: habis satu putaran, berhenti
         shuffle(order);
         idx = 0;
         if (order.length > 1 && order[0] === last) {
@@ -70,6 +74,7 @@
       if (stopped) return;
       if (document.hidden) { setTimeout(show, 5000); return; } // tab tidak terlihat: tunda
       var it = next();
+      if (!it) return;
       body.innerHTML =
         '<strong>' + TO.esc(it.first_name) + '</strong> menyelesaikan tryout' +
         '<div class="sproof-title">“' + TO.esc(it.title) + '”</div>' +
