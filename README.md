@@ -40,8 +40,8 @@ Dua var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 
 | Nama | Keterangan |
 |---|---|
-| `PAYMENT_MODE` | `manual` = QRIS pribadi + konfirmasi WA (mode transisi selama Pakasir sandbox); `pakasir` = gateway otomatis. |
-| `MANUAL_WA` | Nomor WA admin untuk konfirmasi pembayaran manual (format internasional tanpa `+`, mis. `6282347303153`). |
+| `PAYMENT_MODE` | `pakasir` = gateway otomatis (aktif, dipakai untuk review produksi Pakasir); `manual` = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah). |
+| `MANUAL_WA` | Nomor WA admin (format internasional tanpa `+`, mis. `6282347303153`). Dipakai untuk konfirmasi pembayaran manual **dan** tombol "Kendala pembayaran?" di halaman bayar gateway (`support_wa`). |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
 

@@ -29,6 +29,21 @@
 
       function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
+      // Kontak admin via WA untuk user yang terkendala membayar lewat gateway.
+      function waHelpLink(wa, ref) {
+        const num = wa || '6282347303153';
+        const text = encodeURIComponent(
+          'Halo admin Tryout UPKP, saya mengalami kendala saat membayar via QRIS.\n' +
+          'Ref: ' + (ref || '-') + '\n' +
+          'Nama akun: ' + (me.user ? me.user.name : '-') + '\n' +
+          'Mohon bantuannya. Terima kasih.'
+        );
+        return '<a class="btn btn-ghost btn-sm" style="text-decoration:none;display:inline-block;margin-top:12px" ' +
+          'target="_blank" rel="noopener" href="https://wa.me/' + TO.esc(num) + '?text=' + text + '">' +
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.1c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1a13 13 0 0 1-5.9-5.2c-.6-1-.9-2-.7-2.8.1-.6.8-1.5 1.3-1.6h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2 0 .4-.1.6l-.4.5c-.2.2-.3.3-.1.6a8.5 8.5 0 0 0 3.8 3.3c.3.1.4.1.6-.1l.8-1c.2-.2.4-.2.6-.1l1.8.9c.5.2.5.4.5.6 0 .1 0 .8-.3 1.3Z"/></svg>' +
+          'Kendala pembayaran? Hubungi admin</a>';
+      }
+
       // ---------- Tahap 1: pilih produk ----------
       async function showProducts() {
         stopPolling();
@@ -68,6 +83,7 @@
             <div class="card">
               <div class="alert alert-danger">${TO.esc(e.message)}</div>
               <button class="btn" id="retry-btn">Coba Lagi</button>
+              <div>${waHelpLink()}</div>
             </div>`;
           document.getElementById('retry-btn').addEventListener('click', showProducts);
         }
@@ -133,6 +149,7 @@
                 <p class="small">Kode referensi: <span class="mono">${TO.esc(d.payment.reference)}</span></p>
                 ${d.txn.is_sandbox ? '<div class="alert alert-warn small">MODE SANDBOX — transaksi percobaan.</div>' : ''}
                 <div class="small muted">Status pembayaran diperiksa otomatis setiap beberapa detik. Halaman ini bisa tetap terbuka.</div>
+                ${waHelpLink(d.support_wa, d.payment.reference)}
               </div>
             </div>
           </div>`;
@@ -176,7 +193,7 @@
           if (d.payment.status === 'pending' && d.manual) {
             showManual(d);
           } else if (d.payment.status === 'pending' && d.qr_svg) {
-            showQr({ qr_svg: d.qr_svg, payment: d.payment, txn: { ...d.txn, is_sandbox: false } });
+            showQr({ qr_svg: d.qr_svg, payment: d.payment, txn: { ...d.txn, is_sandbox: false }, support_wa: d.support_wa });
           } else if (d.payment.status === 'paid') {
             checkStatus();
           } else {

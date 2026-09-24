@@ -112,6 +112,7 @@ payments.post('/create', requireAuth, async (c) => {
         is_sandbox: !!txn.is_sandbox,
       },
       qr_svg: txn.qr_string ? qrStringToSvg(txn.qr_string) : null,
+      support_wa: c.env.MANUAL_WA || '',
     },
     201,
   );
@@ -200,6 +201,7 @@ payments.get('/:id', requireAuth, async (c) => {
       ? { manual: { qr_url: '/img/qris.jpg', wa: c.env.MANUAL_WA || '' } }
       : {}),
     access_expires_at: accessExpiresAt,
+    support_wa: c.env.MANUAL_WA || '',
   });
 });
 

@@ -18,10 +18,11 @@
   "observability": {
     "enabled": true
   },
-  // Bukan rahasia — boleh di config. "manual" = QRIS pribadi + konfirmasi WA
-  // (dipakai selama Pakasir masih sandbox). Ganti ke "pakasir" saat sudah produksi.
+  // Bukan rahasia — boleh di config. "pakasir" = gateway otomatis (QRIS dinamis);
+  // "manual" = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah).
+  // MANUAL_WA tetap dipakai sebagai kontak kendala pembayaran di halaman bayar.
   "vars": {
-    "PAYMENT_MODE": "manual",
+    "PAYMENT_MODE": "pakasir",
     "MANUAL_WA": "6282347303153"
   },
   "workers_dev": true,
