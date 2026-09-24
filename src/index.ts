@@ -4,6 +4,7 @@ import { attachUser, requireAdmin } from './middleware/auth';
 import { originGuard, securityHeaders } from './middleware/security';
 import { clientIp, limitOr429, rateLimit } from './middleware/ratelimit';
 import { PakasirError } from './services/pakasir';
+import { POINTS_PER_CORRECT } from './services/scoring';
 
 import authRoutes from './routes/auth';
 import setupRoutes from './routes/setup';
@@ -72,6 +73,65 @@ app.get('/api/products', async (c) => {
     'SELECT id, name, price, duration_days FROM products WHERE active=1 ORDER BY price',
   ).all();
   const res = ok(c, { products: rows.results ?? [] });
+  res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60');
+  c.executionCtx.waitUntil(caches.default.put(cacheKey, res.clone()));
+  return res;
+});
+
+// Bukti sosial untuk popup landing page: hasil tryout terbaru yang LULUS.
+// Privasi: hanya nama depan peserta, hanya yang lulus, maks. 30 hari terakhir,
+// satu entri per peserta (attempt terbarunya). Cache 60 detik di edge.
+app.get('/api/recent-results', async (c) => {
+  const cacheKey = new Request(c.req.url, { method: 'GET' });
+  const hit = await caches.default.match(cacheKey);
+  if (hit) return hit;
+
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const rows = await c.env.DB.prepare(
+    `SELECT a.user_id, u.name, p.title, a.score, a.submitted_at,
+            a.correct_count, a.wrong_count, a.unanswered_count
+     FROM attempts a
+     JOIN users u ON u.id = a.user_id
+     JOIN exam_packages p ON p.id = a.package_id
+     WHERE a.status='submitted' AND a.passed=1 AND a.submitted_at >= ?
+     ORDER BY a.submitted_at DESC LIMIT 60`,
+  )
+    .bind(since)
+    .all<{
+      user_id: number;
+      name: string;
+      title: string;
+      score: number | null;
+      submitted_at: string;
+      correct_count: number | null;
+      wrong_count: number | null;
+      unanswered_count: number | null;
+    }>();
+
+  const seen = new Set<number>();
+  const results: {
+    first_name: string;
+    title: string;
+    score: number;
+    max_score: number;
+    submitted_at: string;
+  }[] = [];
+  for (const r of rows.results ?? []) {
+    if (seen.has(r.user_id)) continue;
+    seen.add(r.user_id);
+    results.push({
+      first_name: r.name.trim().split(/\s+/)[0] || 'Peserta',
+      title: r.title,
+      score: Math.round(r.score ?? 0),
+      max_score:
+        ((r.correct_count ?? 0) + (r.wrong_count ?? 0) + (r.unanswered_count ?? 0)) *
+        POINTS_PER_CORRECT,
+      submitted_at: r.submitted_at,
+    });
+    if (results.length >= 15) break;
+  }
+
+  const res = ok(c, { results });
   res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60');
   c.executionCtx.waitUntil(caches.default.put(cacheKey, res.clone()));
   return res;
