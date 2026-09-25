@@ -18,6 +18,12 @@
       <span id="pkg-title" class="muted" style="color:#dbeafe"></span>
       <div class="timer" id="timer"><span class="timer-label">Sisa waktu</span><span id="timer-val">--:--</span></div>
     </div>
+    <div class="exam-progress">
+      <div class="container">
+        <span class="prog-text" id="prog-text">0/0 terjawab</span>
+        <div class="prog-track" id="prog-track" role="progressbar" aria-label="Soal terjawab" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><div class="prog-fill" id="prog-fill"></div></div>
+      </div>
+    </div>
   </div>
 
   <div class="container exam-layout">
@@ -110,6 +116,17 @@
         return { answered, unanswered: qs.length - answered, marked: marked.size };
       }
 
+      // Progres topbar: soal terjawab / total — pakai jawaban efektif
+      // agar bar langsung bergerak saat memilih, tanpa menunggu autosave.
+      function updateProgress() {
+        const answered = Object.keys(effectiveAnswers()).length;
+        const track = document.getElementById('prog-track');
+        document.getElementById('prog-fill').style.width = (qs.length ? (answered / qs.length) * 100 : 0) + '%';
+        document.getElementById('prog-text').textContent = answered + '/' + qs.length + ' terjawab';
+        track.setAttribute('aria-valuemax', qs.length);
+        track.setAttribute('aria-valuenow', answered);
+      }
+
       function renderQuestion() {
         const q = qs[current];
         document.getElementById('q-no').textContent = 'Soal nomor ' + q.order;
@@ -137,6 +154,7 @@
         document.getElementById('btn-prev').disabled = current === 0;
         document.getElementById('btn-next').disabled = current === qs.length - 1;
         renderGrid();
+        updateProgress();
       }
 
       function renderGrid() {

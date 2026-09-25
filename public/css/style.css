@@ -550,6 +550,12 @@ body.exam-page { background: #eef2f7; }
 @keyframes pulse { 50% { opacity: .75; } }
 .timer-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1px; opacity: .8; display: block; text-align: center; }
 
+/* Progres bar ujian: persentase soal terjawab, menempel di bawah topbar sticky. */
+.exam-progress .container { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; }
+.prog-text { font-size: .72rem; font-weight: 600; color: #c3d3f2; white-space: nowrap; }
+.prog-track { flex: 1; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .16); overflow: hidden; }
+.prog-fill { height: 100%; width: 0; border-radius: 999px; background: #4ade80; transition: width .3s ease; }
+
 .exam-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; padding: 16px 0 60px; }
 .question-card { padding: 22px; }
 .q-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
