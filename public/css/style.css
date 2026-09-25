@@ -536,7 +536,8 @@ body.exam-page { background: #eef2f7; }
   box-shadow: var(--shadow);
 }
 .exam-topbar .inner { display: flex; align-items: center; gap: 14px; min-height: 54px; flex-wrap: wrap; padding: 4px 0; }
-.exam-topbar .title { font-weight: 700; font-size: .98rem; }
+.exam-topbar .title { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: .98rem; }
+.exam-topbar .title img { border-radius: 6px; }
 .timer {
   margin-left: auto;
   font-family: Consolas, Menlo, monospace;
@@ -549,6 +550,7 @@ body.exam-page { background: #eef2f7; }
 .timer.warn { background: var(--red); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: .75; } }
 .timer-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1px; opacity: .8; display: block; text-align: center; }
+.timer-ico { display: none; } /* desktop memakai label teks; di mobile diganti ikon jam */
 
 /* Progres bar ujian: persentase soal terjawab, menempel di bawah topbar sticky. */
 .exam-progress .container { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; }
@@ -603,6 +605,32 @@ body.exam-page { background: #eef2f7; }
 .qn.marked { background: #f59e0b; border-color: #f59e0b; color: #fff; }
 .qn.active { box-shadow: 0 0 0 2.5px #0f172a; }
 .save-ind { font-size: .78rem; color: var(--muted); min-height: 1em; }
+
+/* Mobile: topbar ujian dibuat ringkas — logo + judul paket + timer dalam satu
+   baris dan strip progres tipis di bawahnya, supaya soal dan tombol navigasi
+   memakai layar sebesar mungkin. */
+@media (max-width: 760px) {
+  .exam-topbar .inner { min-height: 44px; padding: 5px 0; gap: 9px; flex-wrap: nowrap; }
+  .exam-topbar .title-text { display: none; } /* cukup logo, judul paket lebih penting */
+  .exam-topbar .muted {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: .82rem;
+  }
+  .timer { display: inline-flex; align-items: center; gap: 5px; font-size: 1rem; padding: 3px 10px; }
+  .timer-label { display: none; }
+  .timer-ico { display: inline; }
+  .exam-progress .container { padding-bottom: 0; gap: 8px; }
+  .prog-text { font-size: .66rem; }
+  .prog-track { height: 4px; }
+  .exam-layout { padding: 12px 0 60px; gap: 12px; }
+  .question-card { padding: 14px; }
+  .option { padding: 10px 12px; }
+  /* Navigasi: Ragu-ragu + Sebelumnya berdampingan, tombol Selanjutnya
+     selebar kartu supaya jelas dan mudah dijangkau jempol. */
+  .q-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .q-actions .spacer { display: none; }
+  .q-actions .btn:last-child { grid-column: 1 / -1; }
+}
 
 /* ===== Hasil ===== */
 .score-hero { text-align: center; padding: 28px 20px; }
