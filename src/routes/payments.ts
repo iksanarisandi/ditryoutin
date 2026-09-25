@@ -41,8 +41,12 @@ payments.post('/create', requireAuth, async (c) => {
   }
 
   // Amount SELALU dari database, bukan dari client.
-  // Manual bisa dipilih per-transaksi dari halaman bayar (transisi Pakasir sandbox)
-  // atau dipaksa global lewat PAYMENT_MODE=manual.
+  // Alur manual hanya hidup jika diperlihatkan (SHOW_MANUAL_PAYMENT=true) atau
+  // dipaksa global lewat PAYMENT_MODE=manual (fallback bila gateway bermasalah).
+  const manualAllowed = c.env.PAYMENT_MODE === 'manual' || c.env.SHOW_MANUAL_PAYMENT === 'true';
+  if (body?.method === 'manual' && !manualAllowed) {
+    return fail(c, 'Pembayaran manual sedang tidak tersedia. Silakan bayar via QRIS.', 400);
+  }
   const manualMode = c.env.PAYMENT_MODE === 'manual' || body?.method === 'manual';
   let paymentId = 0;
   let reference = '';
@@ -62,7 +66,7 @@ payments.post('/create', requireAuth, async (c) => {
   }
   if (!paymentId) return fail(c, 'Gagal membuat referensi transaksi', 500);
 
-  // Mode manual (transisi selama Pakasir sandbox): tanpa transaksi gateway —
+  // Mode manual (fallback): tanpa transaksi gateway —
   // user bayar ke QRIS pribadi lalu konfirmasi via WA; admin menandai lunas.
   if (manualMode) {
     return ok(

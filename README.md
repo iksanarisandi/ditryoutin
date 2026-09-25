@@ -30,8 +30,8 @@ npm run dev                      # http://localhost:8787
 |---|---|---|
 | `SESSION_SECRET` | ✅ | Kunci HMAC untuk hash token session di DB. String acak ≥ 32 karakter. |
 | `PAKASIR_API_KEY` | ✅ (mode pakasir) | API key dari dashboard Pakasir. |
-| `PAKASIR_PROJECT` | ✅ (mode pakasir) | Slug project Pakasir (`tryout-upkp`). |
-| `PAKASIR_WEBHOOK_SECRET` | ⬜ | Secret webhook dari detail project Pakasir. Dipakai untuk verifikasi header `X-Secret`. |
+| `PAKASIR_PROJECT` | ✅ (mode pakasir) | Slug project Pakasir (`ditryoutin`). |
+| `PAKASIR_WEBHOOK_SECRET` | ✅ (mode pakasir) | Secret webhook dari detail project Pakasir. Dipakai untuk verifikasi header `X-Secret`. |
 | `SETUP_SECRET` | ⬜ (disarankan produksi) | Mengunci halaman `/setup` (bootstrap admin pertama). |
 | `TURNSTILE_SITE_KEY` | ⬜ (disarankan produksi) | Site key Cloudflare Turnstile untuk captcha register/login (publik, boleh di frontend). |
 | `TURNSTILE_SECRET_KEY` | ⬜ (disarankan produksi) | Secret key Turnstile — verifikasi token di server. Aktif hanya jika site key juga terisi. |
@@ -40,7 +40,8 @@ Dua var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 
 | Nama | Keterangan |
 |---|---|
-| `PAYMENT_MODE` | `pakasir` = gateway otomatis (aktif, dipakai untuk review produksi Pakasir); `manual` = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah). Apa pun nilainya, user tetap bisa memilih **Bayar Manual** per-transaksi di halaman bayar (`method='manual'` di `POST /api/payments/create`). |
+| `PAYMENT_MODE` | `pakasir` = gateway otomatis (mode produksi, aktif); `manual` = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah). |
+| `SHOW_MANUAL_PAYMENT` | `true` = tampilkan tombol **Bayar Manual** di halaman bayar (`method='manual'` di `POST /api/payments/create` ditolak server selain `true`, kecuali `PAYMENT_MODE=manual`). Default `false` — disembunyikan. |
 | `MANUAL_WA` | Nomor WA admin (format internasional tanpa `+`, mis. `6282347303153`). Dipakai untuk konfirmasi pembayaran manual **dan** tombol "Kendala pembayaran?" di halaman bayar gateway (`support_wa`). |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
@@ -51,7 +52,8 @@ Dua var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 # 1. set secret produksi
 wrangler secret put SESSION_SECRET        # string acak ≥32 char
 wrangler secret put PAKASIR_API_KEY
-wrangler secret put PAKASIR_PROJECT       # tryout-upkp
+wrangler secret put PAKASIR_PROJECT       # ditryoutin
+wrangler secret put PAKASIR_WEBHOOK_SECRET # X-Secret dari detail project Pakasir
 wrangler secret put SETUP_SECRET          # acak, dipakai sekali untuk /setup
 wrangler secret put TURNSTILE_SITE_KEY     # opsional: captcha register/login
 wrangler secret put TURNSTILE_SECRET_KEY   # opsional: pasangan site key
@@ -77,12 +79,14 @@ npm run deploy
 
 Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id` mengecek status ke Pakasir dengan throttle 4,5 detik/transaksi/isolat) — webhook hanya membuatnya lebih cepat dan andal.
 
-## Mode pembayaran manual (transisi selama Pakasir sandbox)
+## Mode pembayaran manual (fallback bila gateway bermasalah)
 
-Selama project Pakasir masih sandbox (QRIS tidak memindahkan uang nyata), ada dua cara masuk alur manual:
+Gateway Pakasir sudah **produksi** — tombol utama halaman bayar adalah **Bayar via QRIS** (otomatis). Alur manual disembunyikan secara default dan bisa diaktifkan dua cara:
 
-- **Per-transaksi (default)**: di halaman bayar, tiap kartu paket punya tombol **Bayar Manual** (primer) dan **QRIS Otomatis** (ghost + badge "Pengembangan" — selama sandbox, gateway hanya untuk review tim Pakasir). User bebas memilih.
-- **Global**: `PAYMENT_MODE=manual` memaksa semua transaksi ke alur manual.
+- **Per-transaksi**: set `SHOW_MANUAL_PAYMENT=true` di `wrangler.jsonc` → tombol **Bayar Manual** tampil kembali di tiap kartu paket (server juga menerima `method='manual'` lagi).
+- **Global**: `PAYMENT_MODE=manual` memaksa semua transaksi ke alur manual (tombol manual otomatis tampil).
+
+Alur manual saat aktif:
 
 1. User memilih produk → sistem membuat referensi (`TO-XXXX`) **tanpa memanggil Pakasir** (`method='manual'`).
 2. Halaman pembayaran menampilkan QRIS pribadi (`public/img/qris.jpg`, aset lokal) + nominal tepat + tombol **Konfirmasi via WhatsApp** dengan pesan otomatis berisi referensi & produk.
@@ -91,14 +95,6 @@ Selama project Pakasir masih sandbox (QRIS tidak memindahkan uang nyata), ada du
 5. Aksi admin menjalankan `settlePayment` idempoten yang sama dengan webhook — akses langsung diperpanjang, transaksi tercatat `paid` dan masuk statistik pendapatan. Halaman user yang terbuka otomatis pindah ke layar sukses (polling 6 detik).
 
 Catatan: payment manual tidak pernah auto-expire — uang bisa saja sudah masuk sebelum admin sempat memverifikasi.
-
-### Kembali ke mode otomatis setelah Pakasir lolos produksi
-
-1. `wrangler.jsonc` → `"vars": { "PAYMENT_MODE": "pakasir", ... }` (WA bisa dibiarkan).
-2. Salin **Webhook Secret** dari detail project Pakasir → `npx wrangler secret put PAKASIR_WEBHOOK_SECRET`.
-3. Set URL webhook di dashboard Pakasir: `https://ditryout.in/api/payments/webhook`.
-4. `npm run deploy`, lalu selesaikan pembayaran manual pending (Tandai Lunas) sebelum berganti — transaksi lama tetap bisa ditandai kapan saja.
-5. Balik penekanan tombol di `public/payment.html` (tahap pilih produk): **QRIS Otomatis** jadi primer tanpa badge "Pengembangan", **Bayar Manual** jadi ghost.
 
 ## Skrip npm
 

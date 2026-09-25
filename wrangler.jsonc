@@ -18,11 +18,13 @@
   "observability": {
     "enabled": true
   },
-  // Bukan rahasia — boleh di config. "pakasir" = gateway otomatis (QRIS dinamis);
+  // Bukan rahasia — boleh di config. "pakasir" = gateway otomatis (QRIS dinamis, PRODUKSI);
   // "manual" = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah).
   // MANUAL_WA tetap dipakai sebagai kontak kendala pembayaran di halaman bayar.
+  // SHOW_MANUAL_PAYMENT "true" = tampilkan lagi tombol Bayar Manual (fallback).
   "vars": {
     "PAYMENT_MODE": "pakasir",
+    "SHOW_MANUAL_PAYMENT": "false",
     "MANUAL_WA": "6282347303153"
   },
   "workers_dev": true,

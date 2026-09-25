@@ -6,9 +6,12 @@ export type Env = {
   PAKASIR_PROJECT?: string;
   PAKASIR_WEBHOOK_SECRET?: string;
   SETUP_SECRET?: string;
-  // "manual" = QRIS pribadi + verifikasi admin (mode transisi selama sandbox);
+  // "manual" = QRIS pribadi + verifikasi admin (mode fallback bila gateway bermasalah);
   // selain itu (default) = Pakasir.
   PAYMENT_MODE?: string;
+  // "true" = tombol Bayar Manual tampil di halaman bayar (fallback gateway).
+  // Selain "true" = disembunyikan; alur manual tetap hidup jika PAYMENT_MODE=manual.
+  SHOW_MANUAL_PAYMENT?: string;
   // Nomor WA (format internasional tanpa +) untuk konfirmasi pembayaran manual.
   MANUAL_WA?: string;
   // Cloudflare Turnstile (anti-bot register/login). Aktif jika keduanya terisi.

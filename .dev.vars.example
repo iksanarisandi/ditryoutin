@@ -21,5 +21,6 @@ TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
 
 # Mode pembayaran BUKAN rahasia — diatur di wrangler.jsonc bagian "vars":
+#   PAYMENT_MODE=pakasir -> gateway Pakasir produksi (isi PAKASIR_* di atas)
 #   PAYMENT_MODE=manual  -> QRIS pribadi (/public/img/qris.jpg) + verifikasi admin via WA
-#   PAYMENT_MODE=pakasir -> gateway Pakasir (isi PAKASIR_* di atas)
+#   SHOW_MANUAL_PAYMENT=true -> tampilkan tombol Bayar Manual (fallback gateway)
