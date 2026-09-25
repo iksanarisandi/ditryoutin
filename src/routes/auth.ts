@@ -169,6 +169,12 @@ auth.get('/me', requireAuth, async (c) => {
   });
 });
 
+// Heartbeat ringan untuk halaman ujian: memastikan sesi masih valid
+// (401 = sesi dicabut, mis. akun login di perangkat lain). POST agar respons
+// tidak pernah di-cache edge; sengaja bukan /me yang menjalankan finalisasi
+// attempt + rekonsiliasi pembayaran setiap kali dipanggil.
+auth.post('/heartbeat', requireAuth, async (c) => ok(c, { ok: true }));
+
 // Tanpa SMTP: respons netral, arahkan ke admin (tidak membocorkan keberadaan email).
 auth.post('/forgot-password', async (c) => {
   return ok(c, { message: 'Jika akun terdaftar, hubungi admin melalui halaman kontak untuk reset password.' });

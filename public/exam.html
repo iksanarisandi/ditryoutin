@@ -10,6 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    #rv-info > div + div { margin-top: 6px; }
+  </style>
 </head>
 <body class="exam-page">
   <div class="exam-topbar">
@@ -67,11 +70,62 @@
     </div>
   </div>
 
+  <!-- Sesi dicabut: akun login di perangkat lain. Blocking — ujian tidak bisa
+       dikerjakan tanpa sesi valid; arahkan login lalu kembali ke ujian ini. -->
+  <div class="modal-backdrop" id="revoked-modal" hidden>
+    <div class="modal">
+      <h3 id="rv-title">Sesi Berakhir di Perangkat Ini</h3>
+      <p id="rv-text">Akun Anda baru saja masuk di perangkat lain. Sesuai aturan satu perangkat, sesi di sini otomatis berakhir.</p>
+      <div class="alert alert-warn" id="rv-info">
+        <div>&#10003; Ujian Anda <strong>tidak hangus</strong> — semua jawaban yang sudah tersimpan aman.</div>
+        <div id="rv-time-row">&#9200; Waktu ujian tetap berjalan: <strong id="rv-time">--:--</strong></div>
+        <div id="rv-queue" hidden>&#8635; Jawaban terakhir yang belum terkirim akan dikirim ulang otomatis setelah Anda masuk kembali.</div>
+      </div>
+      <div class="modal-actions" style="flex-direction:column;align-items:stretch">
+        <a class="btn" id="rv-btn" href="#">Masuk Kembali</a>
+        <div style="text-align:center;font-size:.8rem;color:var(--muted);margin-top:2px">Setelah masuk, Anda kembali langsung ke ujian ini.</div>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/app.js"></script>
   <script>
     (async function () {
       const attemptId = TO.qs('id');
       if (!attemptId) { location.href = '/dashboard.html'; return; }
+
+      // ---------- antrian autosave ----------
+      // Jawaban yang gagal terkirim (koneksi putus, atau sesi dicabut saat akun
+      // login di perangkat lain) tidak boleh hilang: masuk antrian per soal,
+      // bertahan di localStorage, dan dikirim ulang otomatis. Item untuk soal
+      // yang sama digabung (field terbaru menang) — sama semantik dengan
+      // COALESCE di server.
+      const QUEUE_KEY = 'to_examq_' + attemptId;
+      let storageOk = true;
+      try { localStorage.setItem('to_probe', '1'); localStorage.removeItem('to_probe'); }
+      catch (e) { storageOk = false; }
+      const memQueue = []; // fallback bila localStorage tidak tersedia
+      function loadQueue() {
+        if (!storageOk) return memQueue;
+        try {
+          const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+          return Array.isArray(q) ? q : [];
+        } catch (e) { return []; }
+      }
+      function saveQueue(q) {
+        if (!storageOk) { memQueue.length = 0; memQueue.push(...q); return; }
+        try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch (e) { /* kuota penuh: abaikan */ }
+      }
+      // Satu akun hanya boleh satu ujian berjalan — antrian attempt lain pasti
+      // sudah mati; hapus agar tidak menumpuk di localStorage.
+      try {
+        const stale = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('to_examq_') && k !== QUEUE_KEY) stale.push(k);
+        }
+        stale.forEach((k) => localStorage.removeItem(k));
+      } catch (e) { /* abaikan */ }
 
       const me = await TO.requireUser();
       if (!me) return;
@@ -80,6 +134,11 @@
       try {
         data = await TO.api('/api/attempts/' + attemptId);
       } catch (e) {
+        if (e.status === 401) {
+          // Sesi tidak valid saat memuat — login dulu, lalu kembali ke ujian ini.
+          location.href = '/login.html?next=' + encodeURIComponent('/exam.html?id=' + attemptId);
+          return;
+        }
         TO.toast(e.message, 'error');
         setTimeout(() => (location.href = '/dashboard.html'), 1200);
         return;
@@ -96,7 +155,9 @@
       const marked = new Set(data.marked || []);
       let current = 0;
       let remaining = data.attempt.remaining_seconds;
-      let submitting = false;
+      let submitting = false; // pengumpulan ujian sedang berjalan
+      let navigating = false; // pindah halaman disengaja — jangan konfirmasi beforeunload
+      let revoked = false;    // sesi dicabut (akun login di perangkat lain)
       let saveTimer = null;
       let pendingPick = null; // jawaban yang belum tersimpan (debounce)
 
@@ -183,20 +244,78 @@
         if (isMobile.matches) window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
-      // ---------- autosave ----------
-      async function saveAnswer(qid, answer, markedReview) {
-        const body = { question_id: qid };
-        if (answer !== undefined) body.answer = answer;
-        if (markedReview !== undefined) body.marked_review = markedReview;
+      // ---------- autosave (antrian + kirim ulang otomatis) ----------
+      const saveInd = document.getElementById('save-ind');
+      let saveIndTimer = null;
+      function setSaveInd(text, autoClear) {
+        saveInd.textContent = text;
+        clearTimeout(saveIndTimer);
+        if (autoClear) saveIndTimer = setTimeout(() => (saveInd.textContent = ''), 1500);
+      }
+
+      function enqueue(body) {
+        const q = loadQueue();
+        const i = q.findIndex((it) => it.question_id === body.question_id);
+        if (i >= 0) q[i] = { ...q[i], ...body };
+        else q.push(body);
+        saveQueue(q);
+        setSaveInd('Menyimpan…');
+        drain();
+      }
+
+      let draining = false;
+      let retryTimer = null;
+      let retryIdx = 0;
+      let connToastShown = false;
+      const RETRY_DELAYS = [5000, 15000, 30000]; // lalu tetap tiap 30 detik
+
+      async function drain() {
+        if (draining || revoked || submitting || navigating) return;
+        draining = true;
+        clearTimeout(retryTimer);
         try {
-          const res = await TO.api(`/api/attempts/${attemptId}/answer`, { method: 'POST', body });
-          if (typeof res.remaining_seconds === 'number') remaining = res.remaining_seconds;
-          document.getElementById('save-ind').textContent = 'Tersimpan ✓';
-          setTimeout(() => (document.getElementById('save-ind').textContent = ''), 1500);
-        } catch (err) {
-          if (err.status === 410) { finish(true); return; }
-          document.getElementById('save-ind').textContent = 'Gagal menyimpan — mencoba lagi';
-          TO.toast(err.message, 'error');
+          while (true) {
+            const q = loadQueue();
+            if (!q.length) {
+              retryIdx = 0;
+              connToastShown = false;
+              setSaveInd('Tersimpan ✓', true);
+              return;
+            }
+            try {
+              const res = await TO.api(`/api/attempts/${attemptId}/answer`, { method: 'POST', body: q[0] });
+              if (typeof res.remaining_seconds === 'number') remaining = res.remaining_seconds;
+              q.shift();
+              saveQueue(q);
+            } catch (err) {
+              if (err.status === 401) { sessionRevoked(); return; }
+              if (err.status === 410 || err.status === 409) {
+                // Waktu habis atau sudah dikumpulkan dari sisi lain — ke hasil.
+                saveQueue([]);
+                navigating = true;
+                location.href = '/result.html?id=' + attemptId;
+                return;
+              }
+              if (err.status === 404) {
+                saveQueue([]);
+                navigating = true;
+                TO.toast(err.message, 'error');
+                location.href = '/dashboard.html';
+                return;
+              }
+              // Koneksi gagal / server sibuk — kirim ulang dengan jeda makin panjang.
+              setSaveInd('Ditahan — menunggu koneksi');
+              if (!connToastShown) {
+                connToastShown = true;
+                TO.toast('Koneksi bermasalah — jawaban akan dikirim ulang otomatis.', 'error');
+              }
+              retryTimer = setTimeout(drain, RETRY_DELAYS[Math.min(retryIdx, RETRY_DELAYS.length - 1)]);
+              retryIdx++;
+              return;
+            }
+          }
+        } finally {
+          draining = false;
         }
       }
 
@@ -208,7 +327,7 @@
         saveTimer = setTimeout(() => {
           const p = pendingPick;
           pendingPick = null;
-          if (p) { answers[p.qid] = p.answer; saveAnswer(p.qid, p.answer); }
+          if (p) { answers[p.qid] = p.answer; enqueue({ question_id: p.qid, answer: p.answer }); }
           renderQuestion();
         }, 500);
       }
@@ -222,7 +341,7 @@
         saveTimer = setTimeout(() => {
           const p = pendingPick;
           pendingPick = null;
-          if (p) saveAnswer(p.qid, null);
+          if (p) enqueue({ question_id: p.qid, answer: null });
           renderQuestion();
         }, 500);
       }
@@ -245,7 +364,7 @@
       document.getElementById('btn-mark').addEventListener('click', () => {
         const q = qs[current];
         if (marked.has(q.id)) marked.delete(q.id); else marked.add(q.id);
-        saveAnswer(q.id, undefined, marked.has(q.id));
+        enqueue({ question_id: q.id, marked_review: marked.has(q.id) });
         renderQuestion();
       });
 
@@ -256,6 +375,60 @@
         if (current < qs.length - 1) goTo(current + 1);
       });
 
+      // ---------- deteksi sesi dicabut ----------
+      // Cek ringan tiap 30 detik; saat tab kembali terlihat (biasanya baru
+      // sesaat setelah user login di perangkat lain) cek langsung tanpa menunggu.
+      const HB_MS = 30000;
+      const hbTimer = setInterval(hbCheck, HB_MS);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && !revoked && !submitting && !navigating) hbCheck();
+      });
+      async function hbCheck() {
+        try {
+          const res = await fetch('/api/auth/heartbeat', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
+          if (res.status === 401) sessionRevoked();
+        } catch (e) { /* offline — abaikan */ }
+      }
+
+      function sessionRevoked() {
+        if (revoked || submitting || navigating) return;
+        revoked = true;
+        clearInterval(hbTimer);
+        clearTimeout(saveTimer);
+        clearTimeout(retryTimer);
+        // Pilihan yang masih dalam debounce ikut diantrikan, agar terkirim
+        // setelah user masuk kembali di perangkat ini.
+        if (pendingPick) {
+          const p = pendingPick;
+          pendingPick = null;
+          if (p.cleared) delete answers[p.qid];
+          else answers[p.qid] = p.answer;
+          enqueue({ question_id: p.qid, answer: p.cleared ? null : p.answer });
+        }
+        setSaveInd('');
+        TO.closeModal('confirm-modal');
+        document.getElementById('rv-queue').hidden = !loadQueue().length;
+        document.getElementById('rv-btn').href =
+          '/login.html?next=' + encodeURIComponent('/exam.html?id=' + attemptId);
+        TO.openModal('revoked-modal');
+      }
+
+      // Waktu habis saat sesi sudah dicabut: tidak ada yang bisa dikirim dari
+      // sini — server memfinalisasi otomatis saat halaman hasil dibuka.
+      let rvTimeUpShown = false;
+      function revokedTimeUp() {
+        if (rvTimeUpShown) return;
+        rvTimeUpShown = true;
+        document.getElementById('rv-title').textContent = 'Waktu Ujian Telah Habis';
+        document.getElementById('rv-text').textContent =
+          'Sesi di perangkat ini sudah berakhir dan waktu ujian Anda telah habis. Ujian otomatis dikumpulkan dari jawaban yang berhasil tersimpan.';
+        document.getElementById('rv-time-row').hidden = true;
+        document.getElementById('rv-queue').hidden = true;
+        const btn = document.getElementById('rv-btn');
+        btn.textContent = 'Masuk & Lihat Hasil';
+        btn.href = '/login.html?next=' + encodeURIComponent('/result.html?id=' + attemptId);
+      }
+
       // ---------- timer ----------
       const timerVal = document.getElementById('timer-val');
       const timerEl = document.getElementById('timer');
@@ -263,6 +436,11 @@
         remaining = Math.max(0, remaining - 1);
         timerVal.textContent = TO.fmtClock(remaining);
         timerEl.classList.toggle('warn', remaining <= 300);
+        if (revoked) {
+          document.getElementById('rv-time').textContent = TO.fmtClock(remaining);
+          if (remaining <= 0) revokedTimeUp();
+          return;
+        }
         if (remaining <= 0) finish(true);
       }
       timerVal.textContent = TO.fmtClock(remaining);
@@ -271,11 +449,30 @@
 
       // ---------- submit ----------
       async function finish(auto) {
-        if (submitting) return;
+        if (submitting || navigating) return;
+        if (!auto) {
+          // Pastikan semua jawaban yang tertahan sudah sampai server sebelum
+          // mengumpulkan — jangan finalisasi dengan jawaban yang hilang.
+          await drain();
+          if (navigating || revoked) return;
+          if (loadQueue().length) {
+            TO.toast('Ada jawaban yang belum terkirim — periksa koneksi lalu coba lagi.', 'error');
+            return;
+          }
+        }
         submitting = true;
         try {
           await TO.api(`/api/attempts/${attemptId}/submit`, { method: 'POST' });
-        } catch (e) { /* sudah di-submit server-side saat auto */ }
+        } catch (e) {
+          if (e.status === 401) { submitting = false; sessionRevoked(); return; }
+          if (!auto && e.status !== 410 && e.status !== 409) {
+            submitting = false;
+            TO.toast('Tidak dapat mengumpulkan ujian — periksa koneksi lalu coba lagi.', 'error');
+            return;
+          }
+          /* auto: server memfinalisasi attempt kedaluwarsa saat hasil dibuka */
+        }
+        navigating = true;
         location.href = '/result.html?id=' + attemptId;
       }
 
@@ -289,10 +486,13 @@
       document.getElementById('confirm-ok').addEventListener('click', () => finish(false));
 
       window.addEventListener('beforeunload', (e) => {
-        if (!submitting) { e.preventDefault(); e.returnValue = ''; }
+        if (!submitting && !navigating && !revoked) { e.preventDefault(); e.returnValue = ''; }
       });
 
       renderQuestion();
+      // Kirim jawaban yang tertahan dari kunjungan sebelumnya (mis. reload saat
+      // koneksi putus, atau login ulang setelah sesi dicabut).
+      if (loadQueue().length) { setSaveInd('Menyimpan…'); drain(); }
     })();
   </script>
 </body>
