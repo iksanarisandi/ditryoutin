@@ -19,6 +19,9 @@
     {"@type":"Question","name":"Bagaimana jika saya membeli lagi sebelum akses habis?","acceptedAnswer":{"@type":"Answer","text":"Masa aktif ditambahkan ke sisa masa akses Anda (bukan dihitung ulang dari nol)."}}
   ]}
   </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"VideoObject","name":"Demo Simulasi Tryout UPKP Imipas 2026","description":"Tonton simulasi pengerjaan soal tryout UPKP IMIPAS — dari mulai ujian, mengerjakan soal dengan timer, sampai lihat skor dan pembahasan.","thumbnailUrl":["https://i.ytimg.com/vi/o5pF2dgCxeQ/maxresdefault.jpg"],"uploadDate":"2026-09-24T23:46:41-07:00","embedUrl":"https://www.youtube.com/embed/o5pF2dgCxeQ"}
+  </script>
 </head>
 <body>
   <header id="site-header"></header>
@@ -47,6 +50,23 @@
         <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Pembahasan</span>
         <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>Riwayat Nilai</span>
         <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Simulasi Passing Grade</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Demo Video ===== -->
+  <section class="section">
+    <div class="container">
+      <div class="section-title">
+        <span class="eyebrow">Demo</span>
+        <h2>Lihat Sendiri Cara Kerjanya.</h2>
+        <p>Dari mulai ujian, mengerjakan soal dengan timer, sampai lihat skor &amp; pembahasan.</p>
+      </div>
+      <div style="max-width:820px;margin:0 auto">
+        <button class="video-facade" id="demo-video" type="button" aria-label="Putar video demo pengerjaan soal">
+          <img src="https://i.ytimg.com/vi/o5pF2dgCxeQ/maxresdefault.jpg" alt="Video demo pengerjaan soal tryout UPKP IMIPAS" loading="lazy" width="1280" height="720">
+          <span class="video-play" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4.5v15l13-7.5Z"/></svg></span>
+        </button>
       </div>
     </div>
   </section>
@@ -274,6 +294,16 @@
           }).join('');
         }
       } catch (e) { /* fallback ke harga statis */ }
+    })();
+    (function () {
+      var btn = document.getElementById('demo-video');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var wrap = document.createElement('div');
+        wrap.className = 'video-embed';
+        wrap.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/o5pF2dgCxeQ?autoplay=1&rel=0" title="Demo pengerjaan soal tryout UPKP IMIPAS" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>';
+        btn.replaceWith(wrap);
+      }, { once: true });
     })();
   </script>
 </body>
