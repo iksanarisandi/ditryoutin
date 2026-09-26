@@ -5,7 +5,7 @@ import { toInt } from '../utils/validate';
 import { readJson } from '../utils/body';
 import { timingSafeEqual } from '../middleware/security';
 import { PakasirError, createTransaction, getTransactionStatus, qrStringToSvg } from '../services/pakasir';
-import { genReference, remainingSeconds, settlePayment, shouldCheckStatus, PAKASIR_TTL_MS, type PaymentRow } from '../services/payments';
+import { genReference, remainingSeconds, settlePayment, shouldCheckStatus, effectiveExpiryIso, PAKASIR_TTL_MS, type PaymentRow } from '../services/payments';
 import type { AppEnv } from '../types';
 
 
@@ -114,7 +114,7 @@ payments.post('/create', requireAuth, async (c) => {
         txn_id: txn.txn_id,
         total_payment: txn.total_payment ?? product.price,
         fee: txn.fee ?? 0,
-        expired_at: txn.expired_at ?? null,
+        expired_at: effectiveExpiryIso(txn.expired_at, new Date().toISOString()),
         is_sandbox: !!txn.is_sandbox,
       },
       qr_svg: txn.qr_string ? qrStringToSvg(txn.qr_string) : null,
@@ -178,6 +178,10 @@ payments.get('/:id', requireAuth, async (c) => {
     accessExpiresAt = u?.access_expires_at ?? null;
   }
 
+  // Batas bayar efektif untuk transaksi pending (gateway umumnya tidak mengirim
+  // expired_at — fallback ke umur maksimal aplikasi 24 jam sejak dibuat).
+  const expiryIso = effectiveExpiryIso(p.expires_at, p.created_at);
+
   return ok(c, {
     payment: {
       id: p.id,
@@ -195,8 +199,11 @@ payments.get('/:id', requireAuth, async (c) => {
             txn_id: p.txn_id,
             total_payment: p.total_payment ?? p.amount,
             fee: p.fee ?? 0,
-            expired_at: p.expires_at,
-            expired_in_seconds: p.expires_at ? remainingSeconds(p.expires_at) : null,
+            // Gateway tidak selalu mengirim expired_at (Pakasir: tidak pernah) —
+            // batas bayar efektif = yang lebih awal antara expiry gateway dan umur
+            // maksimal transaksi di sisi aplikasi (24 jam sejak dibuat).
+            expired_at: expiryIso,
+            expired_in_seconds: remainingSeconds(expiryIso),
           },
           qr_svg: p.qr_string ? qrStringToSvg(p.qr_string) : null,
         }

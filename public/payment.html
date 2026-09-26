@@ -28,9 +28,13 @@
 
       const stage = document.getElementById('stage');
       let pollTimer = null;
+      let cdTimer = null;
       let paymentId = TO.qs('payment') ? Number(TO.qs('payment')) : null;
 
-      function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+      function stopPolling() {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        if (cdTimer) { clearInterval(cdTimer); cdTimer = null; }
+      }
 
       // Kontak admin via WA untuk user yang terkendala membayar lewat gateway.
       function waHelpLink(wa, ref) {
@@ -154,7 +158,7 @@
               <div class="qr-box">
                 <div style="font-weight:700;font-size:1.05rem;margin-bottom:6px">QRIS</div>
                 <div id="qr-slot">${d.qr_svg || '<p class="muted">QR tidak tersedia.</p>'}</div>
-                <div class="small muted mt">Berlaku sampai <span id="qr-exp">${d.txn.expired_at ? TO.fmtDateTime(d.txn.expired_at) : '-'}</span> WITA</div>
+                <div class="small muted mt">Batas bayar: <strong id="qr-countdown" style="color:var(--red)">--:--:--</strong>${d.txn.expired_at ? ' <span>(berlaku sampai ' + TO.fmtDateTime(d.txn.expired_at) + ' WITA)</span>' : ''}</div>
               </div>
               <div>
                 <div id="pay-status"><span class="badge badge-warn">MENUNGGU PEMBAYARAN</span></div>
@@ -167,6 +171,21 @@
               </div>
             </div>
           </div>`;
+        // Hitungan mundur batas bayar (server selalu mengirim batas efektif 24 jam;
+        // pakai expired_in_seconds bila ada, kalau tidak hitung dari expired_at).
+        const secsLeft = typeof d.txn.expired_in_seconds === 'number'
+          ? d.txn.expired_in_seconds
+          : d.txn.expired_at ? Math.max(0, Math.floor((new Date(d.txn.expired_at).getTime() - Date.now()) / 1000)) : null;
+        if (secsLeft !== null) {
+          const cdEl = document.getElementById('qr-countdown');
+          let left = secsLeft;
+          if (cdEl && left > 0) cdEl.textContent = TO.fmtClock(left);
+          cdTimer = setInterval(() => {
+            left -= 1;
+            if (left <= 0 || !cdEl || !cdEl.isConnected) { clearInterval(cdTimer); cdTimer = null; return; }
+            cdEl.textContent = TO.fmtClock(left);
+          }, 1000);
+        }
         pollTimer = setInterval(checkStatus, 5000);
       }
 
@@ -174,7 +193,15 @@
         if (!paymentId) return;
         let d;
         try { d = await TO.api('/api/payments/' + paymentId); }
-        catch (e) { return; /* coba lagi pada interval berikutnya */ }
+        catch (e) {
+          // Sesi habis di tengah menunggu: berhenti memolling, arahkan login
+          // lalu kembali ke transaksi yang sama.
+          if (e.status === 401) {
+            stopPolling();
+            location.href = '/login.html?next=' + encodeURIComponent('/payment.html?payment=' + paymentId);
+          }
+          return; /* coba lagi pada interval berikutnya */
+        }
 
         if (d.payment.status === 'paid') {
           stopPolling();
@@ -207,7 +234,7 @@
           if (d.payment.status === 'pending' && d.manual) {
             showManual(d);
           } else if (d.payment.status === 'pending' && d.qr_svg) {
-            showQr({ qr_svg: d.qr_svg, payment: d.payment, txn: { ...d.txn, is_sandbox: false }, support_wa: d.support_wa });
+            showQr({ qr_svg: d.qr_svg, payment: d.payment, txn: d.txn, support_wa: d.support_wa });
           } else if (d.payment.status === 'paid') {
             checkStatus();
           } else {

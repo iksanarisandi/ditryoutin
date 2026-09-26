@@ -146,3 +146,15 @@ export async function reconcileStalePayments(env: Env, limit: number = 50): Prom
 
 // Umur maksimal transaksi Pakasir (auto-cancel setelah 1x24 jam).
 export const PAKASIR_TTL_MS = 24 * 3600 * 1000;
+
+// Batas bayar efektif sebuah transaksi: lebih awal antara expiry gateway
+// (bila dikirim) dan umur maksimal aplikasi (dibuat + 24 jam). Gateway tidak
+// selalu menyertakan expired_at, jadi 24 jam adalah batas yang dijamin.
+export function effectiveExpiryIso(
+  gatewayExpiry: string | null | undefined,
+  createdAt: string,
+): string {
+  const appMs = Date.parse(createdAt) + PAKASIR_TTL_MS;
+  const gatewayMs = gatewayExpiry ? Date.parse(gatewayExpiry) : Infinity;
+  return new Date(Math.min(appMs, gatewayMs)).toISOString();
+}

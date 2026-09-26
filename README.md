@@ -159,6 +159,7 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Satu admin maksimal:** partial unique index `users(role) WHERE role='admin'` (migrasi 0005) menutup race setup bersamaan.
 - **Bersih-bersih otomatis:** cron harian (03:17 WIB) menghapus session kedaluwarsa.
 - **Batas transaksi pending:** maksimal 5 payment `pending` per user (anti-spam tulis D1).
+- **Batas bayar QRIS: 24 jam** sejak transaksi dibuat (`PAKASIR_TTL_MS`). Pakasir tidak mengirim `expired_at` pada transaksinya, jadi aplikasi yang menjamin batasnya: lewat 24 jam transaksi ditandai `expired`; halaman bayar menampilkan hitungan mundur dari nilai efektif `min(expired_at gateway, dibuat+24 jam)` via `effectiveExpiryIso()`. Pembayaran manual tidak pernah auto-expire.
 - **Cache edge:** `/api/products` di-cache 60 detik — landing page ramai tidak menghantam D1.
 - **Header keamanan:** `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS — untuk respons Worker via middleware, untuk aset statis via `public/_headers`.
 - **CSRF:** cookie `SameSite=Lax` + middleware Origin check untuk POST/PUT/DELETE (webhook dikecualikan, dilindungi `X-Secret` timing-safe).
