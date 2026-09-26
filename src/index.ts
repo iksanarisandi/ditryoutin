@@ -80,6 +80,34 @@ app.get('/api/products', async (c) => {
   return res;
 });
 
+// Statistik publik untuk landing page (jumlah paket/soal/pengguna).
+// Angka berubah lambat — cache 3 jam di edge (per colo) supaya D1 hanya
+// disentuh ~8x/hari per colo berapa pun ramainya landing page.
+// Paket hanya yang active=1 dan soal yang belum di-soft-delete — persis
+// seperti yang dilihat peserta di /api/packages.
+const SITE_STATS_TTL = 3 * 60 * 60; // detik — ubah interval refresh di sini
+app.get('/api/site-stats', async (c) => {
+  const cacheKey = new Request(c.req.url, { method: 'GET' });
+  const hit = await caches.default.match(cacheKey);
+  if (hit) return hit;
+
+  const row = await c.env.DB.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM exam_packages WHERE active=1) AS packages,
+       (SELECT COUNT(*) FROM questions WHERE deleted_at IS NULL) AS questions,
+       (SELECT COUNT(*) FROM users WHERE role='user') AS users`,
+  ).first<{ packages: number; questions: number; users: number }>();
+
+  const res = ok(c, {
+    packages: row?.packages ?? 0,
+    questions: row?.questions ?? 0,
+    users: row?.users ?? 0,
+  });
+  res.headers.set('Cache-Control', `public, max-age=0, s-maxage=${SITE_STATS_TTL}`);
+  c.executionCtx.waitUntil(caches.default.put(cacheKey, res.clone()));
+  return res;
+});
+
 // Bukti sosial untuk popup landing page: hasil tryout terbaru yang LULUS.
 // Privasi: hanya nama depan peserta, hanya yang lulus, maks. 30 hari terakhir,
 // satu entri per peserta (attempt terbarunya). Cache 60 detik di edge.
