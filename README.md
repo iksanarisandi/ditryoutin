@@ -76,8 +76,9 @@ npm run deploy
 2. `wrangler secret put PAKASIR_WEBHOOK_SECRET` dengan nilai tersebut.
 3. Set URL webhook di dashboard Pakasir ke:
    `https://ditryout.in/api/payments/webhook`
+   (Hati-hati **double slash** `//api/...` — router tidak mencocokkannya sehingga webhook 404 mentah. Worker kini menormalisasi path `//…` sebagai toleransi, tapi tetap gunakan URL bersih di dashboard.)
 
-Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id` mengecek status ke Pakasir dengan throttle 4,5 detik/transaksi/isolat) — webhook hanya membuatnya lebih cepat dan andal.
+Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id` mengecek status ke Pakasir dengan throttle 4,5 detik/transaksi/isolat) — webhook hanya membuatnya lebih cepat dan andal. Tambahan jaring pengaman: **cron harian** merekonsiliasi semua payment pending ber-transaksi ke API Pakasir (maks 50 tertua/run), sehingga user yang membayar lalu menutup aplikasi tanpa kembali tetap mendapat aksesnya paling lambat sehari.
 
 ## Mode pembayaran manual (fallback bila gateway bermasalah)
 

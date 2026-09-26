@@ -1,6 +1,7 @@
 // Settlement pembayaran + perpanjangan masa akses (idempotent).
 
 import { getTransactionStatus } from './pakasir';
+import type { Env } from '../types';
 
 export type PaymentRow = {
   id: number;
@@ -76,14 +77,42 @@ export function genReference(): string {
   return `TO-${Date.now().toString(36).toUpperCase()}-${suffix}`;
 }
 
+// Cek satu payment pending ke API status Pakasir: settle bila completed,
+// expire bila canceled (setelah umur transaksi lewat). Aman dipanggil
+// berkali-kali — settlePayment idempoten.
+async function reconcilePayment(
+  env: { DB: D1Database } & {
+    PAKASIR_API_KEY?: string;
+    PAKASIR_PROJECT?: string;
+  },
+  p: PaymentRow,
+): Promise<void> {
+  if (!env.PAKASIR_API_KEY || !env.PAKASIR_PROJECT || !p.txn_id) return;
+  try {
+    const txn = await getTransactionStatus(env as Parameters<typeof getTransactionStatus>[0], p.txn_id);
+    if (txn.status === 'completed') {
+      await settlePayment(env.DB, p, txn.completed_at);
+    } else if (txn.status === 'canceled' && Date.parse(p.created_at) < Date.now() - PAKASIR_TTL_MS) {
+      await env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
+        .bind(new Date().toISOString(), p.id)
+        .run();
+    }
+  } catch {
+    // rate-limit / jaringan: dicoba lagi pada kesempatan berikutnya
+  }
+}
+
 // Fallback tanpa webhook: cek payment pending milik user ke API status Pakasir.
 // Dipanggil saat login//me sehingga user yang menutup halaman pembayaran sebelum selesai
 // tetap mendapat perpanjangan akses begitu membuka aplikasi lagi. Pakai rate limit
 // shouldCheckStatus yang sama dengan polling halaman pembayaran.
-export async function reconcilePendingPayments(env: { DB: D1Database } & {
-  PAKASIR_API_KEY?: string;
-  PAKASIR_PROJECT?: string;
-}, userId: number): Promise<void> {
+export async function reconcilePendingPayments(
+  env: { DB: D1Database } & {
+    PAKASIR_API_KEY?: string;
+    PAKASIR_PROJECT?: string;
+  },
+  userId: number,
+): Promise<void> {
   if (!env.PAKASIR_API_KEY || !env.PAKASIR_PROJECT) return;
   const pendings = await env.DB.prepare(
     `SELECT id, user_id, product_id, reference, txn_id, amount, method, status, paid_at, created_at
@@ -93,18 +122,25 @@ export async function reconcilePendingPayments(env: { DB: D1Database } & {
     .all<PaymentRow>();
   for (const p of pendings.results ?? []) {
     if (!shouldCheckStatus(p.id)) continue;
-    try {
-      const txn = await getTransactionStatus(env as Parameters<typeof getTransactionStatus>[0], p.txn_id as string);
-      if (txn.status === 'completed') {
-        await settlePayment(env.DB, p, txn.completed_at);
-      } else if (txn.status === 'canceled' && Date.parse(p.created_at) < Date.now() - PAKASIR_TTL_MS) {
-        await env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
-          .bind(new Date().toISOString(), p.id)
-          .run();
-      }
-    } catch {
-      // rate-limit / jaringan: dicoba lagi pada kunjungan berikutnya
-    }
+    await reconcilePayment(env, p);
+  }
+}
+
+// Jaring pengaman bila webhook gagal (salah konfigurasi, gateway down): user yang
+// sudah membayar lalu menutup aplikasi dan tidak kembali-kembali tetap mendapat
+// aksesnya — cron harian memeriksa pending payment ber-transaksi ke API Pakasir.
+// Dibatasi 50 tertua per run agar tidak menghantam rate limit 1x/4 detik Pakasir.
+export async function reconcileStalePayments(env: Env, limit: number = 50): Promise<void> {
+  if (!env.PAKASIR_API_KEY || !env.PAKASIR_PROJECT) return;
+  const rows = await env.DB.prepare(
+    `SELECT id, user_id, product_id, reference, txn_id, amount, method, status, paid_at, created_at
+     FROM payments WHERE status='pending' AND txn_id IS NOT NULL AND created_at < ?
+     ORDER BY id LIMIT ?`,
+  )
+    .bind(new Date(Date.now() - 10 * 60 * 1000).toISOString(), limit)
+    .all<PaymentRow>();
+  for (const p of rows.results ?? []) {
+    await reconcilePayment(env, p);
   }
 }
 

@@ -5,6 +5,7 @@ import { originGuard, securityHeaders } from './middleware/security';
 import { clientIp, limitOr429, rateLimit } from './middleware/ratelimit';
 import { PakasirError } from './services/pakasir';
 import { POINTS_PER_CORRECT } from './services/scoring';
+import { reconcileStalePayments } from './services/payments';
 
 import authRoutes from './routes/auth';
 import setupRoutes from './routes/setup';
@@ -19,6 +20,18 @@ import { adminCategories, adminPackages, adminProducts } from './routes/admin/ca
 import type { AppEnv, Env } from './types';
 
 const app = new Hono<AppEnv>();
+
+// Toleransi path ber-double-slash: mis. webhook gateway dikonfigurasi
+// "https://host//api/payments/webhook". Router Hono tidak mencocokkan "//..."
+// dengan route mana pun sehingga request 404 mentah — normalisasi dulu ke
+// path bersih lalu dispatch ulang lewat seluruh stack middleware (rate limit,
+// origin guard, dst. tetap berjalan penuh untuk request hasil normalisasi).
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url);
+  if (!url.pathname.includes('//')) return next();
+  url.pathname = url.pathname.replace(/\/{2,}/g, '/');
+  return app.fetch(new Request(url, c.req.raw), c.env, c.executionCtx);
+});
 
 // Paksa HTTPS di domain produksi (zone default Cloudflare tidak mengalihkan HTTP).
 // HANYA edge Cloudflare asli yang meng-set X-Forwarded--Proto (nilai klien asli,
@@ -191,7 +204,8 @@ app.onError((err, c) => {
 });
 
 // Cron harian: hapus session kedaluwarsa agar tabel tidak membengkak
-// (setiap login/daftar menambah baris; tanpa ini baris menumpuk selamanya).
+// (setiap login/daftar menambah baris; tanpa ini baris menumpuk selamanya),
+// lalu rekonsiliasi payment pending (jaring pengaman bila webhook gagal).
 async function cleanupExpiredSessions(env: Env): Promise<void> {
   await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?')
     .bind(new Date().toISOString())
@@ -202,6 +216,7 @@ export default {
   fetch: app.fetch,
   scheduled: async (_event: ScheduledController, env: Env) => {
     await cleanupExpiredSessions(env);
+    await reconcileStalePayments(env);
   },
 } satisfies ExportedHandler<Env>;
 
