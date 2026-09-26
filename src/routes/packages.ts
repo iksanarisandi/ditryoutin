@@ -15,7 +15,9 @@ packages.get('/', async (c) => {
        (SELECT COUNT(*) FROM questions q WHERE q.package_id=p.id AND q.deleted_at IS NULL) AS question_count,
        (SELECT COUNT(*) FROM attempts a WHERE a.package_id=p.id AND a.user_id=?1 AND a.status='submitted') AS attempt_count,
        (SELECT a.score FROM attempts a WHERE a.package_id=p.id AND a.user_id=?1 AND a.status='submitted'
-        ORDER BY a.submitted_at DESC LIMIT 1) AS last_score
+        ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1) AS last_score,
+       (SELECT a.passed FROM attempts a WHERE a.package_id=p.id AND a.user_id=?1 AND a.status='submitted'
+        ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1) AS last_passed
      FROM exam_packages p
      WHERE p.active=1
      ORDER BY p.id`,
@@ -30,6 +32,7 @@ packages.get('/', async (c) => {
       question_count: number;
       attempt_count: number;
       last_score: number | null;
+      last_passed: number | null;
     }>();
 
   const cats = await c.env.DB.prepare(

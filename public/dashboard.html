@@ -34,11 +34,11 @@
     </div>
 
     <div id="buy-section" class="mb" hidden>
-      <div class="alert alert-warn">Akses Anda telah berakhir atau belum aktif. Silakan pilih paket akses.</div>
-      <div class="grid grid-2" id="buy-products"></div>
+      <div class="alert alert-warn" id="lock-notice"></div>
     </div>
 
-    <h2 class="mt">Tryout UPKP</h2>
+    <h2 class="mt">Paket Tryout</h2>
+    <div class="tab-row" id="pkg-tabs" hidden></div>
     <div id="packages-wrap" class="grid grid-3">
       <div class="card muted">Memuat paket…</div>
     </div>
@@ -52,6 +52,7 @@
       TO.renderHeader('/dashboard.html', me);
 
       const a = me.access;
+      const locked = !a.active && !me.is_admin;
       const statusEl = document.getElementById('access-status');
       const metaEl = document.getElementById('access-meta');
       if (a.active) {
@@ -65,7 +66,7 @@
         metaEl.innerHTML = a.expires_at
           ? `<div><span class="k">Berakhir</span><span class="v">${TO.fmtDate(a.expires_at)} WITA</span></div>`
           : '<div><span class="k">Status</span><span class="v">Belum pernah berlangganan</span></div>';
-        document.getElementById('buy-section').hidden = false;
+        if (locked) document.getElementById('buy-section').hidden = false;
       }
 
       // Banner ujian berjalan
@@ -78,60 +79,140 @@
         }
       } catch (e) { /* abaikan */ }
 
-      // Produk bila belum aktif
-      if (!a.active && me.user.role !== 'admin') {
+      // Notice terkunci + harga termurah bila belum berlangganan
+      if (locked) {
+        let priceHtml = '';
         try {
           const { products } = await TO.api('/api/products');
-          document.getElementById('buy-products').innerHTML = products.map((p) => `
-            <div class="card price-card">
-              <h3>${TO.esc(p.name)}</h3>
-              <div class="price" style="font-size:1.4rem;font-weight:800;color:var(--primary-dark)">${TO.rupiah(p.price)}</div>
-              <p class="muted small">Akses ${p.duration_days} hari ke seluruh paket</p>
-              <a class="btn" href="/payment.html?product=${p.id}">Beli</a>
-            </div>`).join('');
-        } catch (e) { /* abaikan */ }
+          if (products.length) {
+            const cheapest = Math.min(...products.map((p) => p.price));
+            priceHtml = `Berlangganan mulai <strong>${TO.rupiah(cheapest)}</strong> — `;
+          }
+        } catch (e) { /* abaikan: tampilkan fallback tanpa harga */ }
+        document.getElementById('lock-notice').innerHTML =
+          '<strong>Akses terkunci.</strong> Anda belum bisa mengerjakan tryout sebelum berlangganan atau membeli akses. ' +
+          priceHtml + 'satu langganan berlaku untuk <strong>SEMUA paket soal</strong>, bukan per paket. ' +
+          '<a class="btn btn-sm" href="/payment.html">Berlangganan</a>';
       }
 
-      // Paket tryout
+      // Paket tryout + tab filter kategori
       const wrap = document.getElementById('packages-wrap');
+      const tabsEl = document.getElementById('pkg-tabs');
+      let pkgs = [];
+      let activeTab = 'all';
+
+      const LOCK_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
+        'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+
+      // Klasifikasi jenis ujian — urutan cek sama dengan defaultRulesKey() di passing-grades.ts
+      function tabOf(examType) {
+        const t = String(examType || '').toUpperCase();
+        if (t.includes('UJIAN DINAS') || t.includes('UJIAN_DINAS')) return 'udin';
+        if (t.includes('UPKP')) return 'upkp';
+        return 'lainnya';
+      }
+
+      function passedBadge(v) {
+        if (v == null) return ''; // tanpa passing rule / belum ada field
+        return v ? '<span class="badge badge-success">Lulus</span> '
+                 : '<span class="badge badge-danger">Tidak Lulus</span> ';
+      }
+
+      function lastLine(p) {
+        return p.attempt_count > 0
+          ? passedBadge(locked ? null : p.last_passed) +
+            'Percobaan terakhir: <strong>' + (p.last_score ?? 0) + '</strong> / ' + (p.question_count * 5) + ' poin (' + p.attempt_count + 'x)'
+          : 'Belum pernah mengerjakan';
+      }
+
+      function cardHtml(p) {
+        const meta = `
+          <div class="meta">
+            ${p.question_count} soal &bull; ${p.duration_minutes} menit<br>
+            Kategori: ${TO.esc(p.categories)}
+          </div>`;
+        if (locked) {
+          return `
+            <div class="card pkg-card locked">
+              <div class="top">
+                <h3>${TO.esc(p.title)}</h3>
+                <span class="badge badge-warn badge-lock">${LOCK_SVG} Terkunci</span>
+              </div>
+              ${meta}
+              <div class="foot">
+                <span class="last muted">${lastLine(p)}</span>
+                <a class="btn btn-sm btn-unlock" href="/payment.html">${LOCK_SVG} Buka Akses</a>
+              </div>
+            </div>`;
+        }
+        return `
+          <div class="card pkg-card">
+            <div class="top">
+              <h3>${TO.esc(p.title)}</h3>
+              <span class="badge badge-primary">${TO.esc(p.exam_type)}</span>
+            </div>
+            ${meta}
+            <div class="foot">
+              <span class="last muted">${lastLine(p)}</span>
+              <button class="btn btn-sm start-btn" data-id="${p.id}" data-title="${TO.esc(p.title)}">Mulai</button>
+            </div>
+          </div>`;
+      }
+
+      function bindStartButtons() {
+        wrap.querySelectorAll('.start-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            try {
+              const data = await TO.api('/api/attempts', { method: 'POST', body: { package_id: Number(btn.dataset.id) } });
+              location.href = '/exam.html?id=' + data.attempt_id;
+            } catch (err) {
+              if (err.status === 409 && err.data && err.data.attempt_id) {
+                location.href = '/exam.html?id=' + err.data.attempt_id;
+                return;
+              }
+              TO.toast(err.message, 'error');
+              btn.disabled = false;
+            }
+          });
+        });
+      }
+
+      function renderPackages() {
+        const list = pkgs.filter((p) => activeTab === 'all' || tabOf(p.exam_type) === activeTab);
+        wrap.innerHTML = list.length
+          ? list.map(cardHtml).join('')
+          : '<div class="card muted">Tidak ada paket dalam kategori ini.</div>';
+        if (!locked) bindStartButtons();
+      }
+
+      function renderTabs() {
+        const counts = { all: pkgs.length, upkp: 0, udin: 0, lainnya: 0 };
+        pkgs.forEach((p) => { counts[tabOf(p.exam_type)]++; });
+        const defs = [['all', 'Semua'], ['upkp', 'UPKP'], ['udin', 'Ujian Dinas'], ['lainnya', 'Lainnya']];
+        const tabs = defs.filter(([k]) => k === 'all' || counts[k] > 0);
+        tabsEl.hidden = tabs.length <= 1;
+        tabsEl.innerHTML = tabs.map(([k, label]) =>
+          `<button class="tab-pill${k === activeTab ? ' active' : ''}" data-tab="${k}">${label} <span class="tab-count">${counts[k]}</span></button>`
+        ).join('');
+        tabsEl.querySelectorAll('.tab-pill').forEach((b) => {
+          b.addEventListener('click', () => {
+            activeTab = b.dataset.tab;
+            tabsEl.querySelectorAll('.tab-pill').forEach((x) => x.classList.toggle('active', x === b));
+            renderPackages();
+          });
+        });
+      }
+
       try {
         const { packages } = await TO.api('/api/packages');
         if (!packages.length) {
           wrap.innerHTML = '<div class="card muted">Belum ada paket tryout tersedia. Cek kembali nanti.</div>';
         } else {
-          wrap.innerHTML = packages.map((p) => `
-            <div class="card pkg-card">
-              <div class="top">
-                <h3>${TO.esc(p.title)}</h3>
-                <span class="badge badge-primary">${TO.esc(p.exam_type)}</span>
-              </div>
-              <div class="meta">
-                ${p.question_count} soal &bull; ${p.duration_minutes} menit<br>
-                Kategori: ${TO.esc(p.categories)}
-              </div>
-              <div class="foot">
-                <span class="last muted">${p.attempt_count > 0
-                  ? 'Percobaan terakhir: <strong>' + (p.last_score ?? 0) + '</strong> / ' + (p.question_count * 5) + ' poin (' + p.attempt_count + 'x)'
-                  : 'Belum pernah mengerjakan'}</span>
-                <button class="btn btn-sm start-btn" data-id="${p.id}" data-title="${TO.esc(p.title)}">Mulai</button>
-              </div>
-            </div>`).join('');
-          wrap.querySelectorAll('.start-btn').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-              btn.disabled = true;
-              try {
-                const data = await TO.api('/api/attempts', { method: 'POST', body: { package_id: Number(btn.dataset.id) } });
-                location.href = '/exam.html?id=' + data.attempt_id;
-              } catch (err) {
-                if (err.status === 409 && err.data && err.data.attempt_id) {
-                  location.href = '/exam.html?id=' + err.data.attempt_id;
-                  return;
-                }
-                TO.toast(err.message, 'error');
-                btn.disabled = false;
-              }
-            });
-          });
+          pkgs = packages;
+          renderTabs();
+          renderPackages();
         }
       } catch (err) {
         wrap.innerHTML = '<div class="card"><div class="alert alert-danger">' + TO.esc(err.message) + '</div></div>';

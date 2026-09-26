@@ -130,6 +130,7 @@ p { margin: .35rem 0 .7rem; }
 .btn-success { background: var(--green); }
 .btn-success:hover { background: #166534; }
 .btn-sm { padding: 5px 10px; font-size: .82rem; border-radius: 6px; }
+.btn-sm svg { width: 14px; height: 14px; }
 .btn-lg { padding: 12px 26px; font-size: 1.05rem; }
 .btn-block { width: 100%; }
 /* Tombol sedang memproses (dipasang otomatis oleh TO.busy) */
@@ -527,6 +528,31 @@ footer.site-footer {
 .pkg-card .meta { color: var(--muted); font-size: .88rem; margin: 8px 0; }
 .pkg-card .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .pkg-card .last { font-size: .82rem; }
+
+/* Tab filter kategori paket (dashboard) */
+.tab-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.tab-row[hidden] { display: none; }
+.tab-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: .82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.tab-pill:hover { border-color: var(--primary); color: var(--primary-dark); }
+.tab-pill.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.tab-count { font-size: .72rem; font-weight: 700; opacity: .75; }
+
+/* Kartu paket terkunci (belum berlangganan) */
+.pkg-card.locked { background: var(--bg); border-style: dashed; box-shadow: none; }
+.badge-lock { display: inline-flex; align-items: center; gap: 4px; }
+.badge-lock svg { width: 11px; height: 11px; }
 
 /* ===== Halaman ujian ===== */
 body.exam-page { background: #eef2f7; }
