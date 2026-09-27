@@ -130,11 +130,24 @@
              (bersama swap grid-3 -> grid-4) supaya fallback tanpa JS tetap rapi 3 kartu. -->
         <div class="card stat-card" id="stat-users" hidden><div class="label">Pengguna Terdaftar</div><div class="value">0</div></div>
       </div>
-      <div class="grid grid-2" id="pricing" style="max-width:680px;margin:0 auto">
+      <div class="grid grid-3" id="pricing" style="max-width:840px;margin:0 auto">
         <div class="card price-card">
-          <h3>7 Hari</h3>
-          <div class="price">Rp20.000</div>
-          <p class="muted small">Akses penuh 7 hari</p>
+          <h3>Coba &amp; Uji Kemampuan</h3>
+          <p class="muted small">Coba fitur tryout &amp; ukur kemampuan awalmu.</p>
+          <div class="price">Rp9.000</div>
+          <p class="muted small">Akses penuh 3 hari · setara Rp3.000/hari</p>
+          <ul class="price-perks">
+            <li>Semua paket soal &amp; pembahasan</li>
+            <li>Bank soal terus bertambah</li>
+            <li>Riwayat nilai lengkap</li>
+          </ul>
+          <a class="btn btn-outline" href="/payment.html">Pilih Paket</a>
+        </div>
+        <div class="card price-card">
+          <h3>Persiapan Intensif</h3>
+          <p class="muted small">Pilihan untuk latihan rutin menjelang UPKP &amp; UDIN.</p>
+          <div class="price">Rp29.000</div>
+          <p class="muted small">Akses penuh 30 hari · setara Rp966/hari</p>
           <ul class="price-perks">
             <li>Semua paket soal &amp; pembahasan</li>
             <li>Bank soal terus bertambah</li>
@@ -144,9 +157,10 @@
         </div>
         <div class="card price-card featured">
           <span class="badge badge-primary price-badge">Hemat</span>
-          <h3>6 Bulan</h3>
-          <div class="price">Rp50.000</div>
-          <p class="muted small">Akses penuh 180 hari</p>
+          <h3>Persiapan Jangka Panjang</h3>
+          <p class="muted small">Akses lebih lama untuk latihan bertahap dan berulang.</p>
+          <div class="price">Rp69.000</div>
+          <p class="muted small">Akses penuh 180 hari · setara Rp383/hari</p>
           <ul class="price-perks">
             <li>Semua paket soal &amp; pembahasan</li>
             <li>Bank soal terus bertambah</li>
@@ -320,14 +334,22 @@
         if (products && products.length) {
           const perkPkg = stats ? 'Semua ' + stats.packages + ' paket soal &amp; pembahasan' : 'Semua paket soal &amp; pembahasan';
           const perkQ = stats ? fmt(stats.questions) + '+ soal, terus bertambah' : 'Bank soal terus bertambah';
+          // 3 kartu butuh kolom lebih; 2 kartu kembali ke tata letak lama.
+          if (products.length >= 3) {
+            el.classList.remove('grid-2'); el.classList.add('grid-3'); el.style.maxWidth = '840px';
+          } else {
+            el.classList.remove('grid-3'); el.classList.add('grid-2'); el.style.maxWidth = '680px';
+          }
           el.innerHTML = products.map((p, i) => {
             const featured = i === products.length - 1;
+            const perDay = Math.floor(p.price / p.duration_days); // pembulatan ke bawah: kesan makin murah
             return `
             <div class="card price-card ${featured ? 'featured' : ''}">
               ${featured ? '<span class="badge badge-primary price-badge">Hemat</span>' : ''}
               <h3>${TO.esc(p.name)}</h3>
+              ${p.description ? `<p class="muted small">${TO.esc(p.description)}</p>` : ''}
               <div class="price">${TO.rupiah(p.price)}</div>
-              <p class="muted small">Akses penuh ${p.duration_days} hari</p>
+              <p class="muted small">Akses penuh ${p.duration_days} hari · setara ${TO.rupiah(perDay)}/hari</p>
               <ul class="price-perks">
                 <li>${perkPkg}</li>
                 <li>${perkQ}</li>

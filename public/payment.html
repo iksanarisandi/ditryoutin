@@ -64,15 +64,18 @@
         const preset = Number(TO.qs('product')) || 0;
         stage.innerHTML = `
           ${me.access.active ? '<div class="alert alert-info mb">Akses Anda masih aktif. Pembelian baru akan <strong>ditambahkan</strong> ke sisa masa akses.</div>' : ''}
-          <div class="grid grid-2">
-            ${products.map((p) => `
+          <div class="grid ${products.length >= 3 ? 'grid-3' : 'grid-2'}">
+            ${products.map((p) => {
+              const perDay = Math.floor(p.price / p.duration_days);
+              return `
               <div class="card price-card">
                 <h3>${TO.esc(p.name)}</h3>
+                ${p.description ? `<p class="muted small">${TO.esc(p.description)}</p>` : ''}
                 <div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">${TO.rupiah(p.price)}</div>
-                <p class="muted small">Akses ${p.duration_days} hari ke seluruh paket tryout</p>
+                <p class="muted small">Akses ${p.duration_days} hari ke seluruh paket tryout · setara ${TO.rupiah(perDay)}/hari</p>
                 <button class="btn btn-block buy-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Bayar via QRIS</button>
                 ${manualAvailable ? '<button class="btn btn-block btn-ghost manual-btn" data-id="' + p.id + '" style="margin:8px 0 0">Bayar Manual</button>' : ''}
-              </div>`).join('')}
+              </div>`;}).join('')}
           </div>
           <div class="alert alert-info small" style="margin-top:14px">
             <strong>Bayar via QRIS</strong>: scan dan bayar nominal tepat — akses aktif otomatis setelah pembayaran terverifikasi.${manualAvailable ? '<br><strong>Bayar Manual</strong> (alternatif): scan QRIS, lalu konfirmasi via WhatsApp ke admin — akses diaktifkan setelah diverifikasi.' : ''}

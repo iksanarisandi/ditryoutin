@@ -28,7 +28,8 @@
     <div class="modal">
       <h3 id="fm-title">Produk</h3>
       <form id="fm-form">
-        <div class="form-group"><label for="fm-name">Nama</label><input type="text" id="fm-name" required maxlength="100" placeholder="Akses 7 Hari"></div>
+        <div class="form-group"><label for="fm-name">Nama</label><input type="text" id="fm-name" required maxlength="100" placeholder="Persiapan Intensif"></div>
+        <div class="form-group"><label for="fm-desc">Deskripsi</label><textarea id="fm-desc" maxlength="200" rows="2" placeholder="Pilihan untuk latihan rutin menjelang UPKP & UDIN."></textarea></div>
         <div class="form-row">
           <div class="form-group"><label for="fm-price">Harga (Rp)</label><input type="number" id="fm-price" required min="0" step="500"></div>
           <div class="form-group"><label for="fm-days">Durasi (hari)</label><input type="number" id="fm-days" required min="1" max="3650"></div>
@@ -51,17 +52,19 @@
 
       const listEl = document.getElementById('list');
       let editId = 0;
+      let all = []; // cache produk untuk mengisi form edit (deskripsi tidak muat rapi di tabel)
 
       async function load() {
         try {
           const { products } = await TO.api('/api/admin/products');
+          all = products;
           if (!products.length) { listEl.innerHTML = '<p class="muted">Belum ada produk.</p>'; return; }
           listEl.innerHTML = `
             <div class="table-wrap"><table class="table">
               <thead><tr><th>Nama</th><th class="num">Harga</th><th class="num">Durasi</th><th class="num">Terjual</th><th>Status</th><th></th></tr></thead>
               <tbody>${products.map((p) => `
                 <tr>
-                  <td>${TO.esc(p.name)}</td>
+                  <td>${TO.esc(p.name)}${p.description ? `<p class="muted small" style="margin:2px 0 0">${TO.esc(p.description)}</p>` : ''}</td>
                   <td class="num">${TO.rupiah(p.price)}</td>
                   <td class="num">${p.duration_days} hari</td>
                   <td class="num">${p.paid_count}</td>
@@ -87,11 +90,12 @@
         editId = id;
         document.getElementById('fm-title').textContent = id ? 'Edit Produk' : 'Tambah Produk';
         if (id) {
-          const row = document.querySelector(`.edit-btn[data-id="${id}"]`).closest('tr');
-          document.getElementById('fm-name').value = row.cells[0].textContent;
-          document.getElementById('fm-price').value = parseInt(row.cells[1].textContent.replace(/\D/g, '')) || 0;
-          document.getElementById('fm-days').value = parseInt(row.cells[2].textContent) || 7;
-          document.getElementById('fm-active').checked = row.cells[4].textContent.includes('AKTIF');
+          const p = all.find((x) => x.id === id);
+          document.getElementById('fm-name').value = p ? p.name : '';
+          document.getElementById('fm-desc').value = (p && p.description) || '';
+          document.getElementById('fm-price').value = p ? p.price : 0;
+          document.getElementById('fm-days').value = p ? p.duration_days : 7;
+          document.getElementById('fm-active').checked = p ? !!p.active : true;
         } else {
           document.getElementById('fm-form').reset();
         }
@@ -104,6 +108,7 @@
         e.preventDefault();
         const body = {
           name: document.getElementById('fm-name').value,
+          description: document.getElementById('fm-desc').value,
           price: Number(document.getElementById('fm-price').value),
           duration_days: Number(document.getElementById('fm-days').value),
           active: document.getElementById('fm-active').checked,

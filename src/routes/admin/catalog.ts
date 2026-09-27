@@ -21,21 +21,22 @@ function productInput(body: Record<string, unknown>) {
   const name = trimStr(body.name, 100);
   const price = clamp(toInt(body.price, -1), 0, 100000000);
   const durationDays = clamp(toInt(body.duration_days, 0), 1, 3650);
+  const description = trimStr(body.description, 200);
   const active = body.active === undefined ? 1 : body.active ? 1 : 0;
-  return { name, price, durationDays, active };
+  return { name, price, durationDays, description, active };
 }
 
 adminProducts.post('/', async (c) => {
   const body = await readJson(c);
   if (!body) return fail(c, 'Body tidak valid');
-  const { name, price, durationDays, active } = productInput(body);
+  const { name, price, durationDays, description, active } = productInput(body);
   if (!name) return fail(c, 'Nama produk wajib diisi', 422);
   if (price < 0) return fail(c, 'Harga tidak valid', 422);
 
   const res = await c.env.DB.prepare(
-    'INSERT INTO products (name, price, duration_days, active) VALUES (?, ?, ?, ?)',
+    'INSERT INTO products (name, price, duration_days, description, active) VALUES (?, ?, ?, ?, ?)',
   )
-    .bind(name, price, durationDays, active)
+    .bind(name, price, durationDays, description, active)
     .run();
   return ok(c, { id: Number(res.meta.last_row_id) }, 201);
 });
@@ -44,14 +45,14 @@ adminProducts.put('/:id', async (c) => {
   const id = toInt(c.req.param('id'), 0);
   const body = await readJson(c);
   if (!body) return fail(c, 'Body tidak valid');
-  const { name, price, durationDays, active } = productInput(body);
+  const { name, price, durationDays, description, active } = productInput(body);
   if (!name) return fail(c, 'Nama produk wajib diisi', 422);
   if (price < 0) return fail(c, 'Harga tidak valid', 422);
 
   const res = await c.env.DB.prepare(
-    'UPDATE products SET name=?, price=?, duration_days=?, active=?, updated_at=? WHERE id=?',
+    'UPDATE products SET name=?, price=?, duration_days=?, description=?, active=?, updated_at=? WHERE id=?',
   )
-    .bind(name, price, durationDays, active, new Date().toISOString(), id)
+    .bind(name, price, durationDays, description, active, new Date().toISOString(), id)
     .run();
   if (!res.meta.changes) return fail(c, 'Produk tidak ditemukan', 404);
   return ok(c, { updated: true });

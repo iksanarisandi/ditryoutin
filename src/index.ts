@@ -85,7 +85,7 @@ app.get('/api/products', async (c) => {
 
   const manualAvailable = c.env.PAYMENT_MODE === 'manual' || c.env.SHOW_MANUAL_PAYMENT === 'true';
   const rows = await c.env.DB.prepare(
-    'SELECT id, name, price, duration_days FROM products WHERE active=1 ORDER BY price',
+    'SELECT id, name, price, duration_days, description FROM products WHERE active=1 ORDER BY price',
   ).all();
   const res = ok(c, { products: rows.results ?? [], manual_available: manualAvailable });
   res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60');
