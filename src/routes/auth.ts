@@ -6,7 +6,7 @@ import { clearSessionCookie, createSession, isSecureRequest, sessionSetCookie } 
 import { normalizeEmail, trimStr, validPassword } from '../utils/validate';
 import { readJson } from '../utils/body';
 import { accessActive, requireAuth } from '../middleware/auth';
-import { ipRateLimit, clientIp } from '../middleware/ratelimit';
+import { ipRateLimit, clientIp, isLimited } from '../middleware/ratelimit';
 import { verifyTurnstile } from '../services/turnstile';
 import { finalizeUserExpiredAttempts } from '../services/scoring';
 import { reconcilePendingPayments } from '../services/payments';
@@ -16,6 +16,8 @@ const auth = new Hono<AppEnv>();
 
 const MAX_FAILED = 5;
 const LOCK_MS = 15 * 60 * 1000;
+const LOCKED_MSG =
+  'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi dalam beberapa menit.';
 // Hash argon2id dummy agar email tidak terdaftar pun menjalankan verifikasi (mengurangi timing oracle).
 const DUMMY_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -107,22 +109,38 @@ auth.post('/login', async (c) => {
       locked_until: string | null;
     }>();
 
-  if (user?.locked_until && Date.parse(user.locked_until) > Date.now()) {
-    return fail(c, 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi dalam beberapa menit.', 429);
+  // Verifikasi password SEBELUM menilai lockout: pemilik akun dengan password
+  // BENAR tetap bisa masuk walau akun terkunci — kunci hanya berlaku untuk
+  // percobaan password SALAH berikutnya. Tanpa ini, siapa pun bisa mengunci
+  // akun orang lain selamanya cukup dengan 5 password ngawur dari IP mana pun
+  // (Turnstile sudah diverifikasi sebelum argon2, jadi jalur ini tidak bisa
+  // dipakai membakar CPU secara gratis).
+  const valid = verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
+
+  if (!user) {
+    // Email tidak terdaftar: kunci virtual per-email (counter DO, 5x/15 menit)
+    // membuat pola responsnya identik dengan akun sungguhan yang terkunci —
+    // menutup oracle "email ada/tidak ada".
+    const vLocked = await isLimited(c, 'RATE_LIMIT_LOGINFAIL', `email:${email}`);
+    if (vLocked) return fail(c, LOCKED_MSG, 429);
+    return fail(c, 'Email atau password salah', 401);
   }
 
-  const valid = verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
-  if (!user || !valid) {
-    if (user) {
-      const failed = user.failed_attempts + 1;
-      const lockedUntil = failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MS).toISOString() : null;
-      await c.env.DB.prepare(
-        'UPDATE users SET failed_attempts=?, locked_until=?, updated_at=? WHERE id=?',
-      )
-        .bind(failed, lockedUntil, new Date().toISOString(), user.id)
-        .run();
-    }
-    return fail(c, 'Email atau password salah', 401);
+  const locked = !!user.locked_until && Date.parse(user.locked_until) > Date.now();
+  if (!valid) {
+    const failed = user.failed_attempts + 1;
+    // Kunci dihitung termasuk percobaan INI — `locked` saja dibaca dari row
+    // sebelum update, jadi tanpa `lockNow` pesan 429 baru muncul di percobaan ke-6.
+    const lockNow = failed >= MAX_FAILED;
+    const lockedUntil = lockNow ? new Date(Date.now() + LOCK_MS).toISOString() : null;
+    await c.env.DB.prepare(
+      'UPDATE users SET failed_attempts=?, locked_until=?, updated_at=? WHERE id=?',
+    )
+      .bind(failed, lockedUntil, new Date().toISOString(), user.id)
+      .run();
+    return locked || lockNow
+      ? fail(c, LOCKED_MSG, 429)
+      : fail(c, 'Email atau password salah', 401);
   }
 
   await c.env.DB.prepare(

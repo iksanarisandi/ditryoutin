@@ -20,13 +20,23 @@ export type LimiterName =
   | 'RATE_LIMIT_API'
   | 'RATE_LIMIT_AUTH'
   | 'RATE_LIMIT_REGISTER'
-  | 'RATE_LIMIT_WRITE';
+  | 'RATE_LIMIT_WRITE'
+  | 'RATE_LIMIT_LOGINFAIL';
 
 const LIMITS: Record<LimiterName, { limit: number; period: number }> = {
   RATE_LIMIT_API: { limit: 300, period: 60 },
   RATE_LIMIT_AUTH: { limit: 12, period: 60 },
   RATE_LIMIT_REGISTER: { limit: 6, period: 60 },
   RATE_LIMIT_WRITE: { limit: 90, period: 60 },
+  // Kunci virtual per-email untuk login dengan email yang tidak terdaftar:
+  // setelah 5 percobaan gagal dalam 15 menit, responsnya 429 "akun terkunci" —
+  // sama seperti akun sungguhan — agar pola respons tidak bisa membedakan
+  // email ada/tidak ada (anti-enumeration).
+  // limit = MAX_FAILED(5) - 1 di src/routes/auth.ts: DO memblokir saat
+  // count > limit dan count terinkremen SEBELUM membalas, jadi limit 4 membuat
+  // panggilan ke-5 (yang harus membalas 429, persis akun sungguhan) terblokir.
+  // period = LOCK_MS (15 menit).
+  RATE_LIMIT_LOGINFAIL: { limit: 4, period: 900 },
 };
 
 // IP asli klien di edge Cloudflare (tidak bisa dipalsukan visitor).
@@ -59,6 +69,28 @@ export async function limitOr429(
     console.error(`[ratelimit] ${limiterName} error`, e);
   }
   return null;
+}
+
+/** Cukup-satu-fakta: apakah key ini sudah melewati limit? (tanpa membalas 429) */
+export async function isLimited(
+  c: Context<AppEnv>,
+  limiterName: LimiterName,
+  key: string,
+): Promise<boolean> {
+  const ns = c.env.RATE_LIMIT_DO;
+  if (!ns) return false;
+  try {
+    const id = ns.idFromName(`${limiterName}:${key}`);
+    const res = await ns.get(id).fetch('https://do/rate-limit', {
+      method: 'POST',
+      body: JSON.stringify(LIMITS[limiterName]),
+    });
+    const { success } = (await res.json()) as { success: boolean };
+    return !success;
+  } catch (e) {
+    console.error(`[ratelimit] ${limiterName} error`, e);
+    return false; // fail-open, konsisten dengan limitOr429
+  }
 }
 
 /** Middleware rate limit dengan key tetap per request (mis. per IP). */

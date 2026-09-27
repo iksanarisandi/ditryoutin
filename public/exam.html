@@ -162,9 +162,21 @@
       let pendingPick = null; // jawaban yang belum tersimpan (debounce)
 
       // ---------- render ----------
-      // Jawaban efektif = jawaban tersimpan + pilihan yang belum tersimpan (debounce).
+      // Jawaban efektif = jawaban tersimpan di server + jawaban yang masih
+      // tertahan di antrian autosave (belum terkirim ke server — mis. setelah
+      // reload saat koneksi putus; tanpa ini progres tampak 0/x padahal jawaban
+      // aman di antrian dan akan terkirim otomatis) + pilihan yang belum
+      // tersimpan (debounce). Item antrian selalu lebih baru daripada nilai di
+      // server: ia tercatat SETELAH nilai terakhir yang berhasil terkirim
+      // (item yang berhasil dikirim dihapus dari antrian).
       function effectiveAnswers() {
         const eff = { ...answers };
+        for (const it of loadQueue()) {
+          if (it && 'answer' in it && it.question_id) {
+            if (it.answer === null || it.answer === undefined) delete eff[it.question_id];
+            else eff[it.question_id] = it.answer;
+          }
+        }
         if (pendingPick) {
           if (pendingPick.cleared) delete eff[pendingPick.qid];
           else eff[pendingPick.qid] = pendingPick.answer;
@@ -194,9 +206,11 @@
         document.getElementById('q-cat').textContent = q.category;
         document.getElementById('q-text').textContent = q.question;
 
+        // Pilihan tercentang ikut membaca jawaban efektif (termasuk yang masih
+        // di antrian autosave) agar hasil kunjungan sebelumnya tetap tampak.
         const sel = pendingPick && pendingPick.qid === q.id
           ? (pendingPick.cleared ? null : pendingPick.answer)
-          : answers[q.id] || null;
+          : effectiveAnswers()[q.id] || null;
 
         document.getElementById('options').innerHTML = ['A', 'B', 'C', 'D', 'E'].map((L) => `
           <label class="option ${sel === L ? 'selected' : ''}">
@@ -354,7 +368,7 @@
         const q = qs[current];
         const cur = pendingPick && pendingPick.qid === q.id
           ? (pendingPick.cleared ? null : pendingPick.answer)
-          : answers[q.id] || null;
+          : effectiveAnswers()[q.id] || null;
         if (cur && inp.value === cur) {
           e.preventDefault();
           setTimeout(clearPick, 0);

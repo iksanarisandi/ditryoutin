@@ -4,6 +4,7 @@ import { requireAdmin } from '../../middleware/auth';
 import { hashPassword } from '../../utils/hash';
 import { clamp, toInt, trimStr } from '../../utils/validate';
 import { readJson } from '../../utils/body';
+import { extendUserAccess } from '../../services/payments';
 import type { AppEnv } from '../../types';
 
 const adminUsers = new Hono<AppEnv>();
@@ -17,21 +18,11 @@ function genTempPassword(): string {
 }
 
 async function extendAccess(db: D1Database, userId: number, days: number): Promise<string> {
-  const u = await db
-    .prepare('SELECT access_expires_at, access_started_at FROM users WHERE id=?')
-    .bind(userId)
-    .first<{ access_expires_at: string | null; access_started_at: string | null }>();
-  const now = Date.now();
-  const current = u?.access_expires_at ? Date.parse(u.access_expires_at) : null;
-  const base = current && current > now ? current : now;
-  const newExpiry = new Date(base + days * 86400000).toISOString();
-  const newStart =
-    current && current > now ? (u?.access_started_at ?? new Date(now).toISOString()) : new Date(now).toISOString();
-  await db
-    .prepare('UPDATE users SET access_expires_at=?, access_started_at=?, updated_at=? WHERE id=?')
-    .bind(newExpiry, newStart, new Date().toISOString(), userId)
-    .run();
-  return newExpiry;
+  // Statement atomik bersama settlePayment (services/payments.ts) — baca-ubah-tulis
+  // terpisah bisa saling menimpa bila admin memperpanjang bersamaan dengan webhook
+  // pembayaran yang settle.
+  const newExpiry = await extendUserAccess(db, userId, days);
+  return newExpiry ?? new Date().toISOString();
 }
 
 adminUsers.get('/', async (c) => {

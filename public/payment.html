@@ -51,6 +51,19 @@
           'Kendala pembayaran? Hubungi admin</a>';
       }
 
+      // Transaksi pending terakhir di perangkat ini — agar user yang menutup
+      // tab saat QR tampil (mis. pindah ke aplikasi bank) dan kembali dari
+      // dashboard MELANJUTKAN transaksi yang sama, bukan membuat yang baru.
+      const LAST_PENDING_KEY = 'to_last_pending';
+      function rememberPending() {
+        if (!paymentId) return;
+        try { localStorage.setItem(LAST_PENDING_KEY, String(paymentId)); } catch (e) { /* abaikan */ }
+        try { history.replaceState(null, '', '/payment.html?payment=' + paymentId); } catch (e) { /* abaikan */ }
+      }
+      function forgetPending() {
+        try { localStorage.removeItem(LAST_PENDING_KEY); } catch (e) { /* abaikan */ }
+      }
+
       // ---------- Tahap 1: pilih produk ----------
       async function showProducts() {
         stopPolling();
@@ -97,6 +110,7 @@
             body: method ? { product_id: productId, method } : { product_id: productId },
           });
           paymentId = d.payment.id;
+          rememberPending();
           if (d.manual) showManual(d);
           else showQr(d);
         } catch (e) {
@@ -111,7 +125,7 @@
       }
 
       // ---------- Tahap 2a: mode manual (QRIS pribadi + konfirmasi WA) ----------
-      function showManual(d) {
+      function showManual(d, resumed) {
         stopPolling();
         const ref = d.payment.reference;
         const wa = (d.manual && d.manual.wa) || '6282347303153';
@@ -124,6 +138,7 @@
           'Mohon diverifikasi dan diaktifkan aksesnya. Terima kasih.'
         );
         stage.innerHTML = `
+          ${resumed ? resumedNote() : ''}
           <div class="card">
             <div class="pay-layout">
               <div class="qr-box">
@@ -152,10 +167,19 @@
         pollTimer = setInterval(checkStatus, 6000);
       }
 
+      // Catatan saat transaksi pending sebelumnya dilanjutkan otomatis.
+      function resumedNote() {
+        return `<div class="alert alert-info small" style="margin-bottom:12px">
+          Melanjutkan transaksi sebelumnya yang masih menunggu pembayaran.
+          Ingin paket lain? <a href="/payment.html?new=1">Buat transaksi baru</a> — transaksi lama kedaluwarsa otomatis maks. 24 jam.
+        </div>`;
+      }
+
       // ---------- Tahap 2: tampilkan QR & polling ----------
-      function showQr(d) {
+      function showQr(d, resumed) {
         stopPolling();
         stage.innerHTML = `
+          ${resumed ? resumedNote() : ''}
           <div class="card">
             <div class="pay-layout">
               <div class="qr-box">
@@ -208,6 +232,7 @@
 
         if (d.payment.status === 'paid') {
           stopPolling();
+          forgetPending();
           stage.innerHTML = `
             <div class="card center" style="padding:40px 20px">
               <div style="font-size:2.6rem">✅</div>
@@ -218,6 +243,7 @@
           setTimeout(() => (location.href = '/dashboard.html'), 2500);
         } else if (d.payment.status === 'expired' || d.payment.status === 'failed') {
           stopPolling();
+          forgetPending();
           stage.innerHTML = `
             <div class="card center" style="padding:30px 20px">
               <div style="font-size:2.2rem">⌛</div>
@@ -230,7 +256,10 @@
         // pending: tetap menunggu
       }
 
-      // Jika dibuka dengan ?payment=ID, langsung polling transaksi itu
+      // Jika dibuka dengan ?payment=ID, langsung polling transaksi itu.
+      // Tanpa parameter: coba lanjutkan transaksi pending terakhir di
+      // perangkat ini (kecuali ?new=1) — QR lama masih aktif sampai 24 jam,
+      // jadi membuat transaksi baru hanya menambah kebingungan.
       if (paymentId) {
         try {
           const d = await TO.api('/api/payments/' + paymentId);
@@ -244,7 +273,28 @@
             showProducts();
           }
         } catch (e) { showProducts(); }
+      } else if (TO.qs('new') !== '1') {
+        let lastId = null;
+        try { lastId = Number(localStorage.getItem(LAST_PENDING_KEY)) || null; } catch (e) { /* abaikan */ }
+        let resumed = false;
+        if (lastId) {
+          try {
+            const d = await TO.api('/api/payments/' + lastId);
+            if (d.payment.status === 'pending') {
+              paymentId = lastId;
+              rememberPending();
+              if (d.manual) showManual(d, true);
+              else if (d.qr_svg) showQr({ qr_svg: d.qr_svg, payment: d.payment, txn: d.txn, support_wa: d.support_wa }, true);
+              else showProducts();
+              resumed = true;
+            } else {
+              forgetPending();
+            }
+          } catch (e) { forgetPending(); /* bukan milik akun ini / sudah tidak ada */ }
+        }
+        if (!resumed) showProducts();
       } else {
+        forgetPending(); // pilih produk baru secara sengaja
         showProducts();
       }
     })();

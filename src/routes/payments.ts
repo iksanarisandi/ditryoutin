@@ -27,15 +27,18 @@ payments.post('/create', requireAuth, async (c) => {
     .first<{ id: number; name: string; price: number }>();
   if (!product) return fail(c, 'Produk akses tidak ditemukan', 404);
 
+  // Hanya pending yang masih dalam umur bayar (24 jam + 1 jam tenggang) —
+  // transaksi lebih tua pasti sudah expired (rekonsiliasi cron/polling) atau
+  // ditinggalkan (manual), sehingga tidak boleh memblokir transaksi baru selamanya.
   const pending = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS n FROM payments WHERE user_id=? AND status='pending'`,
+    `SELECT COUNT(*) AS n FROM payments WHERE user_id=? AND status='pending' AND created_at > ?`,
   )
-    .bind(user.id)
+    .bind(user.id, new Date(Date.now() - PAKASIR_TTL_MS - 3600000).toISOString())
     .first<{ n: number }>();
   if ((pending?.n ?? 0) >= MAX_PENDING_PAYMENTS) {
     return fail(
       c,
-      `Anda masih memiliki ${MAX_PENDING_PAYMENTS} transaksi pending. Selesaikan atau hubungi admin sebelum membuat yang baru.`,
+      `Anda masih memiliki ${MAX_PENDING_PAYMENTS} transaksi pending. Selesaikan salah satunya atau tunggu transaksi lama kedaluwarsa (maks. 24 jam).`,
       429,
     );
   }
@@ -158,7 +161,7 @@ payments.get('/:id', requireAuth, async (c) => {
         if (txn.status === 'completed') {
           await settlePayment(c.env.DB, p, txn.completed_at);
           p.status = 'paid';
-        } else if (txn.status === 'canceled') {
+        } else if (txn.status === 'canceled' || txn.status === 'expired' || txn.status === 'failed') {
           await c.env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
             .bind(new Date().toISOString(), p.id)
             .run();

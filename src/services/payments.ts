@@ -1,6 +1,6 @@
 // Settlement pembayaran + perpanjangan masa akses (idempotent).
 
-import { getTransactionStatus } from './pakasir';
+import { getTransactionStatus, PakasirError } from './pakasir';
 import type { Env } from '../types';
 
 export type PaymentRow = {
@@ -36,25 +36,38 @@ export async function settlePayment(
     .prepare('SELECT duration_days FROM products WHERE id=?')
     .bind(payment.product_id)
     .first<{ duration_days: number }>();
-  const user = await db
-    .prepare('SELECT access_expires_at, access_started_at FROM users WHERE id=?')
-    .bind(payment.user_id)
-    .first<{ access_expires_at: string | null; access_started_at: string | null }>();
-  if (!product || !user) return { alreadyPaid: false };
+  if (!product) return { alreadyPaid: false };
 
-  // Masih aktif -> expired_lama + durasi. Sudah habis -> mulai dari sekarang.
-  const now = Date.now();
-  const current = user.access_expires_at ? Date.parse(user.access_expires_at) : null;
-  const base = current && current > now ? current : now;
-  const newExpiry = new Date(base + product.duration_days * 86400000).toISOString();
-  const newStart =
-    current && current > now ? (user.access_started_at ?? nowIso) : new Date(now).toISOString();
-
-  await db
-    .prepare('UPDATE users SET access_expires_at=?, access_started_at=?, updated_at=? WHERE id=?')
-    .bind(newExpiry, newStart, nowIso, payment.user_id)
-    .run();
+  await extendUserAccess(db, payment.user_id, product.duration_days, nowIso);
   return { alreadyPaid: false };
+}
+
+// Perpanjang masa akses: base = MAX(expiry saat ini, sekarang), lalu + durasi.
+// Dikerjakan dalam SATU statement atomik — baca-ubah-tulis terpisah bisa saling
+// menimpa bila dua payment user yang sama settle hampir bersamaan (webhook +
+// polling/cron/admin), sehingga durasi salah satu hilang. Semua timestamp DB
+// berformat ISO-8601 UTC (toISOString, lebar tetap) sehingga perbandingan string
+// = perbandingan waktu, dan strftime '%f' mengembalikan format yang identik.
+// Return expiry baru (RETURNING), atau null bila user tidak ditemukan.
+export async function extendUserAccess(
+  db: D1Database,
+  userId: number,
+  days: number,
+  nowIso?: string,
+): Promise<string | null> {
+  const now = nowIso ?? new Date().toISOString();
+  const row = await db
+    .prepare(
+      `UPDATE users SET
+         access_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(MAX(COALESCE(access_expires_at, ?1), ?1)) + ?2),
+         access_started_at = CASE WHEN COALESCE(access_expires_at, ?1) > ?1 THEN COALESCE(access_started_at, ?1) ELSE ?1 END,
+         updated_at = ?1
+       WHERE id = ?3
+       RETURNING access_expires_at`,
+    )
+    .bind(now, days, userId)
+    .first<{ access_expires_at: string }>();
+  return row?.access_expires_at ?? null;
 }
 
 export function remainingSeconds(expiresAt: string): number {
@@ -78,8 +91,15 @@ export function genReference(): string {
 }
 
 // Cek satu payment pending ke API status Pakasir: settle bila completed,
-// expire bila canceled (setelah umur transaksi lewat). Aman dipanggil
-// berkali-kali — settlePayment idempoten.
+// expire bila umur transaksi sudah lewat batas bayar dan gateway TIDAK
+// melaporkan completed. Aman dipanggil berkali-kali — settlePayment idempoten.
+async function expirePending(db: D1Database, id: number): Promise<void> {
+  await db
+    .prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
+    .bind(new Date().toISOString(), id)
+    .run();
+}
+
 async function reconcilePayment(
   env: { DB: D1Database } & {
     PAKASIR_API_KEY?: string;
@@ -88,17 +108,25 @@ async function reconcilePayment(
   p: PaymentRow,
 ): Promise<void> {
   if (!env.PAKASIR_API_KEY || !env.PAKASIR_PROJECT || !p.txn_id) return;
+  const pastTtl = Date.parse(p.created_at) < Date.now() - PAKASIR_TTL_MS;
   try {
     const txn = await getTransactionStatus(env as Parameters<typeof getTransactionStatus>[0], p.txn_id);
     if (txn.status === 'completed') {
       await settlePayment(env.DB, p, txn.completed_at);
-    } else if (txn.status === 'canceled' && Date.parse(p.created_at) < Date.now() - PAKASIR_TTL_MS) {
-      await env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
-        .bind(new Date().toISOString(), p.id)
-        .run();
+    } else if (pastTtl) {
+      // Lewat batas bayar 24 jam dan gateway tidak melaporkan completed:
+      // apa pun statusnya sekarang (canceled/expired/bahkan masih pending di
+      // gateway), transaksi tidak bisa menghasilkan pembayaran yang sah lagi
+      // menurut batas aplikasi — identik dengan expiry di GET /api/payments/:id.
+      // Webhook tetap bisa men-settle belakangan bila completed datang terlambat.
+      await expirePending(env.DB, p.id);
     }
-  } catch {
-    // rate-limit / jaringan: dicoba lagi pada kesempatan berikutnya
+  } catch (e) {
+    // Transaksi tidak lagi dikenal gateway (404) + lewat TTL: mustahil lunas.
+    // Error lain (jaringan/rate limit gateway): coba lagi pada kesempatan berikutnya.
+    if (pastTtl && e instanceof PakasirError && e.status === 404) {
+      await expirePending(env.DB, p.id);
+    }
   }
 }
 

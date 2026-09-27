@@ -3,7 +3,12 @@ import type { Env } from '../types';
 
 const BASE_URL = 'https://app.pakasir.com';
 
-export class PakasirError extends Error {}
+export class PakasirError extends Error {
+  // HTTP status respons gateway (bila ada) — mis. 404 = transaksi tidak dikenal.
+  constructor(message: string, public status?: number) {
+    super(message);
+  }
+}
 
 export type PakasirTxn = {
   txn_id: string;
@@ -50,7 +55,7 @@ async function pakasirFetch(url: string, init: RequestInit): Promise<unknown> {
       (json as Record<string, unknown> | null)?.message ??
       (json as Record<string, unknown> | null)?.error ??
       `Pakasir merespon ${res.status}`;
-    throw new PakasirError(String(msg));
+    throw new PakasirError(String(msg), res.status);
   }
   return json;
 }
