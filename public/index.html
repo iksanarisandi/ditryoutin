@@ -275,6 +275,17 @@
       const me = await TO.fetchMe();
       TO.renderHeader('/', me);
 
+      // Pengguna sudah login: tombol "Mulai Tryout" (hero & CTA penutup)
+      // langsung menuju dashboard tempat paket tryout diakses. Tautan
+      // "Sudah punya akun" disembunyikan karena tidak relevan lagi.
+      if (me) {
+        document
+          .querySelectorAll('.hero-cta a[href="/register.html"], .cta-card a[href="/register.html"]')
+          .forEach((a) => { a.href = '/dashboard.html'; });
+        const ghost = document.querySelector('.hero-cta a[href="/login.html"]');
+        if (ghost) ghost.hidden = true;
+      }
+
       // Statistik live (paket/soal/pengguna) — untuk SEMUA pengunjung, anonim
       // maupun login. Fallback statis sengaja tanpa angka spesifik supaya
       // tidak pernah menampilkan angka basi; angka hanya dari D1.
