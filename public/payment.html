@@ -38,7 +38,7 @@
 
       // Kontak admin via WA untuk user yang terkendala membayar lewat gateway.
       function waHelpLink(wa, ref) {
-        const num = wa || '6282347303153';
+        const num = wa || TO.WA_ADMIN;
         const text = encodeURIComponent(
           'Halo admin Tryout UPKP, saya mengalami kendala saat membayar via QRIS.\n' +
           'Ref: ' + (ref || '-') + '\n' +
@@ -128,7 +128,7 @@
       function showManual(d, resumed) {
         stopPolling();
         const ref = d.payment.reference;
-        const wa = (d.manual && d.manual.wa) || '6282347303153';
+        const wa = (d.manual && d.manual.wa) || TO.WA_ADMIN;
         const waText = encodeURIComponent(
           'Halo admin Tryout UPKP, saya sudah membayar via QRIS.\n' +
           'Ref: ' + ref + '\n' +

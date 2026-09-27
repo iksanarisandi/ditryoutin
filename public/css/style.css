@@ -628,6 +628,9 @@ body.exam-page { background: #eef2f7; }
 .btn-mark.on { background: var(--amber); color: #fff; }
 
 .nav-panel { position: sticky; top: 70px; }
+/* Lapor soal keliru/ambigu/typo ke admin via WA — dipakai di halaman ujian & pembahasan hasil */
+.report-link { font-size: .8rem; color: var(--muted); }
+.report-link:hover { color: var(--primary); text-decoration: underline; }
 .legend { display: flex; flex-direction: column; gap: 6px; font-size: .82rem; margin: 10px 0; }
 .legend span.chip { display: inline-block; width: 22px; height: 22px; border-radius: 5px; vertical-align: middle; margin-right: 6px; border: 1.5px solid var(--border); background: #fff; }
 .legend .chip.answered { background: var(--primary); border-color: var(--primary); }

@@ -44,7 +44,7 @@
       TO.renderHeader('/forgot.html', await TO.fetchMe());
       // Kontak langsung ke admin: email yang diketik ikut terisi otomatis di
       // pesan WhatsApp, jadi user tinggal kirim tanpa menyalin apa pun.
-      const WA = '6282347303153';
+      const WA = TO.WA_ADMIN;
       function waHref() {
         const email = (document.getElementById('email').value || '').trim();
         const text = encodeURIComponent(

@@ -56,6 +56,10 @@
       <p class="small muted" style="margin:8px 0 10px">Pintasan: <strong>A–E</strong> jawab &nbsp;·&nbsp; <strong>←/→</strong> pindah soal</p>
       <div class="qgrid" id="qgrid"></div>
       <button class="btn btn-danger btn-block" id="btn-finish" type="button" style="margin-top:14px">Selesai Ujian</button>
+      <!-- Dibuat kecil dan di bawah: jangan sampai mengalihkan fokus saat ujian.
+           Nomor soal pada pesan WA diisi saat link diklik (soal yang sedang dilihat). -->
+      <a class="report-link" id="report-link" href="#" target="_blank" rel="noopener"
+         style="display:block;margin-top:10px;text-align:center">Menemukan soal keliru, ambigu, atau typo? Laporkan ke admin</a>
     </div>
   </div>
 
@@ -388,6 +392,23 @@
       });
       document.getElementById('btn-next').addEventListener('click', () => {
         if (current < qs.length - 1) goTo(current + 1);
+      });
+
+      // ---------- lapor soal ke admin ----------
+      // href dibangun saat diklik agar pesan WA memuat soal yang sedang
+      // dilihat user; paket + nomor + kategori cukup bagi admin untuk
+      // menemukan soalnya tanpa bertanya balik.
+      document.getElementById('report-link').addEventListener('click', function () {
+        const q = qs[current];
+        const text = encodeURIComponent(
+          'Halo admin Tryout UPKP, saya menemukan soal yang sekiranya keliru, ambigu, atau ada typo.\n\n' +
+          'Paket: ' + data.package.title + '\n' +
+          'Nomor soal: ' + q.order + ' (kategori: ' + q.category + ')\n' +
+          'Nama akun: ' + (me.user ? me.user.name + ' (' + me.user.email + ')' : '-') + '\n\n' +
+          'Keterangan masalah: \n\n' +
+          'Mohon dicek dan diperbaiki. Terima kasih.'
+        );
+        this.href = 'https://wa.me/' + TO.WA_ADMIN + '?text=' + text;
       });
 
       // ---------- pintasan keyboard ----------

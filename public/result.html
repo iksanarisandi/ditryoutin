@@ -56,6 +56,21 @@
           <div class="small muted mt">Skor: 5 poin per jawaban benar. Waktu pengerjaan: ${TO.fmtDur(r.duration_seconds)} &bull; Selesai: ${TO.fmtDateTime(r.submitted_at)} WITA</div>
         </div>`;
 
+      // Lapor soal keliru/ambigu/typo ke admin via WA — sama dengan halaman
+      // ujian, tapi di pembahasan user melihat kunci jawaban sehingga paling
+      // sering menyadari kekeliruan di sini.
+      const waReportHref = (order, category) => {
+        const text = encodeURIComponent(
+          'Halo admin Tryout UPKP, saya menemukan soal yang sekiranya keliru, ambigu, atau ada typo.\n\n' +
+          'Paket: ' + r.package.title + '\n' +
+          'Nomor soal: ' + order + ' (kategori: ' + category + ')\n' +
+          'Nama akun: ' + (me.user ? me.user.name + ' (' + me.user.email + ')' : '-') + '\n\n' +
+          'Keterangan masalah: \n\n' +
+          'Mohon dicek dan diperbaiki. Terima kasih.'
+        );
+        return 'https://wa.me/' + TO.WA_ADMIN + '?text=' + text;
+      };
+
       const csByName = new Map((d.category_scores || []).map((cs) => [cs.name, cs]));
       const catMax = (name) => {
         const cs = csByName.get(name);
@@ -123,6 +138,7 @@
                   <div class="box"><div class="k">Jawaban Benar</div><strong style="color:var(--green)">${rev.correct_answer}</strong></div>
                 </div>
                 ${rev.explanation ? '<p><strong>Pembahasan:</strong> ' + TO.esc(rev.explanation) + '</p>' : '<p class="muted small">Belum ada pembahasan untuk soal ini.</p>'}
+                <a class="report-link" target="_blank" rel="noopener" href="${waReportHref(rev.question_order, rev.category)}">Soal ini keliru / ambigu / typo? Laporkan ke admin</a>
               </div>
             </details>`;
           }).join('')}

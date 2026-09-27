@@ -2,6 +2,11 @@
 (function () {
   'use strict';
 
+  // Nomor WA admin (fallback) — dipakai tombol "hubungi admin" di berbagai
+  // halaman. Halaman pembayaran memakai nomor dari pengaturan server bila ada;
+  // konstanta ini hanya nilai cadangannya.
+  const WA_ADMIN = '6282347303153';
+
   // ---- API fetch wrapper: selalu JSON { success, data | error } ----
   async function api(path, opts = {}) {
     // no-store: zona Cloudflare menimpa max-age jadi 4 jam (Browser Cache TTL),
@@ -163,6 +168,6 @@
   window.TO = {
     api, esc, rupiah, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft,
     toast, busy, fetchMe, requireUser, requireAdmin, logout,
-    renderHeader, openModal, closeModal,
+    renderHeader, openModal, closeModal, WA_ADMIN,
   };
 })();
