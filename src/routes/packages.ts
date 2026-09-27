@@ -17,7 +17,9 @@ packages.get('/', async (c) => {
        (SELECT a.score FROM attempts a WHERE a.package_id=p.id AND a.user_id=?1 AND a.status='submitted'
         ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1) AS last_score,
        (SELECT a.passed FROM attempts a WHERE a.package_id=p.id AND a.user_id=?1 AND a.status='submitted'
-        ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1) AS last_passed
+        ORDER BY a.submitted_at DESC, a.id DESC LIMIT 1) AS last_passed,
+       (SELECT MAX(a.score) FROM attempts a WHERE a.package_id=p.id AND a.user_id=?1 AND a.status='submitted') AS best_score,
+       (SELECT EXISTS(SELECT 1 FROM attempts a WHERE a.package_id=p.id AND a.user_id=?1 AND a.status='submitted' AND a.passed=1)) AS ever_passed
      FROM exam_packages p
      WHERE p.active=1
      ORDER BY p.id`,
@@ -33,6 +35,8 @@ packages.get('/', async (c) => {
       attempt_count: number;
       last_score: number | null;
       last_passed: number | null;
+      best_score: number | null;
+      ever_passed: number;
     }>();
 
   const cats = await c.env.DB.prepare(

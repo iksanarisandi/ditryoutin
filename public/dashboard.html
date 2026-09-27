@@ -105,6 +105,11 @@
         'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
         '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
 
+      const TROPHY_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
+        'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0V4z"/>' +
+        '<path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>';
+
       // Klasifikasi jenis ujian — urutan cek sama dengan defaultRulesKey() di passing-grades.ts
       function tabOf(examType) {
         const t = String(examType || '').toUpperCase();
@@ -120,10 +125,17 @@
       }
 
       function lastLine(p) {
-        return p.attempt_count > 0
-          ? passedBadge(locked ? null : p.last_passed) +
-            'Percobaan terakhir: <strong>' + (p.last_score ?? 0) + '</strong> / ' + (p.question_count * 5) + ' poin (' + p.attempt_count + 'x)'
-          : 'Belum pernah mengerjakan';
+        if (p.attempt_count === 0) return 'Belum pernah mengerjakan';
+        const total = p.question_count * 5;
+        // Emas permanen: begitu pernah lulus, tampilkan skor terbaik —
+        // hasil ulangan yang gagal tidak pernah mencabut emas.
+        if (Number(p.ever_passed) === 1) {
+          return 'Skor terbaik: <strong>' + (p.best_score ?? 0) + '</strong> / ' + total +
+            ' poin (' + p.attempt_count + 'x)';
+        }
+        return passedBadge(locked ? null : p.last_passed) +
+          'Percobaan terakhir: <strong>' + (p.last_score ?? 0) + '</strong> / ' + total +
+          ' poin (' + p.attempt_count + 'x)';
       }
 
       function cardHtml(p) {
@@ -146,11 +158,16 @@
               </div>
             </div>`;
         }
+        // Emas permanen (gamifikasi): pernah lulus sekali saja → medali melekat selamanya,
+        // mengulang dan gagal tidak mencabutnya. SQLite: ever_passed 1/0.
+        const passed = Number(p.ever_passed) === 1;
         return `
-          <div class="card pkg-card">
+          <div class="card pkg-card${passed ? ' passed' : ''}">
             <div class="top">
               <h3>${TO.esc(p.title)}</h3>
-              <span class="badge badge-primary">${TO.esc(p.exam_type)}</span>
+              ${passed
+                ? '<span class="badge badge-gold">' + TROPHY_SVG + ' Lulus</span>'
+                : '<span class="badge badge-primary">' + TO.esc(p.exam_type) + '</span>'}
             </div>
             ${meta}
             <div class="foot">
