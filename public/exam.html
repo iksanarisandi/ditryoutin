@@ -53,6 +53,7 @@
         <div><span class="chip answered"></span>Sudah dijawab</div>
         <div><span class="chip marked"></span>Ragu-ragu</div>
       </div>
+      <p class="small muted" style="margin:8px 0 10px">Pintasan: <strong>A–E</strong> jawab &nbsp;·&nbsp; <strong>←/→</strong> pindah soal</p>
       <div class="qgrid" id="qgrid"></div>
       <button class="btn btn-danger btn-block" id="btn-finish" type="button" style="margin-top:14px">Selesai Ujian</button>
     </div>
@@ -387,6 +388,28 @@
       });
       document.getElementById('btn-next').addEventListener('click', () => {
         if (current < qs.length - 1) goTo(current + 1);
+      });
+
+      // ---------- pintasan keyboard ----------
+      // A–E memilih jawaban, panah kiri/kanan pindah soal. Diabaikan saat modal
+      // terbuka (konfirmasi selesai / sesi dicabut) atau saat tombol modifier
+      // ditekan agar tidak bentrok dengan shortcut browser/OS.
+      function modalOpen() {
+        const cm = document.getElementById('confirm-modal');
+        const rv = document.getElementById('revoked-modal');
+        return (cm && !cm.hidden) || (rv && !rv.hidden);
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey || modalOpen()) return;
+        const k = e.key.toLowerCase();
+        if (k === 'arrowleft') {
+          if (current > 0) { e.preventDefault(); goTo(current - 1); }
+        } else if (k === 'arrowright') {
+          if (current < qs.length - 1) { e.preventDefault(); goTo(current + 1); }
+        } else if (k === 'a' || k === 'b' || k === 'c' || k === 'd' || k === 'e') {
+          const L = k.toUpperCase();
+          if (qs[current].options[L]) pick(L);
+        }
       });
 
       // ---------- deteksi sesi dicabut ----------
