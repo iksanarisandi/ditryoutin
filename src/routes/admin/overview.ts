@@ -10,27 +10,27 @@ overview.use('*', requireAdmin);
 
 overview.get('/stats', async (c) => {
   const nowIso = new Date().toISOString();
+  // Satu batch, bukan Promise.all: batas Workers = 6 koneksi D1 simultan per
+  // invokasi, sedangkan di sini ada 7 query — batch menjalankan semuanya lewat
+  // satu koneksi dalam satu round-trip (urutan hasil = urutan statement).
+  const rows = await c.env.DB.batch<{ n: number; total?: number }>([
+    c.env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE role='user'`),
+    c.env.DB.prepare(
+      `SELECT COUNT(DISTINCT s.user_id) AS n FROM sessions s JOIN users u ON u.id=s.user_id
+       WHERE s.expires_at > ? AND u.role='user'`,
+    ).bind(nowIso),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM users WHERE role='user' AND access_expires_at > ?`,
+    ).bind(nowIso),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM payments WHERE status='paid'`,
+    ),
+    c.env.DB.prepare('SELECT COUNT(*) AS n FROM exam_packages'),
+    c.env.DB.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted_at IS NULL'),
+    c.env.DB.prepare(`SELECT COUNT(*) AS n FROM attempts WHERE status='submitted'`),
+  ]);
   const [totalUsers, usersOnline, usersWithAccess, payStats, totalPackages, totalQuestions, totalAttempts] =
-    await Promise.all([
-      c.env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE role='user'`).first<{ n: number }>(),
-      c.env.DB.prepare(
-        `SELECT COUNT(DISTINCT s.user_id) AS n FROM sessions s JOIN users u ON u.id=s.user_id
-         WHERE s.expires_at > ? AND u.role='user'`,
-      )
-        .bind(nowIso)
-        .first<{ n: number }>(),
-      c.env.DB.prepare(
-        `SELECT COUNT(*) AS n FROM users WHERE role='user' AND access_expires_at > ?`,
-      )
-        .bind(nowIso)
-        .first<{ n: number }>(),
-      c.env.DB.prepare(
-        `SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM payments WHERE status='paid'`,
-      ).first<{ n: number; total: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) AS n FROM exam_packages').first<{ n: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted_at IS NULL').first<{ n: number }>(),
-      c.env.DB.prepare(`SELECT COUNT(*) AS n FROM attempts WHERE status='submitted'`).first<{ n: number }>(),
-    ]);
+    rows.map((r) => r.results?.[0] ?? null);
 
   return ok(c, {
     stats: {
