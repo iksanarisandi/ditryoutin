@@ -121,6 +121,12 @@
           });
           paymentId = d.payment.id;
           rememberPending();
+          gtag('event', 'begin_checkout', {
+            currency: 'IDR',
+            value: d.payment.amount,
+            method: method === 'manual' ? 'manual' : 'qris',
+            items: [{ item_name: d.payment.product_name || ('Produk #' + productId), price: d.payment.amount, quantity: 1 }],
+          });
           if (d.manual) showManual(d);
           else showQr(d);
         } catch (e) {
@@ -243,6 +249,21 @@
         if (d.payment.status === 'paid') {
           stopPolling();
           forgetPending();
+          // Event purchase sekali per transaksi per perangkat — halaman ini bisa
+          // dibuka ulang (?payment=ID yang sudah lunas) dan tidak boleh dobel.
+          const gaKey = 'to_ga_purchase_' + paymentId;
+          let gaSent = false;
+          try { gaSent = !!localStorage.getItem(gaKey); } catch (e) { /* abaikan */ }
+          if (!gaSent) {
+            try { localStorage.setItem(gaKey, '1'); } catch (e) { /* abaikan */ }
+            gtag('event', 'purchase', {
+              transaction_id: d.payment.reference,
+              currency: 'IDR',
+              value: d.payment.amount,
+              method: d.payment.method || 'qris',
+              items: [{ item_name: d.payment.product_name || '-', price: d.payment.amount, quantity: 1 }],
+            });
+          }
           stage.innerHTML = `
             <div class="card center" style="padding:40px 20px">
               <div style="font-size:2.6rem">✅</div>

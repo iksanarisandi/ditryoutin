@@ -193,6 +193,8 @@
             btn.disabled = true;
             try {
               const data = await TO.api('/api/attempts', { method: 'POST', body: { package_id: Number(btn.dataset.id) } });
+              // Resume attempt lama (409) tidak dihitung sebagai mulai baru.
+              gtag('event', 'exam_start', { package_title: btn.dataset.title, transport_type: 'beacon' });
               location.href = '/exam.html?id=' + data.attempt_id;
             } catch (err) {
               if (err.status === 409 && err.data && err.data.attempt_id) {

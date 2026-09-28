@@ -93,6 +93,8 @@
             method: 'POST',
             body: { name: form.name.value, email: form.email.value, password: form.password.value, turnstile_token: turnstileToken || undefined },
           });
+          // beacon agar hit tetap terkirim meski halaman langsung pindah.
+          gtag('event', 'sign_up', { method: 'email', transport_type: 'beacon' });
           location.href = '/dashboard.html';
         } catch (err) {
           errMsg.textContent = err.message;

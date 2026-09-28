@@ -46,6 +46,22 @@
       }
 
       const r = d.result;
+      // Event exam_complete sekali per attempt per perangkat — halaman hasil
+      // bisa dibuka lagi dari riwayat dan tidak boleh terhitung dobel.
+      const gaKey = 'to_ga_result_' + id;
+      let gaSent = false;
+      try { gaSent = !!localStorage.getItem(gaKey); } catch (e) { /* abaikan */ }
+      if (!gaSent) {
+        try { localStorage.setItem(gaKey, '1'); } catch (e) { /* abaikan */ }
+        gtag('event', 'exam_complete', {
+          attempt_id: id,
+          package_title: r.package.title,
+          score: r.score,
+          max_score: r.max_score,
+          auto_submitted: !!r.auto_submitted,
+          ...(r.passing_available ? { passed: !!r.passed } : {}),
+        });
+      }
       const statusBadge = !r.passing_available
         ? '<span class="badge">TANPA PASSING GRADE</span>'
         : (r.passed ? '<span class="badge badge-success">LULUS</span>' : '<span class="badge badge-danger">BELUM LULUS</span>');

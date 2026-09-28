@@ -90,6 +90,7 @@
             method: 'POST',
             body: { email: form.email.value, password: form.password.value, turnstile_token: turnstileToken || undefined },
           });
+          gtag('event', 'login', { method: 'email', role: data.user.role, transport_type: 'beacon' });
           const next = TO.qs('next');
           const dest = next && next.startsWith('/') ? next : (data.user.role === 'admin' ? '/admin/' : '/dashboard.html');
           location.href = dest;
