@@ -62,6 +62,12 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   }
   function qs(name) { return new URLSearchParams(location.search).get(name); }
+  // Cuplikan teks soal untuk pesan WA laporan kekeliruan — nomor soal adalah
+  // urutan acak per-attempt, jadi admin melacak soalnya lewat teksnya.
+  function snippet(text, max = 100) {
+    const s = String(text ?? '').replace(/\s+/g, ' ').trim();
+    return s.length > max ? s.slice(0, max).trimEnd() + '…' : s;
+  }
   function daysLeft(iso) {
     if (!iso) return 0;
     return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000));
@@ -166,7 +172,7 @@
   function closeModal(id) { const m = document.getElementById(id); if (m) m.hidden = true; }
 
   window.TO = {
-    api, esc, rupiah, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft,
+    api, esc, rupiah, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft, snippet,
     toast, busy, fetchMe, requireUser, requireAdmin, logout,
     renderHeader, openModal, closeModal, WA_ADMIN,
   };

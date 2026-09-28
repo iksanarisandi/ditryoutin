@@ -396,14 +396,15 @@
 
       // ---------- lapor soal ke admin ----------
       // href dibangun saat diklik agar pesan WA memuat soal yang sedang
-      // dilihat user; paket + nomor + kategori cukup bagi admin untuk
-      // menemukan soalnya tanpa bertanya balik.
+      // dilihat user. Nomor soal adalah urutan acak per-attempt, jadi pesan
+      // menyertakan cuplikan teks soal agar admin bisa melacaknya di bank soal.
       document.getElementById('report-link').addEventListener('click', function () {
         const q = qs[current];
         const text = encodeURIComponent(
           'Halo admin Tryout UPKP, saya menemukan soal yang sekiranya keliru, ambigu, atau ada typo.\n\n' +
           'Paket: ' + data.package.title + '\n' +
           'Nomor soal: ' + q.order + ' (kategori: ' + q.category + ')\n' +
+          'Cuplikan soal: "' + TO.snippet(q.question) + '"\n' +
           'Nama akun: ' + (me.user ? me.user.name + ' (' + me.user.email + ')' : '-') + '\n\n' +
           'Keterangan masalah: \n\n' +
           'Mohon dicek dan diperbaiki. Terima kasih.'
