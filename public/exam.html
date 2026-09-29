@@ -242,7 +242,7 @@
         markBtn.textContent = marked.has(q.id) ? 'Ragu-ragu ✓' : 'Ragu-ragu';
 
         document.getElementById('btn-prev').disabled = current === 0;
-        document.getElementById('btn-next').disabled = current === qs.length - 1;
+        renderNextBtn();
         renderGrid();
         updateProgress();
       }
@@ -271,6 +271,41 @@
         current = i;
         renderQuestion();
         if (isMobile.matches) window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      // ---------- tombol Selanjutnya: tiga keadaan ----------
+      // Tengah ujian: pindah ke soal berikutnya seperti biasa. Di soal
+      // terakhir: bila masih ada soal belum dijawab / ditandai ragu-ragu,
+      // tombol melompat ke soal nomor terkecil yang belum beres (labelnya
+      // menyebut nomor tujuan agar lompatan mundur tidak mengejut); bila
+      // semua sudah dijawab dan tak ada tanda ragu-ragu, tombol berubah
+      // menjadi Akhiri Ujian (merah, membuka modal konfirmasi — bukan
+      // langsung mengumpulkan). Soal terakhir yang sendirian belum beres
+      // tidak dijadikan target lompatan (tak ada gunanya melompat ke soal
+      // yang sedang dilihat) — langsung tawarkan akhir; modal konfirmasi
+      // tetap memperingatkan lewat statistiknya.
+      function nextAction() {
+        if (current < qs.length - 1) return { type: 'next' };
+        const eff = effectiveAnswers();
+        for (let i = 0; i < qs.length; i++) {
+          if (i !== current && (!eff[qs[i].id] || marked.has(qs[i].id))) return { type: 'jump', i };
+        }
+        return { type: 'finish' };
+      }
+      function renderNextBtn() {
+        const act = nextAction();
+        const btn = document.getElementById('btn-next');
+        btn.disabled = false;
+        btn.classList.toggle('btn-danger', act.type === 'finish');
+        btn.textContent = act.type === 'next' ? 'Selanjutnya →'
+          : act.type === 'jump' ? 'Ke soal ' + qs[act.i].order + ' →'
+          : 'Akhiri Ujian';
+      }
+      function nextStep() {
+        const act = nextAction();
+        if (act.type === 'next') goTo(current + 1);
+        else if (act.type === 'jump') goTo(act.i);
+        else openFinishModal();
       }
 
       // ---------- autosave (antrian + kirim ulang otomatis) ----------
@@ -400,9 +435,7 @@
       document.getElementById('btn-prev').addEventListener('click', () => {
         if (current > 0) goTo(current - 1);
       });
-      document.getElementById('btn-next').addEventListener('click', () => {
-        if (current < qs.length - 1) goTo(current + 1);
-      });
+      document.getElementById('btn-next').addEventListener('click', nextStep);
 
       // ---------- lapor soal ke admin ----------
       // href dibangun saat diklik agar pesan WA memuat soal yang sedang
@@ -437,7 +470,7 @@
         if (k === 'arrowleft') {
           if (current > 0) { e.preventDefault(); goTo(current - 1); }
         } else if (k === 'arrowright') {
-          if (current < qs.length - 1) { e.preventDefault(); goTo(current + 1); }
+          e.preventDefault(); nextStep();
         } else if (k === 'a' || k === 'b' || k === 'c' || k === 'd' || k === 'e') {
           const L = k.toUpperCase();
           if (qs[current].options[L]) pick(L);
@@ -545,12 +578,15 @@
         location.href = '/result.html?id=' + attemptId;
       }
 
-      document.getElementById('btn-finish').addEventListener('click', () => {
+      // Dipakai tombol Selesai Ujian di panel samping maupun tombol
+      // Selanjutnya yang berubah menjadi Akhiri Ujian di soal terakhir.
+      function openFinishModal() {
         const c = counts();
         document.getElementById('confirm-stats').innerHTML =
           `Sudah dijawab: <strong>${c.answered}</strong><br>Belum dijawab: <strong>${c.unanswered}</strong><br>Ragu-ragu: <strong>${c.marked}</strong>`;
         TO.openModal('confirm-modal');
-      });
+      }
+      document.getElementById('btn-finish').addEventListener('click', openFinishModal);
       document.getElementById('confirm-cancel').addEventListener('click', () => TO.closeModal('confirm-modal'));
       document.getElementById('confirm-ok').addEventListener('click', () => finish(false));
 
