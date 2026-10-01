@@ -34,18 +34,23 @@
 
       try {
         const { stats } = await TO.api('/api/admin/stats');
+        // Konversi = user yang pernah bayar (≥1 transaksi lunas) / total user.
+        const conv = stats.total_users
+          ? Math.round((stats.users_paid_ever / stats.total_users) * 100) : 0;
         const items = [
-          ['Total User', stats.total_users],
-          ['Login 30 Hari', stats.users_online],
-          ['Akses Aktif', stats.users_with_active_access],
-          ['Pendapatan', TO.rupiah(stats.revenue)],
-          ['Transaksi Sukses', stats.transactions_paid],
-          ['Paket Tryout', stats.total_packages],
-          ['Total Soal', stats.total_questions],
-          ['Percobaan', stats.total_attempts],
+          { label: 'Total User', value: stats.total_users,
+            sub: stats.new_users_today > 0 ? `+${stats.new_users_today} hari ini` : '' },
+          { label: 'Login 30 Hari', value: stats.users_online },
+          { label: 'Akses Aktif', value: stats.users_with_active_access,
+            sub: stats.total_users ? `konversi ${conv}%` : '' },
+          { label: 'Pendapatan', value: TO.rupiah(stats.revenue) },
+          { label: 'Transaksi Sukses', value: stats.transactions_paid },
+          { label: 'Paket Tryout', value: stats.total_packages },
+          { label: 'Total Soal', value: stats.total_questions },
+          { label: 'Percobaan', value: stats.total_attempts },
         ];
-        document.getElementById('stats').innerHTML = items.map(([label, val]) => `
-          <div class="card stat-card"><div class="label">${label}</div><div class="value">${val}</div></div>`).join('');
+        document.getElementById('stats').innerHTML = items.map(({ label, value, sub }) => `
+          <div class="card stat-card"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="small muted">${sub}</div>` : ''}</div>`).join('');
       } catch (e) {
         document.getElementById('stats').innerHTML = '<div class="card"><div class="alert alert-danger">' + TO.esc(e.message) + '</div></div>';
       }

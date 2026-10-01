@@ -25,9 +25,16 @@
           <option value="failed">Failed</option>
           <option value="expired">Expired</option>
         </select>
+        <button class="btn btn-ghost" id="p-today" type="button">Hari Ini</button>
+        <button class="btn btn-ghost" id="p-yesterday" type="button">Kemarin</button>
+        <input type="date" id="f-from" aria-label="Dari tanggal">
+        <span class="muted">–</span>
+        <input type="date" id="f-to" aria-label="Sampai tanggal">
         <button class="btn" id="filter-btn">Filter</button>
+        <button class="btn btn-ghost" id="p-all" type="button">Semua Tanggal</button>
       </div>
       <div class="card">
+        <div id="revenue" class="rev-bar muted">Memuat…</div>
         <div id="list"><p class="muted">Memuat…</p></div>
         <div class="pager" id="pager"></div>
       </div>
@@ -43,7 +50,17 @@
 
       const listEl = document.getElementById('list');
       const pagerEl = document.getElementById('pager');
+      const revEl = document.getElementById('revenue');
+      const fromEl = document.getElementById('f-from');
+      const toEl = document.getElementById('f-to');
       let page = 1;
+
+      // Tanggal kalender WIB (UTC+7) — sama dengan yang dipakai server sebagai
+      // batas "hari", apa pun zona waktu perangkat admin.
+      function wibDateStr(offsetDays = 0) {
+        return new Date(Date.now() + 7 * 3600 * 1000 + offsetDays * 86_400_000)
+          .toISOString().slice(0, 10);
+      }
 
       function statusBadge(s) {
         if (s === 'paid') return '<span class="badge badge-success">PAID</span>';
@@ -57,9 +74,17 @@
         const params = new URLSearchParams();
         const st = document.getElementById('f-status').value;
         if (st) params.set('status', st);
+        if (fromEl.value && toEl.value) {
+          params.set('from', fromEl.value);
+          params.set('to', toEl.value);
+        }
         params.set('page', page);
         try {
           const d = await TO.api('/api/admin/payments?' + params.toString());
+          const label = (fromEl.value && toEl.value)
+            ? ` (${fromEl.value} s.d. ${toEl.value})` : ' (semua waktu)';
+          revEl.innerHTML = `Pendapatan${label}: <strong>${TO.rupiah(d.revenue)}</strong>` +
+            ' <span class="small">— transaksi lunas menurut tanggal dibayar</span>';
           if (!d.payments.length) { listEl.innerHTML = '<p class="muted">Tidak ada transaksi.</p>'; }
           else {
             listEl.innerHTML = `
@@ -102,6 +127,15 @@
       }
 
       document.getElementById('filter-btn').addEventListener('click', () => { page = 1; load(); });
+      document.getElementById('p-today').addEventListener('click', () => {
+        fromEl.value = toEl.value = wibDateStr(); page = 1; load();
+      });
+      document.getElementById('p-yesterday').addEventListener('click', () => {
+        fromEl.value = toEl.value = wibDateStr(-1); page = 1; load();
+      });
+      document.getElementById('p-all').addEventListener('click', () => {
+        fromEl.value = toEl.value = ''; page = 1; load();
+      });
       load();
     })();
   </script>
