@@ -36,7 +36,7 @@
         const { stats } = await TO.api('/api/admin/stats');
         const items = [
           ['Total User', stats.total_users],
-          ['User Online', stats.users_online],
+          ['Login 30 Hari', stats.users_online],
           ['Akses Aktif', stats.users_with_active_access],
           ['Pendapatan', TO.rupiah(stats.revenue)],
           ['Transaksi Sukses', stats.transactions_paid],
