@@ -158,7 +158,11 @@ app.get('/api/recent-results', async (c) => {
     }
     return items;
   };
-  const firstName = (n: string) => n.trim().split(/\s+/)[0] || 'Peserta';
+  // Beberapa peserta mengisi nama dengan email — jangan bocorkan alamatnya.
+  const firstName = (n: string) => {
+    const first = n.trim().split(/\s+/)[0];
+    return !first || first.includes('@') ? 'Peserta' : first;
+  };
 
   const [passedRows, activeRows, paidRows] = await Promise.all([
     c.env.DB.prepare(
