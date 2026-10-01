@@ -1,14 +1,15 @@
-/* Popup bukti sosial di landing page: hasil tryout terbaru yang lulus.
-   Muncul sebentar lalu hilang, bergantian antar peserta. Jika data kurang
-   dari 3, tiap peserta hanya ditampilkan sekali (tidak berulang) agar tidak
-   terlihat repetitif. Nonaktif permanen setelah pengunjung menutupnya. */
+/* Popup bukti sosial di landing page: hasil tryout yang lulus, peserta yang
+   sedang mengerjakan tryout, dan langganan paket terbaru — bergantian agar
+   terlihat hidup dan tidak repetitif. Jika total data kurang dari 3, tiap
+   entri hanya ditampilkan sekali. Nonaktif permanen setelah pengunjung
+   menutupnya. */
 (function () {
   'use strict';
   if (localStorage.getItem('sproof-off')) return;
 
-  var SHOW_DELAY = 4000;                    // jeda sebelum muncul pertama kali
-  var VISIBLE = 5000;                       // durasi tampil tiap popup
-  var GAP_MIN = 8000, GAP_MAX = 14000;      // jeda acak antar popup
+  var SHOW_DELAY = 3000;                    // jeda sebelum muncul pertama kali
+  var VISIBLE = 4500;                       // durasi tampil tiap popup
+  var GAP_MIN = 4000, GAP_MAX = 7000;       // jeda acak antar popup
 
   function relTime(iso) {
     var min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -28,23 +29,46 @@
     return arr;
   }
 
+  // Ikon & teks per jenis aktivitas.
+  var ICONS = {
+    passed: { glyph: '✓', cls: '' },
+    active: { glyph: '✎', cls: 'active' },
+    purchase: { glyph: '★', cls: 'purchase' },
+  };
+  function tpl(it) {
+    var name = '<strong>' + TO.esc(it.first_name) + '</strong>';
+    var title = '<div class="sproof-title">“' + TO.esc(it.title) + '”</div>';
+    if (it.type === 'passed')
+      return name + ' menyelesaikan tryout' + title +
+        '<div class="sproof-meta"><span class="sproof-pass">Lulus</span> · Skor ' +
+        it.score + '/' + it.max_score + ' · ' + relTime(it.time) + '</div>';
+    if (it.type === 'active')
+      return name + ' sedang mengerjakan tryout' + title +
+        '<div class="sproof-meta"><span class="sproof-live">Berlangsung</span> · mulai ' +
+        relTime(it.time) + '</div>';
+    return name + ' berlangganan paket' + title +
+      '<div class="sproof-meta"><span class="sproof-buy">Akses aktif</span> · ' +
+      relTime(it.time) + '</div>';
+  }
+
   (async function () {
-    var data;
-    try { data = (await TO.api('/api/recent-results')).results; }
+    var feed;
+    try { feed = (await TO.api('/api/recent-results')).feed; }
     catch (e) { return; }
-    if (!Array.isArray(data) || data.length === 0) return;
+    if (!Array.isArray(feed) || feed.length === 0) return;
     // Data cukup banyak: berputar terus. Data sedikit: satu putaran lalu berhenti.
-    var loop = data.length >= 3;
+    var loop = feed.length >= 3;
 
     var el = document.createElement('div');
     el.className = 'sproof';
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
     el.innerHTML =
-      '<div class="sproof-icon" aria-hidden="true">✓</div>' +
+      '<div class="sproof-icon" aria-hidden="true"></div>' +
       '<div class="sproof-body"></div>' +
       '<button type="button" class="sproof-close" aria-label="Tutup notifikasi">&times;</button>';
     document.body.appendChild(el);
+    var icon = el.querySelector('.sproof-icon');
     var body = el.querySelector('.sproof-body');
 
     var stopped = false;
@@ -54,19 +78,32 @@
       el.remove();
     });
 
-    // Putar urutan acak; acak ulang tiap selesai satu putaran (jangan langsung berulang).
-    var order = shuffle(data.slice());
-    var idx = 0, last = null;
-    function next() {
-      if (idx >= order.length) {
-        if (!loop) return null; // mode sedikit data: habis satu putaran, berhenti
-        shuffle(order);
-        idx = 0;
-        if (order.length > 1 && order[0] === last) {
-          var t = order[0]; order[0] = order[1]; order[1] = t;
+    // Putar urutan acak; acak ulang tiap selesai satu putaran. Jangan tampilkan
+    // jenis sama dua kali berturut-turut selama masih ada jenis lain.
+    var order = [], last = null;
+    function refill() {
+      shuffle(order = feed.slice());
+      if (last && order.length > 1 && order[0].type === last.type) {
+        for (var k = 1; k < order.length; k++) {
+          if (order[k].type !== last.type) {
+            var t = order[0]; order[0] = order[k]; order[k] = t;
+            break;
+          }
         }
       }
-      last = order[idx++];
+    }
+    function next() {
+      if (order.length === 0) {
+        if (!loop) return null; // mode sedikit data: habis satu putaran, berhenti
+        refill();
+      }
+      var pick = 0;
+      if (last && order[0].type === last.type) {
+        for (var k = 1; k < order.length; k++) {
+          if (order[k].type !== last.type) { pick = k; break; }
+        }
+      }
+      last = order.splice(pick, 1)[0];
       return last;
     }
 
@@ -75,11 +112,9 @@
       if (document.hidden) { setTimeout(show, 5000); return; } // tab tidak terlihat: tunda
       var it = next();
       if (!it) return;
-      body.innerHTML =
-        '<strong>' + TO.esc(it.first_name) + '</strong> menyelesaikan tryout' +
-        '<div class="sproof-title">“' + TO.esc(it.title) + '”</div>' +
-        '<div class="sproof-meta"><span class="sproof-pass">Lulus</span> · Skor ' +
-        it.score + '/' + it.max_score + ' · ' + relTime(it.submitted_at) + '</div>';
+      icon.textContent = ICONS[it.type].glyph;
+      icon.className = 'sproof-icon' + (ICONS[it.type].cls ? ' ' + ICONS[it.type].cls : '');
+      body.innerHTML = tpl(it);
       el.classList.add('show');
       setTimeout(function () {
         el.classList.remove('show');

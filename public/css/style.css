@@ -803,10 +803,12 @@ body.exam-page { background: #eef2f7; }
   border-radius: 50%;
   font-weight: 700;
 }
+.sproof-icon.active { background: var(--primary-soft); color: var(--primary); }
+.sproof-icon.purchase { background: var(--amber-soft); color: var(--amber); }
 .sproof-body { flex: 1; min-width: 0; }
 .sproof-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sproof-meta { color: var(--muted); margin-top: 2px; }
-.sproof-pass {
+.sproof-pass, .sproof-live, .sproof-buy {
   display: inline-block;
   background: var(--green-soft);
   color: var(--green);
@@ -815,6 +817,8 @@ body.exam-page { background: #eef2f7; }
   font-weight: 600;
   font-size: .75rem;
 }
+.sproof-live { background: var(--primary-soft); color: var(--primary); }
+.sproof-buy { background: var(--amber-soft); color: var(--amber); }
 .sproof-close {
   flex: 0 0 auto;
   border: 0;

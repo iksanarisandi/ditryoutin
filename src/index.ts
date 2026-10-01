@@ -121,60 +121,106 @@ app.get('/api/site-stats', async (c) => {
   return res;
 });
 
-// Bukti sosial untuk popup landing page: hasil tryout terbaru yang LULUS.
-// Privasi: hanya nama depan peserta, hanya yang lulus, maks. 30 hari terakhir,
-// satu entri per peserta (attempt terbarunya). Cache 60 detik di edge.
+// Bukti sosial untuk popup landing page: campuran tiga jenis aktivitas —
+// hasil tryout terbaru yang lulus, peserta yang sedang mengerjakan tryout,
+// dan langganan paket terbaru. Privasi: hanya nama depan, tanpa nominal,
+// maks. 30 hari terakhir, satu entri per peserta per jenis. Cache 60 detik di edge.
+type ProofItem =
+  | { type: 'passed'; first_name: string; title: string; score: number; max_score: number; time: string }
+  | { type: 'active' | 'purchase'; first_name: string; title: string; time: string };
 app.get('/api/recent-results', async (c) => {
   const cacheKey = new Request(c.req.url, { method: 'GET' });
   const hit = await caches.default.match(cacheKey);
   if (hit) return hit;
 
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
-  const rows = await c.env.DB.prepare(
-    `SELECT a.user_id, u.name, p.title, a.score, a.submitted_at,
-            a.correct_count, a.wrong_count, a.unanswered_count
-     FROM attempts a
-     JOIN users u ON u.id = a.user_id
-     JOIN exam_packages p ON p.id = a.package_id
-     WHERE a.status='submitted' AND a.passed=1 AND a.submitted_at >= ?
-     ORDER BY a.submitted_at DESC LIMIT 60`,
-  )
-    .bind(since)
-    .all<{
-      user_id: number;
-      name: string;
-      title: string;
-      score: number | null;
-      submitted_at: string;
-      correct_count: number | null;
-      wrong_count: number | null;
-      unanswered_count: number | null;
-    }>();
+  const now = new Date().toISOString();
 
-  const seen = new Set<number>();
-  const results: {
-    first_name: string;
+  type ProofRow = {
+    user_id: number;
+    name: string;
     title: string;
-    score: number;
-    max_score: number;
-    submitted_at: string;
-  }[] = [];
-  for (const r of rows.results ?? []) {
-    if (seen.has(r.user_id)) continue;
-    seen.add(r.user_id);
-    results.push({
-      first_name: r.name.trim().split(/\s+/)[0] || 'Peserta',
+    score?: number | null;
+    correct_count?: number | null;
+    wrong_count?: number | null;
+    unanswered_count?: number | null;
+    time: string;
+  };
+  // Ambil maks. `cap` entri, satu per peserta (baris pertama = terbaru).
+  const perUser = (rows: ProofRow[], cap: number, to_item: (r: ProofRow) => ProofItem) => {
+    const seen = new Set<number>();
+    const items: ProofItem[] = [];
+    for (const r of rows) {
+      if (seen.has(r.user_id)) continue;
+      seen.add(r.user_id);
+      items.push(to_item(r));
+      if (items.length >= cap) break;
+    }
+    return items;
+  };
+  const firstName = (n: string) => n.trim().split(/\s+/)[0] || 'Peserta';
+
+  const [passedRows, activeRows, paidRows] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT a.user_id, u.name, p.title, a.score, a.submitted_at AS time,
+              a.correct_count, a.wrong_count, a.unanswered_count
+       FROM attempts a
+       JOIN users u ON u.id = a.user_id
+       JOIN exam_packages p ON p.id = a.package_id
+       WHERE a.status='submitted' AND a.passed=1 AND a.submitted_at >= ?
+       ORDER BY a.submitted_at DESC LIMIT 60`,
+    )
+      .bind(since)
+      .all<ProofRow>(),
+    // "Sedang mengerjakan": hanya attempt yang benar-benar berjalan (belum expired).
+    c.env.DB.prepare(
+      `SELECT a.user_id, u.name, p.title, a.started_at AS time
+       FROM attempts a
+       JOIN users u ON u.id = a.user_id
+       JOIN exam_packages p ON p.id = a.package_id
+       WHERE a.status='in_progress' AND a.expires_at > ?
+       ORDER BY a.started_at DESC LIMIT 20`,
+    )
+      .bind(now)
+      .all<ProofRow>(),
+    c.env.DB.prepare(
+      `SELECT pm.user_id, u.name, pr.name AS title, pm.paid_at AS time
+       FROM payments pm
+       JOIN users u ON u.id = pm.user_id
+       JOIN products pr ON pr.id = pm.product_id
+       WHERE pm.status='paid' AND pm.paid_at >= ? AND pr.active=1
+       ORDER BY pm.paid_at DESC LIMIT 60`,
+    )
+      .bind(since)
+      .all<ProofRow>(),
+  ]);
+
+  const feed: ProofItem[] = [
+    ...perUser(passedRows.results ?? [], 15, (r) => ({
+      type: 'passed',
+      first_name: firstName(r.name),
       title: r.title,
       score: Math.round(r.score ?? 0),
       max_score:
         ((r.correct_count ?? 0) + (r.wrong_count ?? 0) + (r.unanswered_count ?? 0)) *
         POINTS_PER_CORRECT,
-      submitted_at: r.submitted_at,
-    });
-    if (results.length >= 15) break;
-  }
+      time: r.time,
+    })),
+    ...perUser(activeRows.results ?? [], 8, (r) => ({
+      type: 'active',
+      first_name: firstName(r.name),
+      title: r.title,
+      time: r.time,
+    })),
+    ...perUser(paidRows.results ?? [], 12, (r) => ({
+      type: 'purchase',
+      first_name: firstName(r.name),
+      title: r.title,
+      time: r.time,
+    })),
+  ];
 
-  const res = ok(c, { results });
+  const res = ok(c, { feed });
   res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60');
   c.executionCtx.waitUntil(caches.default.put(cacheKey, res.clone()));
   return res;
