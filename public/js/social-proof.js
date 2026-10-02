@@ -1,11 +1,19 @@
 /* Popup bukti sosial di landing page: hasil tryout yang lulus, peserta yang
    sedang mengerjakan tryout, dan langganan paket terbaru — bergantian agar
    terlihat hidup dan tidak repetitif. Jika total data kurang dari 3, tiap
-   entri hanya ditampilkan sekali. Nonaktif permanen setelah pengunjung
-   menutupnya. */
+   entri hanya ditampilkan sekali. Nonaktif 7 hari setelah pengunjung
+   menutupnya (bukan permanen). */
 (function () {
   'use strict';
-  if (localStorage.getItem('sproof-off')) return;
+  // Webview dalam aplikasi (WA/IG) bisa melempar error pada localStorage —
+  // bungkus agar popup tetap jalan meski penyimpanan browser terkunci.
+  function storeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function storeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  var OFF_DAYS = 7;
+  var off = storeGet('sproof-off');
+  // Nilai lama '1' (penutupan permanen versi sebelumnya) dianggap kedaluwarsa.
+  if (off && off !== '1' && Date.now() - +off < OFF_DAYS * 86400000) return;
 
   var SHOW_DELAY = 3000;                    // jeda sebelum muncul pertama kali
   var VISIBLE = 4500;                       // durasi tampil tiap popup
@@ -74,7 +82,7 @@
     var stopped = false;
     el.querySelector('.sproof-close').addEventListener('click', function () {
       stopped = true;
-      localStorage.setItem('sproof-off', '1');
+      storeSet('sproof-off', String(Date.now()));
       el.remove();
     });
 
