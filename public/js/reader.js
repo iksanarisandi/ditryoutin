@@ -24,7 +24,10 @@ const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
   TO.renderHeader('/materi.html', me);
 
   const scrollEl = $('r-scroll');
-  const pagesEl = $('r-pages');
+  // Kolom halaman memakai id "r-col" — JANGAN pakai "r-pages", itu sudah
+  // dipakai span jumlah halaman di toolbar; ID duplikat bikin getElementById
+  // mengembalikan elemen yang salah dan halaman tidak pernah tampil.
+  const pagesEl = $('r-col');
   const readerEl = $('reader');
   const statusEl = $('r-status');
   const statusText = $('r-status-text');
