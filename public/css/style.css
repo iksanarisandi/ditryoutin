@@ -185,6 +185,33 @@ textarea { resize: vertical; }
 .checkbox-line input { width: auto; }
 .field-hint { font-size: .78rem; color: var(--muted); margin-top: 3px; }
 
+/* Toggle lihat password (tombol mata di dalam input) */
+.pw-field { position: relative; }
+.pw-field input { padding-right: 42px; }
+.pw-eye {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  padding: 7px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pw-eye:hover { color: var(--primary); }
+.pw-eye:focus-visible { outline: 2px solid #bfdbfe; }
+.pw-eye svg {
+  width: 19px; height: 19px; display: block;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.pw-eye .ico-eye-off { display: none; }
+.pw-eye.on .ico-eye { display: none; }
+.pw-eye.on .ico-eye-off { display: block; }
+
 /* ===== Tables ===== */
 .table-wrap { overflow-x: auto; }
 table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }

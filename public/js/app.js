@@ -171,6 +171,32 @@
   function openModal(id) { const m = document.getElementById(id); if (m) m.hidden = false; }
   function closeModal(id) { const m = document.getElementById(id); if (m) m.hidden = true; }
 
+  // ---- Toggle lihat password (tombol mata) ----
+  // Input password dibungkus <div class="pw-field">; tombol mata disuntikkan
+  // otomatis di sini agar ikon & perilakunya seragam di semua halaman.
+  const EYE_SVG =
+    '<svg class="ico-eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>' +
+    '<svg class="ico-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  function initPwToggles() {
+    document.querySelectorAll('.pw-field input[type="password"]').forEach((input) => {
+      if (input.parentNode.querySelector('.pw-eye')) return; // sudah ada, jangan dobel
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pw-eye';
+      btn.setAttribute('aria-label', 'Tampilkan password');
+      btn.innerHTML = EYE_SVG;
+      btn.addEventListener('click', () => {
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.classList.toggle('on', show);
+        btn.setAttribute('aria-label', show ? 'Sembunyikan password' : 'Tampilkan password');
+      });
+      input.parentNode.appendChild(btn);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPwToggles);
+  else initPwToggles();
+
   window.TO = {
     api, esc, rupiah, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft, snippet,
     toast, busy, fetchMe, requireUser, requireAdmin, logout,
