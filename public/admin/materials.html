@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Materi PDF — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="admin-layout">
+    <aside id="admin-side"></aside>
+    <main class="admin-main">
+      <div class="admin-head">
+        <h1>Materi PDF</h1>
+        <div class="right"><button class="btn btn-outline" id="cat-btn">Kelola Kategori</button></div>
+      </div>
+
+      <!-- ===== Unggah materi ===== -->
+      <div class="card mb">
+        <h2 style="font-size:1.05rem;margin-bottom:14px">Unggah Materi</h2>
+        <form id="up-form">
+          <div id="drop" class="drop-zone" tabindex="0" role="button" aria-label="Pilih atau seret file PDF">
+            <input type="file" id="up-file" accept="application/pdf,.pdf" hidden>
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            <div><strong>Klik / seret file PDF ke sini</strong></div>
+            <div class="muted" id="drop-info">Maksimal 25 MB per file</div>
+          </div>
+          <div id="file-status" class="alert mb" hidden></div>
+          <div class="form-row">
+            <div class="form-group"><label for="up-title">Judul</label><input type="text" id="up-title" required maxlength="200" placeholder="Mis. Ringkasan Materi TWK"></div>
+            <div class="form-group"><label for="up-cat">Kategori</label><select id="up-cat" required></select></div>
+          </div>
+          <div class="form-group" id="newcat-group" hidden><label for="up-newcat">Nama Kategori Baru</label><input type="text" id="up-newcat" maxlength="100" placeholder="Mis. Tips &amp; Trik"></div>
+          <div class="form-group"><label for="up-desc">Deskripsi <span class="muted">(opsional)</span></label><textarea id="up-desc" maxlength="1000" rows="2" placeholder="Ringkasan singkat isi materi…"></textarea></div>
+          <div id="up-progress" class="mb" hidden>
+            <div class="progress"><div class="progress-bar" id="up-bar"></div></div>
+            <div class="muted" id="up-pct">0%</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button type="submit" class="btn" id="up-submit">Unggah Materi</button>
+            <button type="button" class="btn btn-ghost" id="up-cancel" hidden>Batalkan</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ===== Daftar materi ===== -->
+      <div class="card">
+        <div class="filter-bar">
+          <select id="flt-cat" aria-label="Filter kategori"></select>
+          <input type="search" id="flt-q" placeholder="Cari judul/deskripsi…" aria-label="Cari materi">
+          <button class="btn" id="flt-btn">Cari</button>
+        </div>
+        <div id="list"><p class="muted">Memuat…</p></div>
+        <div id="pager" class="pager"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== Modal edit materi ===== -->
+  <div class="modal-backdrop" id="form-modal" hidden>
+    <div class="modal">
+      <h3>Edit Materi</h3>
+      <form id="fm-form">
+        <div class="form-group"><label for="fm-title">Judul</label><input type="text" id="fm-title" required maxlength="200"></div>
+        <div class="form-group"><label for="fm-cat">Kategori</label><select id="fm-cat"></select></div>
+        <div class="form-group"><label for="fm-desc">Deskripsi</label><textarea id="fm-desc" maxlength="1000" rows="2"></textarea></div>
+        <div class="form-group"><label class="checkbox-line"><input type="checkbox" id="fm-active" checked> Aktif (tampil ke peserta)</label></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="fm-cancel">Batal</button>
+          <button type="submit" class="btn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== Modal kelola kategori ===== -->
+  <div class="modal-backdrop" id="cat-modal" hidden>
+    <div class="modal">
+      <h3>Kategori Materi</h3>
+      <div id="cat-list" class="mb"><p class="muted">Memuat…</p></div>
+      <form id="cm-form">
+        <input type="hidden" id="cm-id">
+        <div class="form-row">
+          <div class="form-group"><label for="cm-name" id="cm-label">Tambah Kategori</label><input type="text" id="cm-name" maxlength="100" placeholder="Mis. Materi TWK" required></div>
+          <div class="form-group"><label class="checkbox-line"><input type="checkbox" id="cm-active" checked> Aktif</label></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cm-reset" hidden>Batal Edit</button>
+          <button type="submit" class="btn" id="cm-save">Tambah</button>
+          <button type="button" class="btn btn-ghost" id="cm-close">Tutup</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    (async function () {
+      const me = await ADM.adminInit('/admin/materials.html');
+      if (!me) return;
+
+      const MAX_MB = 25;
+      const MAX_BYTES = MAX_MB * 1024 * 1024;
+      let cats = [];            // cache kategori (semua, termasuk nonaktif)
+      let page = 1;
+      let pickedFile = null;    // File terpilih yang sudah lolos validasi
+      let pickedPages = null;   // jumlah halaman hasil baca pdf.js
+      let currentXhr = null;
+
+      // pdf.js hanya untuk memvalidasi file di klien SEBELUM unggah (deteksi
+      // file rusak + hitung halaman) — sama dengan yang dipakai /baca.html.
+      const pdfjsPromise = import('/js/vendor/pdf.min.mjs').then((m) => {
+        m.GlobalWorkerOptions.workerSrc = '/js/vendor/pdf.worker.min.mjs';
+        return m;
+      });
+
+      function fmtSize(n) {
+        if (n == null) return '—';
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return Math.round(n / 1024) + ' KB';
+        return (n / 1048576).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' MB';
+      }
+
+      const $ = (id) => document.getElementById(id);
+      const esc = TO.esc;
+
+      // ---------- Kategori: muat & render ----------
+      async function loadCats() {
+        const { categories } = await TO.api('/api/admin/material-categories');
+        cats = categories;
+        renderCatSelects();
+        renderCatList();
+      }
+
+      function renderCatSelects() {
+        // Select unggah: semua kategori (nonaktif ditandai) + opsi kategori baru.
+        const up = $('up-cat');
+        const prev = up.value;
+        up.innerHTML = '<option value="">— Pilih kategori —</option>' +
+          cats.map((c) => `<option value="${c.id}">${esc(c.name)}${c.active ? '' : ' (nonaktif)'}</option>`).join('') +
+          '<option value="new">＋ Kategori baru…</option>';
+        if ([...up.options].some((o) => o.value === prev)) up.value = prev;
+        $('newcat-group').hidden = up.value !== 'new';
+
+        // Select filter daftar: opsi "semua" + semua kategori.
+        const flt = $('flt-cat');
+        const prevF = flt.value;
+        flt.innerHTML = '<option value="">Semua kategori</option>' +
+          cats.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        if ([...flt.options].some((o) => o.value === prevF)) flt.value = prevF;
+
+        // Select modal edit: hanya yang aktif (materi nonaktif-kategori tak tampil ke user).
+        const fm = $('fm-cat');
+        const prevM = fm.value;
+        fm.innerHTML = cats.filter((c) => c.active).map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        if ([...fm.options].some((o) => o.value === prevM)) fm.value = prevM;
+      }
+
+      function renderCatList() {
+        const el = $('cat-list');
+        if (!cats.length) { el.innerHTML = '<p class="muted">Belum ada kategori.</p>'; return; }
+        el.innerHTML = '<div class="table-wrap"><table class="table">' +
+          '<thead><tr><th>Nama</th><th class="num">Materi</th><th>Status</th><th></th></tr></thead><tbody>' +
+          cats.map((c) => `
+            <tr>
+              <td>${esc(c.name)}</td>
+              <td class="num">${c.material_count}</td>
+              <td>${c.active ? '<span class="badge badge-success">AKTIF</span>' : '<span class="badge">NONAKTIF</span>'}</td>
+              <td class="nowrap">
+                <button class="btn btn-sm btn-outline cm-edit" data-id="${c.id}">Edit</button>
+                <button class="btn btn-sm btn-danger cm-del" data-id="${c.id}" data-n="${esc(c.name)}">Hapus</button>
+              </td>
+            </tr>`).join('') +
+          '</tbody></table></div>';
+        el.querySelectorAll('.cm-edit').forEach((b) => b.addEventListener('click', () => {
+          const c = cats.find((x) => x.id === Number(b.dataset.id));
+          if (!c) return;
+          $('cm-id').value = c.id;
+          $('cm-name').value = c.name;
+          $('cm-active').checked = !!c.active;
+          $('cm-label').textContent = 'Edit Kategori';
+          $('cm-save').textContent = 'Simpan';
+          $('cm-reset').hidden = false;
+          $('cm-name').focus();
+        }));
+        el.querySelectorAll('.cm-del').forEach((b) => b.addEventListener('click', () => {
+          if (!confirm(`Hapus kategori "${b.dataset.n}"?`)) return;
+          TO.busy(b, 'Menghapus…', () => TO.api('/api/admin/material-categories/' + b.dataset.id, { method: 'DELETE' }))
+            .then(() => { TO.toast('Kategori dihapus', 'success'); loadCats(); })
+            .catch((e) => TO.toast(e.message, 'error'));
+        }));
+      }
+
+      $('cat-btn').addEventListener('click', () => TO.openModal('cat-modal'));
+      $('cm-close').addEventListener('click', () => TO.closeModal('cat-modal'));
+      $('cm-reset').addEventListener('click', () => resetCatForm());
+      function resetCatForm() {
+        $('cm-id').value = '';
+        $('cm-name').value = '';
+        $('cm-active').checked = true;
+        $('cm-label').textContent = 'Tambah Kategori';
+        $('cm-save').textContent = 'Tambah';
+        $('cm-reset').hidden = true;
+      }
+      $('cm-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = Number($('cm-id').value) || 0;
+        const body = { name: $('cm-name').value, active: $('cm-active').checked };
+        TO.busy(e.submitter || $('cm-save'), 'Menyimpan…', async () => {
+          if (id) await TO.api('/api/admin/material-categories/' + id, { method: 'PUT', body });
+          else await TO.api('/api/admin/material-categories', { method: 'POST', body });
+          resetCatForm();
+          TO.toast('Kategori disimpan', 'success');
+          await loadCats();
+        }).catch((err) => TO.toast(err.message, 'error'));
+      });
+
+      // ---------- Pemilihan file + validasi pdf.js di klien ----------
+      const drop = $('drop');
+      const fileInput = $('up-file');
+      drop.addEventListener('click', () => fileInput.click());
+      drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+      ['dragover', 'dragenter'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('is-over'); }));
+      ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove('is-over')));
+      drop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files.length) pickFile(e.dataTransfer.files[0]);
+      });
+      fileInput.addEventListener('change', () => { if (fileInput.files.length) pickFile(fileInput.files[0]); });
+
+      async function pickFile(file) {
+        const status = $('file-status');
+        pickedFile = null;
+        pickedPages = null;
+        status.hidden = false;
+        if (file.size > MAX_BYTES) {
+          status.className = 'alert alert-danger mb';
+          status.textContent = `File ${fmtSize(file.size)} — melebihi batas ${MAX_MB} MB.`;
+          return;
+        }
+        status.className = 'alert mb';
+        status.textContent = `Memeriksa "${file.name}"…`;
+        try {
+          const pdfjs = await pdfjsPromise;
+          const buf = await file.arrayBuffer();
+          const doc = await pdfjs.getDocument({ data: buf }).promise;
+          pickedPages = doc.numPages;
+          doc.destroy();
+        } catch (e) {
+          status.className = 'alert alert-danger mb';
+          status.textContent = 'File bukan PDF valid atau rusak — tidak bisa diunggah.';
+          return;
+        }
+        pickedFile = file;
+        status.className = 'alert alert-success mb';
+        status.textContent = `✓ ${file.name} — ${fmtSize(file.size)}${pickedPages ? `, ${pickedPages} halaman` : ''}`;
+        // Praktik umum: judul kosong → pra-isi dari nama file.
+        if (!$('up-title').value.trim()) {
+          $('up-title').value = file.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim().slice(0, 200);
+        }
+      }
+
+      // ---------- Unggah (XHR untuk progress; TO.api hanya JSON) ----------
+      function uploadXhr(fd, onProgress) {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/admin/materials');
+          xhr.responseType = 'json';
+          xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+          xhr.onload = () => {
+            const json = xhr.response;
+            if (json && json.success) resolve(json.data);
+            else reject(new Error((json && json.error) || 'Unggah gagal'));
+          };
+          xhr.onerror = () => reject(new Error('Tidak dapat terhubung ke server. Periksa koneksi Anda.'));
+          xhr.onabort = () => reject(new Error('Unggah dibatalkan'));
+          currentXhr = xhr;
+          xhr.send(fd);
+        });
+      }
+
+      $('up-cat').addEventListener('change', () => { $('newcat-group').hidden = $('up-cat').value !== 'new'; });
+
+      $('up-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!pickedFile) { TO.toast('Pilih file PDF dulu', 'error'); return; }
+        const title = $('up-title').value.trim();
+        if (!title) { TO.toast('Judul wajib diisi', 'error'); return; }
+        const catVal = $('up-cat').value;
+        if (!catVal) { TO.toast('Pilih kategori', 'error'); return; }
+        if (catVal === 'new' && !$('up-newcat').value.trim()) { TO.toast('Isi nama kategori baru', 'error'); return; }
+
+        const btn = $('up-submit');
+        $('up-cancel').hidden = false;
+        $('up-progress').hidden = false;
+        const setBar = (frac) => {
+          const pct = Math.round(frac * 100);
+          $('up-bar').style.width = pct + '%';
+          $('up-pct').textContent = pct < 100 ? `Mengunggah… ${pct}%` : 'Menyimpan…';
+        };
+        setBar(0);
+
+        TO.busy(btn, 'Mengunggah…', async () => {
+          let categoryId = Number(catVal);
+          if (catVal === 'new') {
+            // Buat kategori baru dulu agar unggahan punya ID kategori valid.
+            const created = await TO.api('/api/admin/material-categories', {
+              method: 'POST',
+              body: { name: $('up-newcat').value.trim(), active: true },
+            });
+            categoryId = created.id;
+            await loadCats();
+          }
+          const fd = new FormData();
+          fd.append('title', title);
+          fd.append('description', $('up-desc').value.trim());
+          fd.append('category_id', String(categoryId));
+          if (pickedPages) fd.append('pages', String(pickedPages));
+          fd.append('file', pickedFile, pickedFile.name);
+          await uploadXhr(fd, setBar);
+        })
+          .then(() => {
+            TO.toast('Materi terunggah', 'success');
+            $('up-form').reset();
+            pickedFile = null;
+            pickedPages = null;
+            $('file-status').hidden = true;
+            $('newcat-group').hidden = true;
+            page = 1;
+            load();
+          })
+          .catch((err) => TO.toast(err.message, 'error'))
+          .finally(() => {
+            $('up-cancel').hidden = true;
+            $('up-progress').hidden = true;
+            currentXhr = null;
+          });
+      });
+
+      $('up-cancel').addEventListener('click', () => { if (currentXhr) currentXhr.abort(); });
+
+      // ---------- Daftar materi ----------
+      async function load() {
+        const params = new URLSearchParams();
+        const cat = $('flt-cat').value;
+        const q = $('flt-q').value.trim();
+        if (cat) params.set('category_id', cat);
+        if (q) params.set('q', q);
+        params.set('page', String(page));
+        try {
+          const data = await TO.api('/api/admin/materials?' + params.toString());
+          const { materials, total, per_page } = data;
+          const listEl = $('list');
+          if (!materials.length) {
+            listEl.innerHTML = '<p class="muted">Belum ada materi yang cocok.</p>';
+          } else {
+            listEl.innerHTML = '<div class="table-wrap"><table class="table">' +
+              '<thead><tr><th>Judul</th><th>Kategori</th><th class="num">Ukuran</th><th class="num">Hal.</th><th>Tanggal</th><th>Status</th><th></th></tr></thead><tbody>' +
+              materials.map((m) => `
+                <tr>
+                  <td><strong>${esc(m.title)}</strong><div class="muted" style="font-size:12px">${esc(m.original_filename)}</div></td>
+                  <td>${esc(m.category_name)}</td>
+                  <td class="num">${fmtSize(m.file_size)}</td>
+                  <td class="num">${m.page_count ?? '—'}</td>
+                  <td class="nowrap">${TO.fmtDate(m.created_at)}</td>
+                  <td>${m.active ? '<span class="badge badge-success">AKTIF</span>' : '<span class="badge">NONAKTIF</span>'}</td>
+                  <td class="nowrap">
+                    <a class="btn btn-sm btn-outline" href="/baca.html?id=${m.id}" target="_blank" rel="noopener">Lihat</a>
+                    <button class="btn btn-sm btn-outline edit-btn" data-id="${m.id}">Edit</button>
+                    <button class="btn btn-sm btn-danger del-btn" data-id="${m.id}" data-n="${esc(m.title)}">Hapus</button>
+                  </td>
+                </tr>`).join('') +
+              '</tbody></table></div>';
+            listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openEdit(Number(b.dataset.id), materials)));
+            listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', () => {
+              if (!confirm(`Hapus materi "${b.dataset.n}"? File PDF-nya juga dihapus.`)) return;
+              TO.busy(b, 'Menghapus…', () => TO.api('/api/admin/materials/' + b.dataset.id, { method: 'DELETE' }))
+                .then(() => { TO.toast('Materi dihapus', 'success'); load(); })
+                .catch((e) => TO.toast(e.message, 'error'));
+            }));
+          }
+          $('pager').innerHTML = ADM.pagerHtml(total, page, per_page);
+          ADM.bindPager($('pager'), (p) => { page = p; load(); });
+        } catch (e) {
+          $('list').innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>';
+        }
+      }
+
+      let editCache = [];
+      function openEdit(id, materials) {
+        editCache = materials;
+        const m = materials.find((x) => x.id === id);
+        if (!m) return;
+        $('fm-title').value = m.title;
+        $('fm-desc').value = m.description ?? '';
+        $('fm-active').checked = !!m.active;
+        renderCatSelects();
+        $('fm-cat').value = String(m.category_id);
+        $('fm-form').dataset.id = String(id);
+        TO.openModal('form-modal');
+      }
+
+      $('fm-cancel').addEventListener('click', () => TO.closeModal('form-modal'));
+      $('fm-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = Number($('fm-form').dataset.id) || 0;
+        if (!id) return;
+        const body = {
+          title: $('fm-title').value,
+          description: $('fm-desc').value,
+          category_id: Number($('fm-cat').value),
+          active: $('fm-active').checked,
+        };
+        TO.busy(e.submitter || e.currentTarget.querySelector('button[type="submit"]'), 'Menyimpan…', async () => {
+          await TO.api('/api/admin/materials/' + id, { method: 'PUT', body });
+          TO.closeModal('form-modal');
+          TO.toast('Materi disimpan', 'success');
+          load();
+        }).catch((err) => TO.toast(err.message, 'error'));
+      });
+
+      // Enter pada kotak cari = tombol Cari.
+      $('flt-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); } });
+      $('flt-btn').addEventListener('click', () => { page = 1; load(); });
+      $('flt-cat').addEventListener('change', () => { page = 1; load(); });
+
+      await loadCats();
+      load();
+    })();
+  </script>
+</body>
+</html>

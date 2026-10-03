@@ -139,6 +139,7 @@
     const links = [
       ['/', 'Beranda', false],
       ['/artikel/', 'Artikel', false],
+      ['/materi.html', 'Materi', true],
       ['/dashboard.html', 'Dashboard', true],
       ['/history.html', 'Riwayat', true],
     ];

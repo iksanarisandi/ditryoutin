@@ -8,6 +8,7 @@
     ['/admin/products.html', 'Produk Akses'],
     ['/admin/packages.html', 'Paket Tryout'],
     ['/admin/categories.html', 'Kategori'],
+    ['/admin/materials.html', 'Materi PDF'],
     ['/admin/questions.html', 'Soal'],
     ['/admin/import.html', 'Import JSON'],
     ['/admin/payments.html', 'Transaksi'],

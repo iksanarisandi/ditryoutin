@@ -61,10 +61,13 @@ wrangler secret put TURNSTILE_SECRET_KEY   # opsional: pasangan site key
 # 2. migrasi database produksi
 npm run db:remote
 
-# 3. deploy
+# 3. buat bucket R2 materi (sekali, sebelum deploy pertama dengan fitur materi)
+npx wrangler r2 bucket create tryout-upkp-materi
+
+# 4. deploy
 npm run deploy
 
-# 4. bootstrap admin (sekali)
+# 5. bootstrap admin (sekali)
 #    buka https://ditryout.in/setup
 #    isi SETUP_SECRET + email/password admin.
 #    Halaman ini mati permanen setelah admin pertama dibuat.
@@ -114,7 +117,7 @@ migrations/          Skema D1 (0001 tabel, 0002 index, 0003 seed produk+kategori
 scripts/seed-local.sql   Data demo lokal
 src/
   index.ts           Assembly app + routing
-  routes/            auth, setup, packages, attempts, results, payments, admin/*
+  routes/            auth, setup, packages, attempts, results, payments, materials, admin/*
   services/          pakasir, scoring, payments, importer
   middleware/        auth (session), security (CSRF origin guard)
   utils/             hash (argon2id), session, validate, response
@@ -157,7 +160,8 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Turnstile (captcha) register/login:** aktif otomatis jika `TURNSTILE_SITE_KEY`+`TURNSTILE_SECRET_KEY` terisi; dicek SEBELUM verifikasi argon2 agar request tanpa captcha tidak bisa membakar CPU.
 - **Batas ukuran body:** semua body JSON dibatasi 64 KB (`src/utils/body.ts`) — import soal admin 8 MB. Mencegah OOM isolate dari body raksasa.
 - **Satu admin maksimal:** partial unique index `users(role) WHERE role='admin'` (migrasi 0005) menutup race setup bersamaan.
-- **Bersih-bersih otomatis:** cron harian (03:17 WIB) menghapus session kedaluwarsa.
+- **Bersih-bersih otomatis:** cron harian (03:17 WIB) menghapus session kedaluwarsa, merekonsiliasi payment pending, dan menyapu objek R2 materi yatim (unggah gagal di tengah / delete yang gagal bersih; objek < 1 jam dilewati agar tak bertabrakan dengan unggahan yang sedang berjalan).
+- **Materi bacaan PDF:** byte file di R2 (`MATERI_BUCKET`, key `materi/{uuid}.pdf` immutable), metadata di D1 (`material_categories` + `materials`, migrasi 0009). Semua user login boleh membaca (tanpa langganan); admin unggah/hapus lewat `/admin/materials.html`. File di-serve HANYA lewat `GET /api/materials/:id/file` yang cek sesi (aset statis mem-bypass Worker) dengan cache `private` browser-only — cache edge tidak peduli cookie dan akan membocorkan PDF ke anonim. ETag dari (id, ukuran) + dukungan Range. Unggah = satu-satunya endpoint multipart: pre-check Content-Length 26 MB, batas 25 MB/file, validasi magic bytes `%PDF-`; jumlah halaman dihitung pdf.js di klien sebelum unggah. Pembaca `/baca.html` memakai pdf.js v4 legacy yang di-vendor di `public/js/vendor/` (perbarui: `npm i -D pdfjs-dist@<versi>` lalu salin ulang `legacy/build/pdf*.min.mjs`).
 - **Batas transaksi pending:** maksimal 5 payment `pending` per user (anti-spam tulis D1).
 - **Batas bayar QRIS: 24 jam** sejak transaksi dibuat (`PAKASIR_TTL_MS`). Pakasir tidak mengirim `expired_at` pada transaksinya, jadi aplikasi yang menjamin batasnya: lewat 24 jam transaksi ditandai `expired`; halaman bayar menampilkan hitungan mundur dari nilai efektif `min(expired_at gateway, dibuat+24 jam)` via `effectiveExpiryIso()`. Pembayaran manual tidak pernah auto-expire.
 - **Cache edge:** `/api/products` di-cache 60 detik — landing page ramai tidak menghantam D1.

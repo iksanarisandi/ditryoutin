@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VZMGZFN4KX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-VZMGZFN4KX');
+  </script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Membaca Materi — Tryout UPKP</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" sizes="48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <div id="reader" class="reader">
+    <div class="reader-bar">
+      <div class="reader-row">
+        <a href="/materi.html" class="btn btn-sm btn-ghost reader-back" aria-label="Kembali ke daftar materi">← Kembali</a>
+        <div class="reader-title" id="r-title">Memuat…</div>
+      </div>
+      <div class="reader-row">
+        <div class="reader-pager">
+          <button id="r-prev" class="btn btn-sm btn-ghost" aria-label="Halaman sebelumnya">‹</button>
+          <span class="reader-pageinfo"><input id="r-page" type="number" min="1" value="1" aria-label="Nomor halaman"> / <span id="r-pages">?</span></span>
+          <button id="r-next" class="btn btn-sm btn-ghost" aria-label="Halaman berikutnya">›</button>
+        </div>
+        <div class="reader-zoom">
+          <button id="r-zout" class="btn btn-sm btn-ghost" aria-label="Perkecil">−</button>
+          <span id="r-zpct" class="reader-zpct">100%</span>
+          <button id="r-zin" class="btn btn-sm btn-ghost" aria-label="Perbesar">＋</button>
+          <button id="r-fit" class="btn btn-sm btn-ghost" title="Sesuaikan dengan lebar layar">Pas</button>
+        </div>
+        <div class="reader-actions">
+          <button id="r-full" class="btn btn-sm btn-ghost">⛶ Layar penuh</button>
+          <a id="r-dl" class="btn btn-sm btn-ghost" href="#" download>⬇ Unduh</a>
+          <a id="r-new" class="btn btn-sm btn-ghost" href="#" target="_blank" rel="noopener">↗ Tab baru</a>
+        </div>
+      </div>
+    </div>
+    <div id="r-scroll" class="reader-scroll">
+      <div id="r-pages"><!-- kolom halaman dibangun oleh reader.js --></div>
+    </div>
+    <div id="r-status" class="reader-status" role="status">
+      <span class="spinner" id="r-spinner" aria-hidden="true"></span>
+      <span id="r-status-text">Memuat dokumen…</span>
+      <a id="r-retry" class="btn btn-sm" href="#" hidden>Buka di tab baru</a>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script type="module" src="/js/reader.js"></script>
+</body>
+</html>

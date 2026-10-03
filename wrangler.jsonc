@@ -15,6 +15,15 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Penyimpanan PDF materi bacaan. Bucket "tryout-upkp-materi" harus dibuat
+  // dulu sekali lewat `npx wrangler r2 bucket create tryout-upkp-materi`
+  // sebelum deploy (wrangler dev mensimulasikannya lokal otomatis).
+  "r2_buckets": [
+    {
+      "binding": "MATERI_BUCKET",
+      "bucket_name": "tryout-upkp-materi"
+    }
+  ],
   "observability": {
     "enabled": true
   },

@@ -13,10 +13,12 @@ import packagesRoutes from './routes/packages';
 import attemptsRoutes from './routes/attempts';
 import resultsRoutes from './routes/results';
 import paymentsRoutes from './routes/payments';
+import materialsRoutes from './routes/materials';
 import adminUsersRoutes from './routes/admin/users';
 import overviewRoutes from './routes/admin/overview';
 import adminQuestionsRoutes from './routes/admin/questions';
 import { adminCategories, adminPackages, adminProducts } from './routes/admin/catalog';
+import { adminMaterialCategories, adminMaterials } from './routes/admin/materials';
 import type { AppEnv, Env } from './types';
 
 const app = new Hono<AppEnv>();
@@ -74,6 +76,7 @@ app.route('/api/packages', packagesRoutes);
 app.route('/api/attempts', attemptsRoutes);
 app.route('/api/results', resultsRoutes);
 app.route('/api/payments', paymentsRoutes);
+app.route('/api/materials', materialsRoutes);
 
 // Produk akses aktif — publik untuk landing page. Data hampir statis:
 // cache 60 detik di edge agar landing page yang ramai tidak menghantam D1.
@@ -238,6 +241,8 @@ admin.route('/questions', adminQuestionsRoutes);
 admin.route('/products', adminProducts);
 admin.route('/packages', adminPackages);
 admin.route('/categories', adminCategories);
+admin.route('/materials', adminMaterials);
+admin.route('/material-categories', adminMaterialCategories);
 admin.route('/', overviewRoutes); // /stats, /payments, /results
 app.route('/api/admin', admin);
 
@@ -262,11 +267,32 @@ async function cleanupExpiredSessions(env: Env): Promise<void> {
     .run();
 }
 
+// Sapu objek R2 materi yang yatim: sisa unggah yang gagal masuk DB, atau
+// delete yang gagal membersihkan R2. Objek yang baru diunggah (< 1 jam)
+// dilewati agar tidak bertabrakan dengan unggahan yang sedang berjalan
+// (put selesai sesaat sebelum INSERT masuk).
+async function cleanupOrphanMaterials(env: Env): Promise<void> {
+  const rows = await env.DB.prepare('SELECT file_key FROM materials').all<{ file_key: string }>();
+  const used = new Set((rows.results ?? []).map((r) => r.file_key));
+  const cutoff = Date.now() - 3600_000;
+  let listing = await env.MATERI_BUCKET.list({ prefix: 'materi/' });
+  for (;;) {
+    for (const obj of listing.objects) {
+      if (!used.has(obj.key) && obj.uploaded.getTime() < cutoff) {
+        await env.MATERI_BUCKET.delete(obj.key);
+      }
+    }
+    if (!listing.truncated) break;
+    listing = await env.MATERI_BUCKET.list({ prefix: 'materi/', cursor: listing.cursor });
+  }
+}
+
 export default {
   fetch: app.fetch,
   scheduled: async (_event: ScheduledController, env: Env) => {
     await cleanupExpiredSessions(env);
     await reconcileStalePayments(env);
+    await cleanupOrphanMaterials(env);
   },
 } satisfies ExportedHandler<Env>;
 

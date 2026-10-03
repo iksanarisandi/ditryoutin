@@ -167,7 +167,7 @@ p { margin: .35rem 0 .7rem; }
 /* ===== Forms ===== */
 .form-group { margin-bottom: 14px; }
 label { display: block; font-weight: 600; font-size: .88rem; margin-bottom: 5px; }
-input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="date"], select, textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="date"], input[type="search"], select, textarea {
   width: 100%;
   padding: 9px 11px;
   border: 1px solid var(--border);
@@ -888,3 +888,177 @@ body.exam-page { background: #eef2f7; }
   .hide-sm { display: none; }
   .hero-cta .btn { width: 100%; }
 }
+
+/* ===== Materi bacaan PDF ===== */
+.materi-toolbar {
+  display: flex;
+  gap: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.materi-toolbar .tab-row { margin: 0; }
+.materi-search { display: flex; gap: 8px; flex: 1 1 240px; max-width: 340px; }
+.materi-search input { flex: 1; }
+.materi-card { display: flex; flex-direction: column; gap: 8px; }
+.materi-title { margin: 0; font-size: 1.05rem; }
+.materi-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: .92rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.materi-meta { font-size: .82rem; }
+.materi-read { align-self: flex-start; margin-top: auto; }
+
+/* Zona unggah & progress (admin materi) */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 22px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  background: var(--bg);
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+  margin-bottom: 14px;
+}
+.drop-zone:hover, .drop-zone:focus-visible, .drop-zone.is-over {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+}
+.progress {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  width: 0;
+  background: var(--primary);
+  border-radius: 999px;
+  transition: width .2s ease;
+}
+
+/* Pembaca PDF (/baca.html) — tinggi di-set JS agar pas di bawah topbar */
+.reader {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 600px; /* fallback sebelum JS menghitung */
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin: 14px 0 26px;
+}
+.reader:fullscreen { border-radius: 0; border: none; margin: 0; }
+.reader.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  height: 100dvh !important;
+}
+.reader-bar {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.reader-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.reader-row .btn { padding: 4px 9px; }
+.reader-title {
+  flex: 1;
+  min-width: 140px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reader-pager, .reader-zoom, .reader-actions { display: flex; align-items: center; gap: 4px; }
+.reader-actions { margin-left: auto; }
+.reader-pageinfo { display: inline-flex; align-items: center; gap: 5px; font-size: .85rem; color: var(--muted); }
+.reader-pageinfo input { width: 54px; padding: 3px 6px; text-align: center; }
+.reader-pageinfo input::-webkit-outer-spin-button,
+.reader-pageinfo input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.reader-pageinfo input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.reader-zpct { min-width: 42px; text-align: center; font-size: .82rem; color: var(--muted); }
+.reader-scroll {
+  flex: 1;
+  overflow: auto;
+  background: #e9edf4;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* pan tetap native; pinch tidak diserahkan browser (ditangani reader.js) */
+  touch-action: pan-x pan-y;
+}
+/* Kolom halaman kontinu: tiap halaman seperti selembar kertas. */
+.reader-page {
+  position: relative;
+  margin: 0 auto 30px;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .2), 0 10px 28px rgba(15, 23, 42, .1);
+}
+.reader-page canvas { display: block; border-radius: 3px; }
+.reader-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: .85rem;
+  background: #fff;
+}
+.reader-page.ready .reader-ph { display: none; }
+.reader-pageno {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: .72rem;
+  color: var(--muted);
+}
+.reader-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, .95);
+  font-weight: 600;
+  color: var(--muted);
+  z-index: 5;
+  padding: 20px;
+  text-align: center;
+}
+.reader-status[hidden] { display: none; }
+@media (max-width: 560px) {
+  .reader-actions { margin-left: 0; }
+  .reader { margin: 10px 0 20px; }
+}
+

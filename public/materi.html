@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VZMGZFN4KX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-VZMGZFN4KX');
+  </script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Materi Bacaan — Tryout UPKP</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" sizes="48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <div class="container mt mb">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Beranda</a> › <span>Materi</span></nav>
+    <h1>Materi Bacaan</h1>
+    <p class="muted mb">Materi belajar dalam format PDF — bisa dibaca semua peserta yang sudah masuk, kapan saja, di ponsel maupun komputer.</p>
+
+    <div class="materi-toolbar">
+      <div class="tab-row" id="cat-tabs" hidden></div>
+      <div class="materi-search">
+        <input type="search" id="q" placeholder="Cari materi…" aria-label="Cari materi">
+        <button class="btn btn-sm" id="q-btn">Cari</button>
+      </div>
+    </div>
+
+    <div id="materi-wrap" class="grid grid-3">
+      <div class="card muted">Memuat materi…</div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      const me = await TO.requireUser();
+      if (!me) return;
+      TO.renderHeader('/materi.html', me);
+
+      const wrap = document.getElementById('materi-wrap');
+      const tabsEl = document.getElementById('cat-tabs');
+      const qEl = document.getElementById('q');
+      const esc = TO.esc;
+
+      // State filter di URL (?cat=&q=) agar refresh/tombol back mempertahankan tampilan.
+      let activeCat = TO.qs('cat') || 'all';
+      let q = TO.qs('q') || '';
+      qEl.value = q;
+
+      function fmtSize(n) {
+        if (n == null) return '—';
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return Math.round(n / 1024) + ' KB';
+        return (n / 1048576).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' MB';
+      }
+
+      function syncUrl() {
+        const p = new URLSearchParams();
+        if (activeCat !== 'all') p.set('cat', activeCat);
+        if (q) p.set('q', q);
+        const s = p.toString();
+        history.replaceState(null, '', location.pathname + (s ? '?' + s : ''));
+      }
+
+      async function load() {
+        wrap.innerHTML = '<div class="card muted">Memuat materi…</div>';
+        const p = new URLSearchParams();
+        if (activeCat !== 'all') p.set('category_id', activeCat);
+        if (q) p.set('q', q);
+        try {
+          const { materials, categories } = await TO.api('/api/materials' + (p.toString() ? '?' + p.toString() : ''));
+
+          // Tab kategori.
+          if (categories.length) {
+            tabsEl.hidden = false;
+            tabsEl.innerHTML =
+              `<button class="tab-pill ${activeCat === 'all' ? 'active' : ''}" data-cat="all">Semua</button>` +
+              categories.map((c) =>
+                `<button class="tab-pill ${String(c.id) === activeCat ? 'active' : ''}" data-cat="${c.id}">${esc(c.name)}</button>`).join('');
+            tabsEl.querySelectorAll('.tab-pill').forEach((t) => t.addEventListener('click', () => {
+              activeCat = t.dataset.cat;
+              syncUrl();
+              load();
+            }));
+          } else {
+            tabsEl.hidden = true;
+          }
+
+          if (!materials.length) {
+            wrap.innerHTML = `<div class="card muted">${q ? 'Tidak ada materi yang cocok dengan pencarian.' : 'Belum ada materi. Nantikan pembaruan selanjutnya!'}</div>`;
+            return;
+          }
+          wrap.innerHTML = materials.map((m) => `
+            <div class="card materi-card">
+              <span class="badge badge-primary">${esc(m.category_name)}</span>
+              <h3 class="materi-title">${esc(m.title)}</h3>
+              ${m.description ? `<p class="materi-desc">${esc(m.description)}</p>` : ''}
+              <div class="muted materi-meta">${fmtSize(m.file_size)}${m.page_count ? ' • ' + m.page_count + ' halaman' : ''} • ${TO.fmtDate(m.created_at)}</div>
+              <a class="btn materi-read" href="/baca.html?id=${m.id}">Baca Materi</a>
+            </div>`).join('');
+        } catch (e) {
+          wrap.innerHTML = '<div class="card"><div class="alert alert-danger">' + esc(e.message) + '</div></div>';
+        }
+      }
+
+      // Debounce 300 ms pada ketikan; tombol Cari langsung.
+      let debounce = null;
+      qEl.addEventListener('input', () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => { q = qEl.value.trim(); syncUrl(); load(); }, 300);
+      });
+      qEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { clearTimeout(debounce); q = qEl.value.trim(); syncUrl(); load(); }
+      });
+      document.getElementById('q-btn').addEventListener('click', () => {
+        clearTimeout(debounce);
+        q = qEl.value.trim();
+        syncUrl();
+        load();
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

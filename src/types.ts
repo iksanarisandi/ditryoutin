@@ -1,6 +1,8 @@
 export type Env = {
   DB: D1Database;
   ASSETS: Fetcher;
+  // Bucket R2 untuk byte PDF materi bacaan (metadata ada di tabel materials).
+  MATERI_BUCKET: R2Bucket;
   SESSION_SECRET: string;
   PAKASIR_API_KEY?: string;
   PAKASIR_PROJECT?: string;
