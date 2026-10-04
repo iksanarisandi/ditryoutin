@@ -52,11 +52,15 @@ adminUsers.get('/', async (c) => {
 
 adminUsers.get('/:id', async (c) => {
   const id = toInt(c.req.param('id'), 0);
+  // invited_count dihitung sebagai subquery skalar di query yang sama — menghemat
+  // satu round-trip D1 per buka detail.
   const u = await c.env.DB.prepare(
-    `SELECT id, name, email, role, access_expires_at, access_started_at, created_at FROM users WHERE id=?`,
+    `SELECT id, name, email, role, access_expires_at, access_started_at, referral_code, created_at,
+            (SELECT COUNT(*) FROM referrals WHERE referrer_id=users.id) AS invited_count
+     FROM users WHERE id=?`,
   )
     .bind(id)
-    .first();
+    .first<{ invited_count: number }>();
   if (!u) return fail(c, 'User tidak ditemukan', 404);
 
   const paymentRows = await c.env.DB.prepare(
@@ -91,7 +95,12 @@ adminUsers.get('/:id', async (c) => {
       ((r.correct_count ?? 0) + (r.wrong_count ?? 0) + (r.unanswered_count ?? 0)) * 5,
   }));
 
-  return ok(c, { user: u, payments: paymentRows.results ?? [], attempts });
+  return ok(c, {
+    user: u,
+    referral: { invited_count: u.invited_count ?? 0 },
+    payments: paymentRows.results ?? [],
+    attempts,
+  });
 });
 
 // Reset password user: password sementara ditampilkan sekali ke admin.

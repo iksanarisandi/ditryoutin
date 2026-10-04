@@ -14,6 +14,7 @@ import attemptsRoutes from './routes/attempts';
 import resultsRoutes from './routes/results';
 import paymentsRoutes from './routes/payments';
 import materialsRoutes from './routes/materials';
+import referralRoutes from './routes/referral';
 import adminUsersRoutes from './routes/admin/users';
 import overviewRoutes from './routes/admin/overview';
 import adminQuestionsRoutes from './routes/admin/questions';
@@ -77,6 +78,7 @@ app.route('/api/attempts', attemptsRoutes);
 app.route('/api/results', resultsRoutes);
 app.route('/api/payments', paymentsRoutes);
 app.route('/api/materials', materialsRoutes);
+app.route('/api/referral', referralRoutes);
 
 // Produk akses aktif — publik untuk landing page. Data hampir statis:
 // cache 60 detik di edge agar landing page yang ramai tidak menghantam D1.

@@ -43,6 +43,27 @@
       </div>
     </div>
 
+    <div class="card mb" id="referral-card" hidden>
+      <h2>Ajak Teman, Dapat Gratis</h2>
+      <p class="muted small">Dapatkan +1 hari akses untuk setiap teman yang mendaftar memakai kode
+        undanganmu — temanmu juga langsung dapat +1 hari.</p>
+      <div class="ref-row">
+        <div class="ref-value">
+          <div class="ref-label">Kode undanganmu</div>
+          <div class="ref-code mono" id="ref-code"></div>
+        </div>
+        <button class="btn btn-outline btn-sm" type="button" id="ref-copy-code">Salin Kode</button>
+      </div>
+      <div class="ref-row">
+        <div class="ref-value">
+          <div class="ref-label">Link undangan</div>
+          <div class="ref-link" id="ref-link"></div>
+        </div>
+        <button class="btn btn-outline btn-sm" type="button" id="ref-copy-link">Salin Link</button>
+      </div>
+      <div class="ref-stats" id="ref-stats"></div>
+    </div>
+
     <div id="buy-section" class="mb" hidden>
       <div class="alert alert-warn" id="lock-notice"></div>
     </div>
@@ -78,6 +99,27 @@
           : '<div><span class="k">Status</span><span class="v">Belum pernah berlangganan</span></div>';
         if (locked) document.getElementById('buy-section').hidden = false;
       }
+
+      // Kartu referral — kode undangan + link + statistik. Dijalankan tanpa await
+      // (fire-and-forget) supaya panggilan pertama — yang bisa memicu pembuatan
+      // kode di D1 — tidak menunda render banner ujian & daftar paket di bawah.
+      // Gagal apa pun: kartu tetap tersembunyi, dashboard tetap berfungsi.
+      TO.api('/api/referral').then((ref) => {
+        document.getElementById('ref-code').textContent = ref.code;
+        document.getElementById('ref-link').textContent = ref.link;
+        document.getElementById('ref-stats').textContent = ref.invited_count > 0
+          ? ref.invited_count + ' teman sudah ikut · ' + ref.days_earned + ' hari gratis didapat'
+          : 'Belum ada yang ikut — bagikan kode undanganmu untuk dapat akses gratis.';
+        document.getElementById('ref-copy-code').addEventListener('click', () => {
+          TO.copy(ref.code).then((ok) =>
+            TO.toast(ok ? 'Kode undangan disalin!' : 'Gagal menyalin — salin manual ya', ok ? 'success' : 'error'));
+        });
+        document.getElementById('ref-copy-link').addEventListener('click', () => {
+          TO.copy(ref.link).then((ok) =>
+            TO.toast(ok ? 'Link undangan disalin!' : 'Gagal menyalin — salin manual ya', ok ? 'success' : 'error'));
+        });
+        document.getElementById('referral-card').hidden = false;
+      }).catch(() => { /* kartu opsional — biarkan tersembunyi */ });
 
       // Banner ujian berjalan
       try {

@@ -46,6 +46,10 @@
               <input type="password" id="password" required minlength="8" maxlength="100" placeholder="Minimal 8 karakter">
             </div>
           </div>
+          <div class="form-group">
+            <label for="ref">Kode Undangan <span class="muted small">(opsional)</span></label>
+            <input type="text" id="ref" maxlength="16" autocomplete="off" placeholder="Punya kode undangan teman?">
+          </div>
           <div class="form-group" id="cf-turnstile" hidden></div>
           <button class="btn btn-block" type="submit" id="btn-submit">Daftar</button>
         </form>
@@ -62,6 +66,16 @@
       const btn = document.getElementById('btn-submit');
       const errBox = document.getElementById('error-box');
       const errMsg = document.getElementById('error-msg');
+
+      // Referal: prefill kode dari ?ref= (link undangan) + banner. Normalisasi
+      // sama seperti server: uppercase, tanpa non-alphanumerik, maks 16 char.
+      const refParam = (TO.qs('ref') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+      if (refParam) {
+        form.ref.value = refParam;
+        errBox.insertAdjacentHTML('beforebegin',
+          '<div class="alert alert-success">Kamu diundang — kamu &amp; pengundang sama-sama dapat ' +
+          '<strong>1 hari akses gratis</strong> setelah mendaftar.</div>');
+      }
 
       // Turnstile (aktif hanya jika server mengonfigurasi kuncinya).
       let turnstileToken = '';
@@ -93,7 +107,7 @@
         try {
           await TO.api('/api/auth/register', {
             method: 'POST',
-            body: { name: form.name.value, email: form.email.value, password: form.password.value, turnstile_token: turnstileToken || undefined },
+            body: { name: form.name.value, email: form.email.value, password: form.password.value, ref: form.ref.value.trim() || undefined, turnstile_token: turnstileToken || undefined },
           });
           // beacon agar hit tetap terkirim meski halaman langsung pindah.
           gtag('event', 'sign_up', { method: 'email', transport_type: 'beacon' });

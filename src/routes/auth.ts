@@ -10,6 +10,7 @@ import { ipRateLimit, clientIp, isLimited } from '../middleware/ratelimit';
 import { verifyTurnstile } from '../services/turnstile';
 import { finalizeUserExpiredAttempts } from '../services/scoring';
 import { reconcilePendingPayments } from '../services/payments';
+import { applyReferral } from '../services/referrals';
 import type { AppEnv } from '../types';
 
 const auth = new Hono<AppEnv>();
@@ -77,6 +78,17 @@ auth.post('/register', async (c) => {
     .bind(name, email, passwordHash)
     .run();
   const userId = Number(res.meta.last_row_id);
+
+  // Referal opsional: hadiah +1 hari untuk pengundang & user baru. Kode salah
+  // diam-diam diabaikan (tanpa pesan error — mencegah oracle enumerasi kode),
+  // dan kegagalan apa pun TIDAK boleh membatalkan pendaftaran yang sudah jadi.
+  if (body.ref) {
+    try {
+      await applyReferral(c.env.DB, body.ref, userId);
+    } catch (e) {
+      console.error('[register:referral]', email, e);
+    }
+  }
 
   const token = await createSession(c.env.DB, c.env.SESSION_SECRET, userId);
   c.header('Set-Cookie', sessionSetCookie(token, isSecureRequest(c)));

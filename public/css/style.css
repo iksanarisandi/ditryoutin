@@ -1062,3 +1062,41 @@ body.exam-page { background: #eef2f7; }
   .reader { margin: 10px 0 20px; }
 }
 
+
+/* ===== Kartu referral (dashboard) ===== */
+.ref-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.ref-row:first-of-type { border-top: 0; }
+.ref-value { flex: 1; min-width: 200px; }
+.ref-label {
+  font-size: .78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.ref-code {
+  display: inline-block;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  padding: 6px 12px;
+  background: var(--primary-soft);
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: var(--primary-dark);
+}
+.ref-link {
+  font-size: .85rem;
+  color: var(--muted);
+  word-break: break-all;
+  padding: 6px 0;
+}
+.ref-stats { margin-top: 10px; font-size: .9rem; color: var(--muted); }

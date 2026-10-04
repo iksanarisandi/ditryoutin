@@ -106,6 +106,32 @@
     }
   }
 
+  // ---- Salin ke clipboard ----
+  // navigator.clipboard hanya tersedia di secure context (https / localhost);
+  // WebView lama atau konteks non-secure jatuh ke fallback textarea + execCommand.
+  async function copy(text) {
+    const s = String(text ?? '');
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(s);
+        return true;
+      }
+    } catch (e) { /* jatuh ke fallback */ }
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta);
+    // iOS Safari lama sering gagal menyeleksi textarea off-screen yang belum
+    // difokus — focus + setSelectionRange membuat execCommand('copy') andal.
+    ta.focus();
+    ta.setSelectionRange(0, s.length);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+
   // ---- Auth guard ----
   async function fetchMe() {
     try { return await api('/api/auth/me'); }
@@ -200,7 +226,7 @@
 
   window.TO = {
     api, esc, rupiah, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft, snippet,
-    toast, busy, fetchMe, requireUser, requireAdmin, logout,
+    toast, busy, copy, fetchMe, requireUser, requireAdmin, logout,
     renderHeader, openModal, closeModal, WA_ADMIN,
   };
 })();
