@@ -6,6 +6,7 @@ import { readJson } from '../utils/body';
 import { timingSafeEqual } from '../middleware/security';
 import { PakasirError, createTransaction, getTransactionStatus, qrStringToSvg } from '../services/pakasir';
 import { genReference, remainingSeconds, settlePayment, shouldCheckStatus, effectiveExpiryIso, PAKASIR_TTL_MS, type PaymentRow } from '../services/payments';
+import { inviteeDiscountEligible, REFERRAL_INVITEE_DISCOUNT } from '../services/referrals';
 import type { AppEnv } from '../types';
 
 
@@ -43,7 +44,15 @@ payments.post('/create', requireAuth, async (c) => {
     );
   }
 
-  // Amount SELALU dari database, bukan dari client.
+  // Amount SELALU dari database, bukan dari client. User yang terdaftar lewat
+  // kode undangan berhak diskon pembelian pertama: amount di sini menjadi acuan
+  // tunggal — dikirim ke gateway, disimpan di payments, dan diverifikasi webhook
+  // terhadapnya — sehingga diskon konsisten di semua jalur settlement.
+  const discountEligible = await inviteeDiscountEligible(c.env.DB, user.id);
+  const amount = discountEligible
+    ? product.price - Math.round(product.price * REFERRAL_INVITEE_DISCOUNT)
+    : product.price;
+
   // Alur manual hanya hidup jika diperlihatkan (SHOW_MANUAL_PAYMENT=true) atau
   // dipaksa global lewat PAYMENT_MODE=manual (fallback bila gateway bermasalah).
   const manualAllowed = c.env.PAYMENT_MODE === 'manual' || c.env.SHOW_MANUAL_PAYMENT === 'true';
@@ -59,7 +68,7 @@ payments.post('/create', requireAuth, async (c) => {
       const res = await c.env.DB.prepare(
         'INSERT INTO payments (user_id, product_id, reference, amount, method) VALUES (?, ?, ?, ?, ?)',
       )
-        .bind(user.id, product.id, reference, product.price, manualMode ? 'manual' : 'qris')
+        .bind(user.id, product.id, reference, amount, manualMode ? 'manual' : 'qris')
         .run();
       paymentId = Number(res.meta.last_row_id);
       break;
@@ -75,7 +84,7 @@ payments.post('/create', requireAuth, async (c) => {
     return ok(
       c,
       {
-        payment: { id: paymentId, reference, amount: product.price, product_name: product.name },
+        payment: { id: paymentId, reference, amount, product_name: product.name },
         manual: {
           qr_url: '/img/qris.jpg',
           wa: c.env.MANUAL_WA || '',
@@ -87,7 +96,7 @@ payments.post('/create', requireAuth, async (c) => {
 
   let txn;
   try {
-    txn = await createTransaction(c.env, reference, product.price, 'qris');
+    txn = await createTransaction(c.env, reference, amount, 'qris');
   } catch (e) {
     await c.env.DB.prepare(`UPDATE payments SET status='failed', updated_at=? WHERE id=?`)
       .bind(new Date().toISOString(), paymentId)
@@ -112,10 +121,10 @@ payments.post('/create', requireAuth, async (c) => {
   return ok(
     c,
     {
-      payment: { id: paymentId, reference, amount: product.price, product_name: product.name },
+      payment: { id: paymentId, reference, amount, product_name: product.name },
       txn: {
         txn_id: txn.txn_id,
-        total_payment: txn.total_payment ?? product.price,
+        total_payment: txn.total_payment ?? amount,
         fee: txn.fee ?? 0,
         expired_at: effectiveExpiryIso(txn.expired_at, new Date().toISOString()),
         is_sandbox: !!txn.is_sandbox,

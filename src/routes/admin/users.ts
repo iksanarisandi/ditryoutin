@@ -52,15 +52,16 @@ adminUsers.get('/', async (c) => {
 
 adminUsers.get('/:id', async (c) => {
   const id = toInt(c.req.param('id'), 0);
-  // invited_count dihitung sebagai subquery skalar di query yang sama — menghemat
-  // satu round-trip D1 per buka detail.
+  // invited/rewarded dihitung sebagai subquery skalar di query yang sama —
+  // menghemat round-trip D1 per buka detail.
   const u = await c.env.DB.prepare(
     `SELECT id, name, email, role, access_expires_at, access_started_at, referral_code, created_at,
-            (SELECT COUNT(*) FROM referrals WHERE referrer_id=users.id) AS invited_count
+            (SELECT COUNT(*) FROM referrals WHERE referrer_id=users.id) AS invited_count,
+            (SELECT COUNT(*) FROM referrals WHERE referrer_id=users.id AND rewarded_at IS NOT NULL) AS rewarded_count
      FROM users WHERE id=?`,
   )
     .bind(id)
-    .first<{ invited_count: number }>();
+    .first<{ invited_count: number; rewarded_count: number }>();
   if (!u) return fail(c, 'User tidak ditemukan', 404);
 
   const paymentRows = await c.env.DB.prepare(
@@ -97,7 +98,7 @@ adminUsers.get('/:id', async (c) => {
 
   return ok(c, {
     user: u,
-    referral: { invited_count: u.invited_count ?? 0 },
+    referral: { invited_count: u.invited_count ?? 0, rewarded_count: u.rewarded_count ?? 0 },
     payments: paymentRows.results ?? [],
     attempts,
   });

@@ -44,9 +44,9 @@
     </div>
 
     <div class="card mb" id="referral-card" hidden>
-      <h2>Ajak Teman, Dapat Gratis</h2>
-      <p class="muted small">Dapatkan +1 hari akses untuk setiap teman yang mendaftar memakai kode
-        undanganmu — temanmu juga langsung dapat +1 hari.</p>
+      <h2>Ajak Teman, Dapat Bonus</h2>
+      <p class="muted small">Teman yang daftar lewat kodemu dapat <strong>diskon 10%</strong> pembelian
+        pertamanya — dan kamu dapat <strong>+3 hari akses</strong> setiap kali dia membeli. Tanpa batas jumlah teman.</p>
       <div class="ref-row">
         <div class="ref-value">
           <div class="ref-label">Kode undanganmu</div>
@@ -62,6 +62,7 @@
         <button class="btn btn-outline btn-sm" type="button" id="ref-copy-link">Salin Link</button>
       </div>
       <div class="ref-stats" id="ref-stats"></div>
+      <div class="ref-stats" id="ref-discount" hidden><a href="/payment.html">Kamu punya diskon undangan 10% untuk pembelian pertamamu &raquo;</a></div>
     </div>
 
     <div id="buy-section" class="mb" hidden>
@@ -107,9 +108,14 @@
       TO.api('/api/referral').then((ref) => {
         document.getElementById('ref-code').textContent = ref.code;
         document.getElementById('ref-link').textContent = ref.link;
-        document.getElementById('ref-stats').textContent = ref.invited_count > 0
-          ? ref.invited_count + ' teman sudah ikut · ' + ref.days_earned + ' hari gratis didapat'
-          : 'Belum ada yang ikut — bagikan kode undanganmu untuk dapat akses gratis.';
+        document.getElementById('ref-stats').textContent = ref.bought_count > 0
+          ? ref.bought_count + ' teman sudah beli · +' + ref.days_earned + ' hari bonus didapat'
+          : (ref.invited_count > 0
+            ? ref.invited_count + ' teman sudah ikut — bonus keluar saat mereka membeli'
+            : 'Belum ada yang ikut — bagikan kode undanganmu.');
+        if (ref.invitee_discount && ref.invitee_discount.eligible) {
+          document.getElementById('ref-discount').hidden = false;
+        }
         document.getElementById('ref-copy-code').addEventListener('click', () => {
           TO.copy(ref.code).then((ok) =>
             TO.toast(ok ? 'Kode undangan disalin!' : 'Gagal menyalin — salin manual ya', ok ? 'success' : 'error'));

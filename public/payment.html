@@ -77,24 +77,39 @@
       // ---------- Tahap 1: pilih produk ----------
       async function showProducts() {
         stopPolling();
-        let products = [];
-        let manualAvailable = false;
-        try {
-          const d = await TO.api('/api/products');
-          products = d.products;
-          manualAvailable = !!d.manual_available;
-        } catch (e) { stage.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>'; return; }
+        // Diskon undangan diambil paralel dengan produk (tampilan saja —
+        // nominal final tetap dihitung server saat create payment).
+        const [prodRes, refRes] = await Promise.allSettled([
+          TO.api('/api/products'),
+          TO.api('/api/referral'),
+        ]);
+        if (prodRes.status === 'rejected') {
+          stage.innerHTML = '<div class="alert alert-danger">' + TO.esc(prodRes.reason.message) + '</div>';
+          return;
+        }
+        const products = prodRes.value.products;
+        const manualAvailable = !!prodRes.value.manual_available;
+        const rd = refRes.status === 'fulfilled' ? refRes.value.invitee_discount : null;
+        const refPct = rd && rd.eligible ? (Number(rd.percent) || 0) : 0;
         const preset = Number(TO.qs('product')) || 0;
         stage.innerHTML = `
           ${me.access.active ? '<div class="alert alert-info mb">Akses Anda masih aktif. Pembelian baru akan <strong>ditambahkan</strong> ke sisa masa akses.</div>' : ''}
+          ${refPct ? '<div class="alert alert-success mb">🎉 <strong>Diskon undangan ' + refPct + '%</strong> aktif untuk pembelian pertamamu — harga di bawah sudah dipotong.</div>' : ''}
           <div class="grid ${products.length >= 3 ? 'grid-3' : 'grid-2'}">
             ${products.map((p) => {
-              const perDay = Math.floor(p.price / p.duration_days);
+              // Rumus sama seperti server (routes/payments.ts): price - round(price * pct/100).
+              const finalPrice = refPct ? p.price - Math.round(p.price * refPct / 100) : p.price;
+              const perDay = Math.floor(finalPrice / p.duration_days);
+              const priceHtml = refPct
+                ? '<div><span class="muted" style="text-decoration:line-through;font-size:1rem;font-weight:600">' + TO.rupiah(p.price) + '</span> ' +
+                  '<span class="badge badge-success">Diskon ' + refPct + '%</span></div>' +
+                  '<div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">' + TO.rupiah(finalPrice) + '</div>'
+                : '<div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">' + TO.rupiah(p.price) + '</div>';
               return `
               <div class="card price-card">
                 <h3>${TO.esc(p.name)}</h3>
                 ${p.description ? `<p class="muted small">${TO.esc(p.description)}</p>` : ''}
-                <div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">${TO.rupiah(p.price)}</div>
+                ${priceHtml}
                 <p class="muted small">Akses ${p.duration_days} hari ke seluruh paket tryout · setara ${TO.rupiah(perDay)}/hari</p>
                 <button class="btn btn-block buy-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Bayar via QRIS</button>
                 ${manualAvailable ? '<button class="btn btn-block btn-ghost manual-btn" data-id="' + p.id + '" style="margin:8px 0 0">Bayar Manual</button>' : ''}

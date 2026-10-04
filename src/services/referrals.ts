@@ -1,11 +1,12 @@
-// Program referral: kode undangan per user + hadiah akses untuk pengundang dan
-// yang diundang. Dipakai rute register (klaim saat invitee mendaftar) dan rute
-// /api/referral (kartu undangan di dashboard).
+// Program referral: kode undangan per user + diskon pembelian pertama untuk
+// yang diundang + bonus hari akses untuk pengundang saat transaksi pertama
+// invitee LUNAS (bukan saat daftar — setiap hadiah selalu didahului uang
+// masuk, sehingga akun palsu tidak menghasilkan apa pun).
 
-import { extendUserAccess } from './payments';
-
-// Hadiah referal: +1 hari akses untuk KEDUA pihak (pengundang & yang diundang).
-export const REFERRAL_REWARD_DAYS = 1;
+// Diskon pembelian pertama untuk invitee (10% dari harga produk).
+export const REFERRAL_INVITEE_DISCOUNT = 0.1;
+// Bonus untuk pengundang setiap kali transaksi pertama seorang invitee lunas.
+export const REFERRAL_REFERRER_REWARD_DAYS = 3;
 
 // Alfabet tanpa karakter ambigu (tanpa I, O, 0, 1) agar kode aman dibaca
 // dan diketik manual — sama prinsip dengan TEMP_CHARS di admin/users.ts.
@@ -58,13 +59,11 @@ export async function getOrCreateReferralCode(db: D1Database, userId: number): P
   throw new Error('Gagal membuat kode undangan setelah 5 percobaan');
 }
 
-// Klaim referal untuk user yang BARU saja dibuat. Return true bila hadiah
-// diberikan. Caller (register) membungkus try/catch — kegagalan referal tidak
-// boleh membatalkan pendaftaran.
-// Urutan klaim-dulu-grant-belakangan: INSERT ke referrals adalah kunci
-// idempotensi; kegagalan setelah klaim bisa kehilangan 1 hari (di-log caller),
-// tapi tidak pernah dobel-grant.
-export async function applyReferral(
+// Catat relasi undangan untuk user yang BARU saja dibuat — TANPA hadiah apa
+// pun (diskon & bonus keluar di jalur pembayaran). Return true bila tercatat.
+// Caller (register) membungkus try/catch — kegagalan referal tidak boleh
+// membatalkan pendaftaran.
+export async function recordReferral(
   db: D1Database,
   rawCode: unknown,
   newUserId: number,
@@ -78,21 +77,50 @@ export async function applyReferral(
     .first<{ id: number }>();
   if (!referrer || referrer.id === newUserId) return false;
 
-  // Referrer boleh admin — perpanjangan expiry pada admin bersifat inert
-  // (admin bypass requireActiveAccess), jadi tidak perlu dikhususkan.
+  // Referrer boleh admin — bonus hari pada admin bersifat inert (admin bypass
+  // requireActiveAccess), jadi tidak perlu dikhususkan.
   try {
     await db
       .prepare('INSERT INTO referrals (referrer_id, invitee_id) VALUES (?, ?)')
       .bind(referrer.id, newUserId)
       .run();
   } catch (e) {
-    if (String(e).includes('UNIQUE')) return false; // invitee sudah pernah diklaim
+    if (String(e).includes('UNIQUE')) return false; // invitee sudah pernah dicatat
     throw e;
   }
-
-  // extendUserAccess atomik & menumpuk dari MAX(expiry, now) — jalur yang sama
-  // dengan settlePayment dan perpanjangan manual admin.
-  await extendUserAccess(db, referrer.id, REFERRAL_REWARD_DAYS);
-  await extendUserAccess(db, newUserId, REFERRAL_REWARD_DAYS);
   return true;
+}
+
+// Apakah user berhak diskon undangan pada pembelian berikutnya: tercatat sebagai
+// invitee DAN belum punya transaksi berstatus paid (diskon melekat pada
+// transaksi pertama yang LUNAS — pending yang ditinggal tidak menghabiskannya).
+export async function inviteeDiscountEligible(db: D1Database, userId: number): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT EXISTS(SELECT 1 FROM referrals WHERE invitee_id=?1) AS referred,
+              EXISTS(SELECT 1 FROM payments WHERE user_id=?1 AND status='paid') AS paid_before`,
+    )
+    .bind(userId)
+    .first<{ referred: number; paid_before: number }>();
+  return !!row && row.referred === 1 && row.paid_before === 0;
+}
+
+// Klaim bonus pengundang untuk invitee yang transaksi pertamanya baru saja
+// LUNAS. UPDATE bersyarat rewarded_at IS NULL = kunci idempotensi atomik:
+// hanya satu jalur settlement (webhook/polling/cron/admin) yang menang,
+// transaksi kedua invitee tidak memberi bonus lagi. Return id pengundang
+// yang berhak (null bila tidak ada / sudah diklaim) — pemberian harinya
+// tetap di payments.ts lewat extendUserAccess agar tidak ada import melingkar.
+export async function claimReferralReward(
+  db: D1Database,
+  inviteeId: number,
+  nowIso?: string,
+): Promise<number | null> {
+  const row = await db
+    .prepare(
+      `UPDATE referrals SET rewarded_at=? WHERE invitee_id=? AND rewarded_at IS NULL RETURNING referrer_id`,
+    )
+    .bind(nowIso ?? new Date().toISOString(), inviteeId)
+    .first<{ referrer_id: number }>();
+  return row?.referrer_id ?? null;
 }

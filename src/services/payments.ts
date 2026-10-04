@@ -1,6 +1,7 @@
 // Settlement pembayaran + perpanjangan masa akses (idempotent).
 
 import { getTransactionStatus, PakasirError } from './pakasir';
+import { claimReferralReward, REFERRAL_REFERRER_REWARD_DAYS } from './referrals';
 import type { Env } from '../types';
 
 export type PaymentRow = {
@@ -39,6 +40,19 @@ export async function settlePayment(
   if (!product) return { alreadyPaid: false };
 
   await extendUserAccess(db, payment.user_id, product.duration_days, nowIso);
+
+  // Bonus referal: transaksi PERTAMA seorang invitee yang lunas memberi
+  // pengundangnya +N hari. Semua jalur settlement (webhook, polling, cron,
+  // admin) bermuara di sini; klaim UPDATE bersyarat menjaga idempotensi.
+  // Kegagalan bonus TIDAK boleh menggagalkan settlement — uang sudah masuk.
+  try {
+    const referrerId = await claimReferralReward(db, payment.user_id, nowIso);
+    if (referrerId) {
+      await extendUserAccess(db, referrerId, REFERRAL_REFERRER_REWARD_DAYS, nowIso);
+    }
+  } catch (e) {
+    console.error('[settle:referral]', payment.reference, e);
+  }
   return { alreadyPaid: false };
 }
 

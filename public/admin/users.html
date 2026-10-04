@@ -95,7 +95,7 @@
           <div class="grid grid-2 small">
             <div class="card"><strong>Role:</strong> ${u.role}<br><strong>Terdaftar:</strong> ${TO.fmtDateTime(u.created_at)} WITA<br>
               <strong>Akses s/d:</strong> ${u.access_expires_at ? TO.fmtDateTime(u.access_expires_at) + ' WITA' : '-'}<br>
-              <strong>Kode undangan:</strong> ${u.referral_code ? '<span class="mono">' + TO.esc(u.referral_code) + '</span>' : '—'} · <strong>Mengundang:</strong> ${(d.referral && d.referral.invited_count) || 0} orang</div>
+              <strong>Kode undangan:</strong> ${u.referral_code ? '<span class="mono">' + TO.esc(u.referral_code) + '</span>' : '—'} · <strong>Mengundang:</strong> ${(d.referral && d.referral.invited_count) || 0} orang (${(d.referral && d.referral.rewarded_count) || 0} sudah beli)</div>
             <div class="card">
               <strong>Tambah akses manual:</strong>
               <div class="form-row mt">
