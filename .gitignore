@@ -6,3 +6,7 @@ dist/
 !.dev.vars.example
 *.log
 .DS_Store
+# Dump backup D1 — JANGAN masuk git (berisi data user & pembayaran);
+# salinan resmi disimpan sebagai artifact GitHub Actions, bukan commit.
+backups/
+*.sql.gz

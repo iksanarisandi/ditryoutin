@@ -1,0 +1,52 @@
+# Backup mingguan database D1 produksi → artifact GitHub (bukan commit,
+# jadi isi repo dan proses push/pull tidak pernah tersentuh file backup).
+#
+# - Jadwal: setiap Senin 02:43 WIB (Minggu 19:43 UTC).
+# - Retensi artifact 90 hari → ± 13 salinan terakhir, masing-masing ~1-2 MB
+#   (jauh di bawah kuota artifact 500 MB repo privat).
+# - Kredensial: repo secret CLOUDFLARE_API_TOKEN (Cloudflare API token,
+#   scope Account → D1 → Edit; export butuh level Edit, bukan hanya Read).
+# - GitHub mematikan cron pada repo tanpa aktivitas 60 hari — push apa saja
+#   sesekali untuk menjaga jadwal tetap hidup.
+# - Uji manual kapan saja: tab Actions → Backup D1 → Run workflow.
+name: Backup D1
+
+on:
+  schedule:
+    - cron: "43 19 * * 0"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # Bukan rahasia — ID akun Cloudflare, ditulis langsung agar wrangler
+      # tidak perlu menebak akun dari token.
+      CLOUDFLARE_ACCOUNT_ID: ab2ebaeaf52a2e2515b07f00c1c85127
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Export D1 produksi
+        run: npx --yes wrangler@4 d1 export tryout-upkp-db --remote --output=backup.sql --skip-confirmation
+
+      - name: Kompres
+        run: |
+          gzip -9 backup.sql
+          echo "DATE=$(date +%F)" >> "$GITHUB_ENV"
+
+      - name: Simpan sebagai artifact (90 hari)
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-backup-${{ env.DATE }}
+          path: backup.sql.gz
+          retention-days: 90
+          if-no-files-found: error

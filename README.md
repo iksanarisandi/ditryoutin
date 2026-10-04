@@ -175,3 +175,16 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Perpanjang akses manual:** Admin → Users → detail → Perpanjang Akses (1–3650 hari).
 - **Sembunyikan produk/paket:** matikan flag aktif (data histori tetap aman).
 - **Hapus soal:** soft delete — histori attempt tetap utuh.
+
+## Backup & pemulihan
+
+Lapisan-lapisannya (dari kecil ke besar kemalasan):
+
+- **Time Travel D1 (otomatis, bawaan):** seluruh database dapat dikembalikan ke titik waktu mana pun dalam **30 hari terakhir** — tanpa setup apa pun. Ini pelindung utama untuk salah migration/salah hapus yang disadari cepat.
+- **Backup mingguan offsite (otomatis):** workflow `.github/workflows/backup-d1.yml` jalan tiap **Senin 02:43 WIB** — `wrangler d1 export` produksi → gzip (~1–2 MB) → **artifact GitHub** dengan retensi 90 hari (± 13 salinan). Artifact TIDAK masuk git; isi repo dan push/pull tidak pernah tersentuh file backup. Kredensial: repo secret `CLOUDFLARE_API_TOKEN` (Cloudflare API token, scope Account → D1 → Edit — export menolak token read-only). Catatan: GitHub mematikan cron repo yang tak ada aktivitas 60 hari — push sesekali. Bisa juga dijalankan manual: tab Actions → Backup D1 → Run workflow.
+- **Backup manual lokal:** `npx wrangler d1 export tryout-upkp-db --remote --output=backups/nama.sql --skip-confirmation` — folder `backups/` sudah di-gitignore (berisi data user, jangan pernah di-commit). **R2 materi PDF tidak termasuk** dump ini; pelindungnya: aktifkan object versioning bucket `tryout-upkp-materi` (dashboard R2) agar terhapus/timpa masih bisa dipulihkan.
+
+**Cara pemulihan:**
+
+- *Kecelakaan < 30 hari* (paling umum): `npx wrangler d1 time-travel restore tryout-upkp-db --timestamp "2026-01-01T00:00:00Z"` — interaktif, konfirmasi sebelum menimpa. Cari titik aman via `npx wrangler d1 time-travel info tryout-upkp-db --timestamp=...`.
+- *Bencana total / > 30 hari* (DB terhapus, akun bermasalah): unduh artifact dari GitHub → `gunzip d1-backup-YYYY-MM-DD.sql.gz` → buat DB baru `npx wrangler d1 create tryout-upkp-db` → impor `npx wrangler d1 execute <DB-BARU> --remote --file=d1-backup-YYYY-MM-DD.sql` → terapkan ulang migrasi bila perlu (`npm run db:remote` idempoten) → ganti `database_id` di `wrangler.jsonc` → `npm run deploy`. Simpan dump bekas di luar git.
