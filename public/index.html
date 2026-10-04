@@ -196,11 +196,11 @@
           <a class="btn btn-outline" href="/payment.html">Pilih Paket</a>
         </div>
         <div class="card price-card featured">
-          <span class="badge badge-primary price-badge">Hemat</span>
+          <span class="badge badge-primary price-badge">Hemat 49%</span>
           <h3>Persiapan Jangka Panjang</h3>
           <p class="muted small">Akses lebih lama untuk latihan bertahap dan berulang.</p>
-          <div class="price">Rp69.000</div>
-          <p class="muted small">Akses penuh 180 hari · setara Rp383/hari</p>
+          <div class="price">Rp89.000</div>
+          <p class="muted small">Akses penuh 180 hari · setara Rp494/hari</p>
           <ul class="price-perks">
             <li>Semua paket soal &amp; pembahasan</li>
             <li>Bank soal terus bertambah</li>
@@ -422,12 +422,22 @@
           } else {
             el.classList.remove('grid-3'); el.classList.add('grid-2'); el.style.maxWidth = '680px';
           }
+          // Persentase hemat paket unggulan (terlama): harga/harinya dibanding
+          // paket rutin terpanjang di bawahnya (saat ini 30 hari). Dihitung dari
+          // harga live, jadi angkanya ikut benar saat harga diubah dari admin.
+          const feat = products[products.length - 1];
+          const base = products
+            .filter((p) => p !== feat && p.duration_days < feat.duration_days && p.duration_days >= 14)
+            .sort((a, b) => b.duration_days - a.duration_days)[0];
+          const savePct = base
+            ? Math.round((1 - (feat.price / feat.duration_days) / (base.price / base.duration_days)) * 100)
+            : 0;
           el.innerHTML = products.map((p, i) => {
             const featured = i === products.length - 1;
             const perDay = Math.floor(p.price / p.duration_days); // pembulatan ke bawah: kesan makin murah
             return `
             <div class="card price-card ${featured ? 'featured' : ''}">
-              ${featured ? '<span class="badge badge-primary price-badge">Hemat</span>' : ''}
+              ${featured ? `<span class="badge badge-primary price-badge">${savePct >= 5 ? 'Hemat ' + savePct + '%' : 'Hemat'}</span>` : ''}
               <h3>${TO.esc(p.name)}</h3>
               ${p.description ? `<p class="muted small">${TO.esc(p.description)}</p>` : ''}
               <div class="price">${TO.rupiah(p.price)}</div>

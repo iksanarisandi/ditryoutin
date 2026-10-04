@@ -154,6 +154,10 @@ p { margin: .35rem 0 .7rem; }
   padding: 18px 20px;
 }
 .card + .card { margin-top: 14px; }
+/* Aturan di atas untuk kartu yang distack vertikal; di dalam grid ia ikut
+   cocok pada kartu ke-2 dst. sehingga kartu pertama tampak lebih tinggi
+   dari tetangganya. Netralkan — jarak antar kartu di grid sudah diatur gap. */
+.grid > .card + .card { margin-top: 0; }
 .grid { display: grid; gap: 14px; }
 .grid-2 { grid-template-columns: repeat(2, 1fr); }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
@@ -440,12 +444,16 @@ table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 }
 .icon-box svg { width: 22px; height: 22px; }
 
-.price-card { text-align: center; padding: 26px 22px 24px; position: relative; }
+/* Flex column: tinggi judul/deskripsi tiap kartu bisa beda (wrap baris),
+   tombol pertama di-margin auto supaya semua CTA sejajar di dasar kartu. */
+.price-card { text-align: center; padding: 26px 22px 24px; position: relative; display: flex; flex-direction: column; }
 .price-card .price { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; color: var(--primary-dark); margin: 4px 0 2px; }
-.price-card .btn { width: 100%; margin-top: 16px; }
+.price-card .btn { width: 100%; }
+.price-card .btn:first-of-type { margin-top: auto; }
+.price-card .btn + .btn { margin-top: 8px; }
 .price-card.featured { border-color: var(--primary); box-shadow: 0 14px 36px rgba(37, 99, 235, .14); }
 .price-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
-.price-perks { list-style: none; margin: 14px 0 0; padding: 0; text-align: left; }
+.price-perks { list-style: none; margin: 14px 0 16px; padding: 0; text-align: left; }
 .price-perks li { padding: 5px 0 5px 24px; position: relative; font-size: .88rem; color: var(--text); }
 .price-perks li::before {
   content: "✓";
