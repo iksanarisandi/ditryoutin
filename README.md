@@ -85,10 +85,10 @@ Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id
 
 ## Mode pembayaran manual (fallback bila gateway bermasalah)
 
-Gateway Pakasir sudah **produksi** — tombol utama halaman bayar adalah **Bayar via QRIS** (otomatis). Alur manual disembunyikan secara default dan bisa diaktifkan dua cara:
+Gateway Pakasir sudah **produksi** — tombol utama halaman bayar adalah **Bayar via QRIS** (otomatis). Alur manual disembunyikan secara default. Cara mengubah mode (urutan prioritas):
 
-- **Per-transaksi**: set `SHOW_MANUAL_PAYMENT=true` di `wrangler.jsonc` → tombol **Bayar Manual** tampil kembali di tiap kartu paket (server juga menerima `method='manual'` lagi).
-- **Global**: `PAYMENT_MODE=manual` memaksa semua transaksi ke alur manual (tombol manual otomatis tampil).
+1. **Toggle admin (utama, tanpa deploy)**: **Admin → Transaksi → Mode Pembayaran** — tiga pilihan: `Gateway otomatis` (pakasir), `Gateway + tombol Bayar Manual` (hybrid), `Manual saja / dipaksa` (manual → banner gangguan tampil + tombol gateway disembunyikan). Tersimpan di tabel `settings` D1 dan berlaku untuk transaksi baru langsung (halaman bayar mengikuti maks. 1 menit karena cache edge `/api/products`).
+2. **Env var (baseline)**: dipakai hanya bila belum pernah di-toggle — `PAYMENT_MODE=manual` atau `SHOW_MANUAL_PAYMENT=true` di `wrangler.jsonc` + deploy.
 
 Alur manual saat aktif:
 

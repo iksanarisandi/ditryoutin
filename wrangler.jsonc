@@ -27,12 +27,15 @@
   "observability": {
     "enabled": true
   },
-  // Bukan rahasia — boleh di config. "pakasir" = gateway otomatis (QRIS dinamis, PRODUKSI);
-  // "manual" = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah).
+  // Bukan rahasia — boleh di config. Nilai di sini hanya BASELINE: dipakai bila
+  // mode belum pernah diubah dari panel admin (Admin → Transaksi → Mode Pembayaran,
+  // tersimpan di tabel settings D1 dan menimpa env — tanpa deploy ulang).
+  // "pakasir" = gateway otomatis (QRIS dinamis); "manual" = QRIS pribadi + WA.
+  // 2026-10-05: server Pakasir maintenance (523) -> baseline sementara manual.
   // MANUAL_WA tetap dipakai sebagai kontak kendala pembayaran di halaman bayar.
   // SHOW_MANUAL_PAYMENT "true" = tampilkan lagi tombol Bayar Manual (fallback).
   "vars": {
-    "PAYMENT_MODE": "pakasir",
+    "PAYMENT_MODE": "manual",
     "SHOW_MANUAL_PAYMENT": "false",
     "MANUAL_WA": "6282347303153"
   },

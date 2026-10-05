@@ -7,6 +7,7 @@ import { timingSafeEqual } from '../middleware/security';
 import { PakasirError, createTransaction, getTransactionStatus, qrStringToSvg } from '../services/pakasir';
 import { genReference, remainingSeconds, settlePayment, shouldCheckStatus, effectiveExpiryIso, PAKASIR_TTL_MS, type PaymentRow } from '../services/payments';
 import { inviteeDiscountEligible, REFERRAL_INVITEE_DISCOUNT } from '../services/referrals';
+import { getPaymentMode } from '../services/settings';
 import type { AppEnv } from '../types';
 
 
@@ -53,13 +54,15 @@ payments.post('/create', requireAuth, async (c) => {
     ? product.price - Math.round(product.price * REFERRAL_INVITEE_DISCOUNT)
     : product.price;
 
-  // Alur manual hanya hidup jika diperlihatkan (SHOW_MANUAL_PAYMENT=true) atau
-  // dipaksa global lewat PAYMENT_MODE=manual (fallback bila gateway bermasalah).
-  const manualAllowed = c.env.PAYMENT_MODE === 'manual' || c.env.SHOW_MANUAL_PAYMENT === 'true';
+  // Mode pembayaran efektif dari toggle admin (fallback env — services/settings):
+  // "manual" = dipaksa global (fallback bila gateway bermasalah), "hybrid" =
+  // gateway + tombol manual, "pakasir" = gateway saja.
+  const mode = await getPaymentMode(c.env);
+  const manualAllowed = mode !== 'pakasir';
   if (body?.method === 'manual' && !manualAllowed) {
     return fail(c, 'Pembayaran manual sedang tidak tersedia. Silakan bayar via QRIS.', 400);
   }
-  const manualMode = c.env.PAYMENT_MODE === 'manual' || body?.method === 'manual';
+  const manualMode = mode === 'manual' || body?.method === 'manual';
   let paymentId = 0;
   let reference = '';
   for (let i = 0; i < 3; i++) {

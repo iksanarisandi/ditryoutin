@@ -17,6 +17,19 @@
     <aside id="admin-side"></aside>
     <main class="admin-main">
       <div class="admin-head"><h1>Transaksi Pembayaran</h1></div>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px">
+        <div class="filter-bar" style="margin:0">
+          <strong style="white-space:nowrap">Mode Pembayaran:</strong>
+          <select id="pay-mode" aria-label="Mode pembayaran">
+            <option value="pakasir">Gateway otomatis (QRIS dinamis)</option>
+            <option value="hybrid">Gateway + tombol Bayar Manual</option>
+            <option value="manual">Manual saja (dipaksa)</option>
+          </select>
+          <button class="btn" id="mode-save" type="button">Simpan Mode</button>
+          <span class="small muted">Berlaku untuk transaksi baru langsung; halaman bayar mengikuti maks. 1 menit.</span>
+        </div>
+        <div id="mode-desc" class="small muted" style="margin-top:8px"></div>
+      </div>
       <div class="filter-bar">
         <select id="f-status">
           <option value="">Semua Status</option>
@@ -47,6 +60,31 @@
     (async function () {
       const me = await ADM.adminInit('/admin/payments.html');
       if (!me) return;
+
+      // ----- Mode pembayaran (toggle runtime, tanpa deploy) -----
+      const modeSel = document.getElementById('pay-mode');
+      const modeDesc = document.getElementById('mode-desc');
+      const modeSave = document.getElementById('mode-save');
+      const MODE_DESC = {
+        pakasir: 'Gateway otomatis: user hanya membayar via QRIS dinamis Pakasir — akses aktif otomatis setelah bayar. Mode normal produksi.',
+        hybrid: 'Gateway + alternatif: QRIS dinamis tetap utama, tombol "Bayar Manual" juga tampil di tiap paket.',
+        manual: 'Semua transaksi dipaksa alur manual (QRIS statis + konfirmasi WA, verifikasi admin) dan banner gangguan tampil di halaman bayar. Pakai saat gateway bermasalah.',
+      };
+      async function loadMode() {
+        try {
+          const d = await TO.api('/api/admin/settings/payment-mode');
+          modeSel.value = d.mode;
+          modeDesc.textContent = MODE_DESC[d.mode] || '';
+        } catch (e) { modeDesc.textContent = 'Gagal memuat mode: ' + e.message; }
+      }
+      modeSel.addEventListener('change', () => { modeDesc.textContent = MODE_DESC[modeSel.value] || ''; });
+      modeSave.addEventListener('click', () => {
+        TO.busy(modeSave, 'Menyimpan…', async () => {
+          await TO.api('/api/admin/settings/payment-mode', { method: 'POST', body: { mode: modeSel.value } });
+          TO.toast('Mode pembayaran → ' + modeSel.value, 'success');
+        }).catch((e) => TO.toast(e.message, 'error'));
+      });
+      loadMode();
 
       const listEl = document.getElementById('list');
       const pagerEl = document.getElementById('pager');

@@ -6,6 +6,7 @@ import { clientIp, limitOr429, rateLimit } from './middleware/ratelimit';
 import { PakasirError } from './services/pakasir';
 import { POINTS_PER_CORRECT } from './services/scoring';
 import { reconcileStalePayments } from './services/payments';
+import { getPaymentMode } from './services/settings';
 
 import authRoutes from './routes/auth';
 import setupRoutes from './routes/setup';
@@ -17,6 +18,7 @@ import materialsRoutes from './routes/materials';
 import referralRoutes from './routes/referral';
 import adminUsersRoutes from './routes/admin/users';
 import overviewRoutes from './routes/admin/overview';
+import adminSettingsRoutes from './routes/admin/settings';
 import adminQuestionsRoutes from './routes/admin/questions';
 import { adminCategories, adminPackages, adminProducts } from './routes/admin/catalog';
 import { adminMaterialCategories, adminMaterials } from './routes/admin/materials';
@@ -83,16 +85,25 @@ app.route('/api/referral', referralRoutes);
 // Produk akses aktif — publik untuk landing page. Data hampir statis:
 // cache 60 detik di edge agar landing page yang ramai tidak menghantam D1.
 // manual_available: apakah tombol Bayar Manual tampil (bukan rahasia — hanya flag UI).
+// manual_forced: mode manual dipaksa — semua transaksi ke alur manual; frontend
+// memakainya untuk banner gangguan gateway + menyembunyikan tombol gateway.
+// Mode efektif = toggle admin (tabel settings), fallback env — services/settings.
 app.get('/api/products', async (c) => {
   const cacheKey = new Request(c.req.url, { method: 'GET' });
   const hit = await caches.default.match(cacheKey);
   if (hit) return hit;
 
-  const manualAvailable = c.env.PAYMENT_MODE === 'manual' || c.env.SHOW_MANUAL_PAYMENT === 'true';
+  const mode = await getPaymentMode(c.env);
+  const manualForced = mode === 'manual';
+  const manualAvailable = mode !== 'pakasir';
   const rows = await c.env.DB.prepare(
     'SELECT id, name, price, duration_days, description FROM products WHERE active=1 ORDER BY price',
   ).all();
-  const res = ok(c, { products: rows.results ?? [], manual_available: manualAvailable });
+  const res = ok(c, {
+    products: rows.results ?? [],
+    manual_available: manualAvailable,
+    manual_forced: manualForced,
+  });
   res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60');
   c.executionCtx.waitUntil(caches.default.put(cacheKey, res.clone()));
   return res;
@@ -245,6 +256,7 @@ admin.route('/packages', adminPackages);
 admin.route('/categories', adminCategories);
 admin.route('/materials', adminMaterials);
 admin.route('/material-categories', adminMaterialCategories);
+admin.route('/settings', adminSettingsRoutes);
 admin.route('/', overviewRoutes); // /stats, /payments, /results
 app.route('/api/admin', admin);
 
