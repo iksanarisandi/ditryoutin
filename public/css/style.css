@@ -673,7 +673,18 @@ body.exam-page { background: #eef2f7; }
 .legend span.chip { display: inline-block; width: 22px; height: 22px; border-radius: 5px; vertical-align: middle; margin-right: 6px; border: 1.5px solid var(--border); background: #fff; }
 .legend .chip.answered { background: var(--primary); border-color: var(--primary); }
 .legend .chip.marked { background: #f59e0b; border-color: #f59e0b; }
-.qgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 6px; margin-top: 8px; }
+/* Grid nomor per kategori: wadah berisi blok berlabel (seperti CAT asli) —
+   nama kategori + counter jawaban x/y di atas deretan nomornya. */
+.qgrid { margin-top: 8px; }
+.qcat-block + .qcat-block { margin-top: 12px; }
+.qcat-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: .78rem; font-weight: 700; padding-bottom: 3px; margin-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+.qcat-count { font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.qcat-count.done { color: var(--primary); }
+.qngrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 6px; }
 .qn {
   border: 1.5px solid var(--border);
   background: #fff;

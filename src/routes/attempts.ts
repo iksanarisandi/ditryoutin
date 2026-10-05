@@ -41,7 +41,9 @@ async function getAttempt(db: D1Database, id: number): Promise<AttemptRow | null
     .first<AttemptRow>();
 }
 
-// Mulai attempt baru: snapshot urutan soal diacak sekali dan disimpan.
+// Mulai attempt baru: urutan soal di-snapshot sekali dan disimpan. Seperti
+// CAT BKN asli, kategori tampil berkelompok dan berurutan (categories.sort_order,
+// mis. TWK → TKT → TSI) — yang diacak hanya urutan soal di dalam kategorinya.
 attempts.post('/', requireActiveAccess, async (c) => {
   const user = c.get('user');
   const body = await readJson(c);
@@ -55,10 +57,10 @@ attempts.post('/', requireActiveAccess, async (c) => {
   if (!pkg || !pkg.active) return fail(c, 'Paket tidak ditemukan', 404);
 
   const qids = await c.env.DB.prepare(
-    'SELECT id FROM questions WHERE package_id=? AND deleted_at IS NULL',
+    'SELECT id, category_id FROM questions WHERE package_id=? AND deleted_at IS NULL',
   )
     .bind(packageId)
-    .all<{ id: number }>();
+    .all<{ id: number; category_id: number }>();
   if (!(qids.results ?? []).length) return fail(c, 'Paket ini belum memiliki soal', 422);
 
   await finalizeUserExpiredAttempts(c.env.DB, user.id);
@@ -83,9 +85,29 @@ attempts.post('/', requireActiveAccess, async (c) => {
     .run();
   const attemptId = Number(res.meta.last_row_id);
 
-  const shuffled = shuffle((qids.results ?? []).map((r) => r.id));
+  // Kelompokkan soal per kategori, urutkan kategorinya seperti ujian asli,
+  // lalu acak soal di dalam tiap kelompok.
+  const cats = await c.env.DB.prepare(
+    'SELECT id FROM categories ORDER BY sort_order, name',
+  ).all<{ id: number }>();
+  const catPos = new Map((cats.results ?? []).map((r, i) => [r.id, i]));
+
+  const byCat = new Map<number, number[]>();
+  for (const r of qids.results ?? []) {
+    const list = byCat.get(r.category_id);
+    if (list) list.push(r.id);
+    else byCat.set(r.category_id, [r.id]);
+  }
+  // Kategori tanpa baris di tabel (FK mencegah, tapi jaga-jaga) diletakkan akhir.
+  const ordered = [...byCat.entries()]
+    .sort(
+      (a, b) =>
+        (catPos.get(a[0]) ?? catPos.size) - (catPos.get(b[0]) ?? catPos.size),
+    )
+    .flatMap(([, list]) => shuffle(list));
+
   await c.env.DB.batch(
-    shuffled.map((qid, i) =>
+    ordered.map((qid, i) =>
       c.env.DB.prepare(
         'INSERT INTO attempt_questions (attempt_id, question_id, question_order) VALUES (?, ?, ?)',
       ).bind(attemptId, qid, i + 1),

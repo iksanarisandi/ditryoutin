@@ -247,17 +247,34 @@
         updateProgress();
       }
 
+      // Grid nomor dikelompokkan per kategori seperti CAT asli: tiap blok
+      // diberi label kategori + counter jawaban (x/y) agar kelihatan kategori
+      // mana yang masih banyak kosong. Urutan blok mengikuti urutan
+      // kemunculan — pada attempt baru ini = urutan kategori ujian asli.
       function renderGrid() {
         const grid = document.getElementById('qgrid');
         const eff = effectiveAnswers();
-        grid.innerHTML = qs.map((q, i) => {
-          const isMarked = marked.has(q.id);
-          const isAnswered = !!eff[q.id];
-          const cls = [
-            isMarked ? 'marked' : (isAnswered ? 'answered' : ''),
-            i === current ? 'active' : '',
-          ].filter(Boolean).join(' ');
-          return `<button type="button" class="qn ${cls}" data-i="${i}">${q.order}</button>`;
+        const groups = [];
+        const byCat = new Map();
+        qs.forEach((q, i) => {
+          let g = byCat.get(q.category);
+          if (!g) { g = { name: q.category, items: [] }; byCat.set(q.category, g); groups.push(g); }
+          g.items.push({ q, i });
+        });
+        grid.innerHTML = groups.map((g) => {
+          const answered = g.items.filter((it) => !!eff[it.q.id]).length;
+          const done = answered === g.items.length ? ' done' : '';
+          return `<div class="qcat-block">` +
+            `<div class="qcat-head"><span>${TO.esc(g.name)}</span><span class="qcat-count${done}">${answered}/${g.items.length}</span></div>` +
+            `<div class="qngrid">` + g.items.map(({ q, i }) => {
+              const isMarked = marked.has(q.id);
+              const isAnswered = !!eff[q.id];
+              const cls = [
+                isMarked ? 'marked' : (isAnswered ? 'answered' : ''),
+                i === current ? 'active' : '',
+              ].filter(Boolean).join(' ');
+              return `<button type="button" class="qn ${cls}" data-i="${i}">${q.order}</button>`;
+            }).join('') + `</div></div>`;
         }).join('');
         grid.querySelectorAll('.qn').forEach((b) => {
           b.addEventListener('click', () => goTo(Number(b.dataset.i)));
