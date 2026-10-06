@@ -80,6 +80,7 @@
             <div class="card"><div class="stat-card"><div class="label">Tidak Jawab</div><div class="value" style="color:var(--muted)">${r.unanswered_count}</div></div></div>
           </div>
           <div class="small muted mt">Skor: 5 poin per jawaban benar. Waktu pengerjaan: ${TO.fmtDur(r.duration_seconds)} &bull; Selesai: ${TO.fmtDateTime(r.submitted_at)} WITA</div>
+          <div class="small mt" style="font-weight:600;color:var(--primary)">Klik nomor soal untuk melihat <a href="#pembahasan">pembahasan</a>.</div>
         </div>`;
 
       // Lapor soal keliru/ambigu/typo ke admin via WA — sama dengan halaman
@@ -144,7 +145,7 @@
       }
 
       html += `
-        <div class="card">
+        <div class="card" id="pembahasan">
           <h3>Pembahasan</h3>
           ${d.review.map((rev) => {
             const status = rev.user_answer == null
