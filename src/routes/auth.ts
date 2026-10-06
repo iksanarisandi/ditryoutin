@@ -1,8 +1,15 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { fail, ok } from '../utils/response';
-import { hashPassword, verifyPassword } from '../utils/hash';
-import { clearSessionCookie, createSession, isSecureRequest, sessionSetCookie } from '../utils/session';
+import { hashPassword, verifyPassword, sha256Hex } from '../utils/hash';
+import {
+  clearSessionCookie,
+  createSession,
+  generateToken,
+  isSecureRequest,
+  sessionSetCookie,
+} from '../utils/session';
+import { sendPasswordResetEmail } from '../services/resend';
 import { normalizeEmail, trimStr, validPassword } from '../utils/validate';
 import { readJson } from '../utils/body';
 import { accessActive, requireAuth } from '../middleware/auth';
@@ -25,9 +32,15 @@ const DUMMY_HASH =
 
 // Rate limit ketat per IP untuk endpoint yang mahal/disalahgunakan.
 // Register = vektor utama penghabisan kuota TULIS D1; login = CPU argon2 + brute force.
+// Forgot/reset memakai BUCKET TERPISAH (bukan RATE_LIMIT_AUTH) supaya dibor-bor
+// keduanya TIDAK ikut mengunci login pengguna lain di IP/NAT yang sama — dan
+// sebaliknya, banjir login tidak memakan jatah reset password orang.
 auth.use('/register', ipRateLimit('RATE_LIMIT_REGISTER'));
 auth.use('/login', ipRateLimit('RATE_LIMIT_AUTH'));
-auth.use('/forgot-password', ipRateLimit('RATE_LIMIT_AUTH'));
+// Kirim email Resend = paling sensitif: 5x/15 menit per IP (manusia butuh 1-2x).
+auth.use('/forgot-password', ipRateLimit('RATE_LIMIT_FORGOT'));
+// Argon2 + tulis D1, manusia kirim sekali: 6x/10 menit per IP.
+auth.use('/reset-password', ipRateLimit('RATE_LIMIT_RESET'));
 
 // Konfigurasi captcha untuk frontend (site key memang publik).
 auth.get('/captcha', (c) =>
@@ -206,9 +219,92 @@ auth.get('/me', requireAuth, async (c) => {
 // attempt + rekonsiliasi pembayaran setiap kali dipanggil.
 auth.post('/heartbeat', requireAuth, async (c) => ok(c, { ok: true }));
 
-// Tanpa SMTP: respons netral, arahkan ke admin (tidak membocorkan keberadaan email).
+// Reset password via email (Resend): minta tautan -> email berisi token
+// sekali-pakai (1 jam) -> pakai token untuk set password baru di /reset.html.
+// Respons NETRAL apa pun yang terjadi — tidak membocorkan email terdaftar/tidak.
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 jam
+const FORGOT_NEUTRAL_MSG =
+  'Jika email terdaftar, tautan reset password sudah dikirim. Periksa kotak masuk dan folder spam.';
+
 auth.post('/forgot-password', async (c) => {
-  return ok(c, { message: 'Jika akun terdaftar, hubungi admin melalui halaman kontak untuk reset password.' });
+  const body = await readJson(c);
+  // Turnstile dulu: tanpa ini bot bisa memompa email (menghabiskan kuota Resend)
+  // dan meng enumerasi email lewat perbedaan waktu respons (ada vs tidak ada email terkirim).
+  const captchaFail = await checkTurnstile(c, body ?? {});
+  if (captchaFail) return captchaFail;
+
+  const email = normalizeEmail(body?.email);
+  if (email) {
+    // Anti mail-bomb lintas IP: maks 3 email ke SATU alamat per 15 menit
+    // (penyerang bisa rotasi IP, alamat korban tidak bisa). Dihitung juga
+    // untuk email yang tidak terdaftar dan dicek DIAM-DIAM — respons tetap
+    // netral 200 supaya batas ini tidak jadi oracle keberadaan email.
+    const emailLimited = await isLimited(c, 'RATE_LIMIT_FORGOT_EMAIL', `email:${email}`);
+    const user = await c.env.DB.prepare('SELECT id FROM users WHERE email=?')
+      .bind(email)
+      .first<{ id: number }>();
+    if (user && !emailLimited) {
+      // Satu tautan aktif per user: hapus token lama, buat yang baru.
+      const token = generateToken();
+      await c.env.DB.batch([
+        c.env.DB.prepare('DELETE FROM password_reset_tokens WHERE user_id=?').bind(user.id),
+        c.env.DB.prepare(
+          'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+        )
+          .bind(user.id, await sha256Hex(token), new Date(Date.now() + RESET_TTL_MS).toISOString()),
+      ]);
+      if (c.env.RESEND_API_KEY) {
+        const origin = new URL(c.req.url).origin;
+        await sendPasswordResetEmail(
+          c.env.RESEND_API_KEY,
+          email,
+          `${origin}/reset.html?token=${token}`,
+        );
+      } else {
+        // Salah konfigurasi (bukan salah user) — log keras agar cepat terlihat di tail.
+        console.error('[forgot-password] RESEND_API_KEY belum diset — email tidak terkirim');
+      }
+    }
+  }
+  return ok(c, { message: FORGOT_NEUTRAL_MSG });
+});
+
+// Tukar token dari email dengan password baru. Token sekali pakai; sukses reset
+// juga menghapus SEMUA token user lain + SEMUA sesinya (logout semua perangkat —
+// standar keamanan setelah reset) dan membuka kunci lockout login.
+auth.post('/reset-password', async (c) => {
+  const body = await readJson(c);
+  if (!body) return fail(c, 'Body tidak valid', 422);
+  const token = trimStr(body.token, 128);
+  const password = body.password;
+  if (!token) return fail(c, 'Tautan reset tidak valid', 422);
+  if (!validPassword(password)) return fail(c, 'Password minimal 8 karakter', 422);
+
+  const row = await c.env.DB.prepare(
+    'SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash=?',
+  )
+    .bind(await sha256Hex(token))
+    .first<{ id: number; user_id: number; expires_at: string; used_at: string | null }>();
+
+  if (!row || row.used_at || Date.parse(row.expires_at) <= Date.now()) {
+    return fail(
+      c,
+      'Tautan reset tidak valid atau sudah kedaluwarsa. Minta tautan baru di halaman lupa password.',
+      400,
+    );
+  }
+
+  const now = new Date().toISOString();
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE password_reset_tokens SET used_at=? WHERE id=?').bind(now, row.id),
+    c.env.DB.prepare('DELETE FROM password_reset_tokens WHERE user_id=? AND id<>?')
+      .bind(row.user_id, row.id),
+    c.env.DB.prepare(
+      'UPDATE users SET password_hash=?, failed_attempts=0, locked_until=NULL, updated_at=? WHERE id=?',
+    ).bind(hashPassword(password), now, row.user_id),
+    c.env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(row.user_id),
+  ]);
+  return ok(c, { message: 'Password berhasil diganti. Silakan masuk dengan password baru.' });
 });
 
 export default auth;

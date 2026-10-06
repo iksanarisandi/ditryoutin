@@ -19,6 +19,9 @@ export type Env = {
   // Cloudflare Turnstile (anti-bot register/login). Aktif jika keduanya terisi.
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
+  // Resend — pengirim email reset password. Rahasia: set lewat
+  // `wrangler secret put RESEND_API_KEY` atau dashboard Cloudflare, bukan di git.
+  RESEND_API_KEY?: string;
   // Durable Object rate limiter (counter per limiter+key).
   RATE_LIMIT_DO: DurableObjectNamespace;
 };

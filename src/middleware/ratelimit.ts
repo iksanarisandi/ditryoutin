@@ -9,8 +9,12 @@ import type { AppEnv } from '../types';
 // di semua plan dan strongly-consistent per key.
 //
 // - RATE_LIMIT_API:      semua /api/* per IP (proteksi flood + hemat baca D1)
-// - RATE_LIMIT_AUTH:     login / forgot-password / setup per IP
+// - RATE_LIMIT_AUTH:     login / setup per IP
+// - RATE_LIMIT_FORGOT:   forgot-password per IP — kirim email Resend (kuota & biaya)
+// - RATE_LIMIT_FORGOT_EMAIL: forgot-password per ALAMAT EMAIL — anti mail-bomb
+//                        lintas IP; dicek diam-diam di handler, respons tetap netral
 // - RATE_LIMIT_REGISTER: register per IP (vektor utama penghabisan kuota tulis D1)
+// - RATE_LIMIT_RESET:    reset-password per IP (argon2 mahal CPU + tulis D1)
 // - RATE_LIMIT_WRITE:    endpoint tulis per user (autosave ujian) atau per IP (anonim)
 //
 // Jika DO error, request DIIZINKAN (fail-open) — rate limit tidak boleh
@@ -19,14 +23,29 @@ import type { AppEnv } from '../types';
 export type LimiterName =
   | 'RATE_LIMIT_API'
   | 'RATE_LIMIT_AUTH'
+  | 'RATE_LIMIT_FORGOT'
+  | 'RATE_LIMIT_FORGOT_EMAIL'
   | 'RATE_LIMIT_REGISTER'
+  | 'RATE_LIMIT_RESET'
   | 'RATE_LIMIT_WRITE'
   | 'RATE_LIMIT_LOGINFAIL';
 
 const LIMITS: Record<LimiterName, { limit: number; period: number }> = {
   RATE_LIMIT_API: { limit: 300, period: 60 },
   RATE_LIMIT_AUTH: { limit: 12, period: 60 },
+  // Bucket TERPISAH dari AUTH: menahan email reset tanpa bisa mengunci login
+  // orang lain, dan sebaliknya. Manusia minta reset 1-2x — 5x/15 menit per IP
+  // cukup longgar untuk retry typo, cukup ketat untuk melindungi kuota Resend.
+  RATE_LIMIT_FORGOT: { limit: 5, period: 900 },
+  // Penyerang yang rotasi IP tetap tidak bisa membanjiri inbox SATU korban:
+  // maks 3 email per alamat per 15 menit. Window per (email) di DO, jadi
+  // strongly-consistent lintas IP/colo.
+  RATE_LIMIT_FORGOT_EMAIL: { limit: 3, period: 900 },
   RATE_LIMIT_REGISTER: { limit: 6, period: 60 },
+  // Token kedaluwarsa ditolak murah (baca D1 dulu, argon2 hanya untuk token
+  // valid); batas ini menahan flood tulis D1 + penggunaan argon2 berulang.
+  // Manusia hanya mengirim 1-2x — validasi form ada di klien.
+  RATE_LIMIT_RESET: { limit: 6, period: 600 },
   RATE_LIMIT_WRITE: { limit: 90, period: 60 },
   // Kunci virtual per-email untuk login dengan email yang tidak terdaftar:
   // setelah 5 percobaan gagal dalam 15 menit, responsnya 429 "akun terkunci" —

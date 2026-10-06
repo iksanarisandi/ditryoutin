@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VZMGZFN4KX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-VZMGZFN4KX');
+  </script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Password — Tryout UPKP</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <div class="auth-wrap">
+    <div class="container-sm">
+      <div class="card auth-card">
+        <img class="auth-logo" src="/img/logo-192.png" alt="Tryout UPKP" width="64" height="64">
+        <h1>Atur Password Baru</h1>
+        <p class="muted">Password baru berlaku untuk semua perangkat — sesi lain akan otomatis keluar.</p>
+
+        <div id="error-box" hidden><div class="alert alert-danger" id="error-msg"></div></div>
+        <div id="done" hidden>
+          <div class="alert alert-success">Password berhasil diganti. Silakan masuk dengan password baru Anda.</div>
+          <a class="btn btn-block" href="/login.html" style="text-decoration:none">Masuk</a>
+        </div>
+
+        <form id="reset-form">
+          <div class="form-group">
+            <label for="password">Password Baru</label>
+            <div class="pw-field">
+              <input type="password" id="password" required minlength="8" maxlength="100" autocomplete="new-password" placeholder="Minimal 8 karakter">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="password2">Ulangi Password Baru</label>
+            <div class="pw-field">
+              <input type="password" id="password2" required minlength="8" maxlength="100" autocomplete="new-password" placeholder="Ketik ulang password baru">
+            </div>
+          </div>
+          <button class="btn btn-block" type="submit" id="btn-submit">Simpan Password Baru</button>
+        </form>
+
+        <p class="mt small"><a href="/login.html">&larr; Kembali ke halaman masuk</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      TO.renderHeader('/login.html', await TO.fetchMe());
+      const form = document.getElementById('reset-form');
+      const btn = document.getElementById('btn-submit');
+      const errBox = document.getElementById('error-box');
+      const errMsg = document.getElementById('error-msg');
+
+      // Token datang dari tautan email: /reset.html?token=...
+      const token = TO.qs('token');
+      if (!token) {
+        form.hidden = true;
+        errMsg.innerHTML = 'Tautan reset tidak valid. Minta tautan baru di <a href="/forgot.html">halaman lupa password</a>.';
+        errBox.hidden = false;
+        return;
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errBox.hidden = true;
+        if (form.password.value !== form.password2.value) {
+          errMsg.textContent = 'Kedua password tidak sama — coba ketik ulang.';
+          errBox.hidden = false;
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan…';
+        try {
+          await TO.api('/api/auth/reset-password', {
+            method: 'POST',
+            body: { token, password: form.password.value },
+          });
+          form.hidden = true;
+          document.getElementById('done').hidden = false;
+        } catch (err) {
+          errMsg.innerHTML = TO.esc(String(err.message || err)) +
+            ' Minta tautan baru di <a href="/forgot.html">halaman lupa password</a> bila tautan ini sudah kedaluwarsa.';
+          errBox.hidden = false;
+          btn.disabled = false;
+          btn.textContent = 'Simpan Password Baru';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

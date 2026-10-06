@@ -274,10 +274,13 @@ app.onError((err, c) => {
 
 // Cron harian: hapus session kedaluwarsa agar tabel tidak membengkak
 // (setiap login/daftar menambah baris; tanpa ini baris menumpuk selamanya),
+// sapu juga token reset password kedaluwarsa (sisa yang tidak terpakai),
 // lalu rekonsiliasi payment pending (jaring pengaman bila webhook gagal).
 async function cleanupExpiredSessions(env: Env): Promise<void> {
-  await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?')
-    .bind(new Date().toISOString())
+  const now = new Date().toISOString();
+  await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+  await env.DB.prepare('DELETE FROM password_reset_tokens WHERE expires_at < ?')
+    .bind(now)
     .run();
 }
 

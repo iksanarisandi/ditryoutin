@@ -31,6 +31,14 @@ export function hashPassword(password: string): string {
   return `$argon2id$v=19$m=${M},t=${T},p=${P}$${b64u(salt)}$${b64u(hash)}`;
 }
 
+/** SHA-256 hex dari string — untuk menyimpan token reset password.
+ *  Token punya 256-bit entropi acak sehingga hash polos sudah cukup
+ *  (berbeda dari sesi yang memakai HMAC karena tokennya bisa ditebak user). */
+export async function sha256Hex(s: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function verifyPassword(password: string, phc: string): boolean {
   try {
     // format: $argon2id$v=19$m=..,t=..,p=..$<salt_b64>$<hash_b64>
