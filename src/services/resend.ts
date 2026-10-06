@@ -2,7 +2,10 @@
 // — cukup fetch, tanpa SDK tambahan. Domain pengirim harus status "Verified"
 // di dashboard Resend; kalau belum, Resend menolak dengan 403 dan pesannya
 // terlihat di `wrangler tail` (log error di bawah).
-const FROM = 'Tryout UPKP <noreply@ditryout.in>';
+const FROM = 'Tryout UPKP <info@ditryout.in>';
+// Balasan email situs diarahkan ke inbox pribadi admin (info@ tidak punya MX —
+// domain ini kirim-saja). Balasan broadcast di Resend memakai nilai yang sama.
+const REPLY_TO = 'iksan10058@gmail.com';
 
 // Email client tidak memuat CSS eksternal — semua style harus inline.
 function resetEmailHtml(resetUrl: string): string {
@@ -50,6 +53,7 @@ export async function sendPasswordResetEmail(
       },
       body: JSON.stringify({
         from: FROM,
+        reply_to: REPLY_TO,
         to: [to],
         subject: 'Reset password akun Tryout UPKP',
         html: resetEmailHtml(resetUrl),
@@ -63,6 +67,43 @@ export async function sendPasswordResetEmail(
     return true;
   } catch (e) {
     console.error('[resend] error jaringan', e);
+    return false;
+  }
+}
+
+/**
+ * Tambah pendaftar baru ke daftar kontak Resend (bahan Broadcast info/promo).
+ * Fire-and-forget: pemanggil memakai waitUntil — gagal/timeout tidak boleh
+ * mengganggu pendaftaran. Kontak sudah ada (mis. hasil impor CSV) bukan error
+ * fatal; cukup ter-log untuk observability.
+ */
+export async function addResendContact(
+  apiKey: string,
+  email: string,
+  name: string,
+): Promise<boolean> {
+  try {
+    // Nama dipecah agar broadcast bisa personalisasi "Halo {{first_name}}".
+    const parts = name.trim().split(/\s+/);
+    const res = await fetch('https://api.resend.com/contacts', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        first_name: parts[0] ?? '',
+        last_name: parts.slice(1).join(' '),
+      }),
+    });
+    if (!res.ok) {
+      console.error('[resend] tambah kontak gagal', email, res.status, await res.text());
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[resend] error jaringan kontak', e);
     return false;
   }
 }

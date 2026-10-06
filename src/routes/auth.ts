@@ -9,7 +9,7 @@ import {
   isSecureRequest,
   sessionSetCookie,
 } from '../utils/session';
-import { sendPasswordResetEmail } from '../services/resend';
+import { sendPasswordResetEmail, addResendContact } from '../services/resend';
 import { normalizeEmail, trimStr, validPassword } from '../utils/validate';
 import { readJson } from '../utils/body';
 import { accessActive, requireAuth } from '../middleware/auth';
@@ -102,6 +102,15 @@ auth.post('/register', async (c) => {
     } catch (e) {
       console.error('[register:referral]', email, e);
     }
+  }
+
+  // Sinkron ke daftar kontak Resend (bahan Broadcast info/promo): fire-and-forget
+  // via waitUntil — tidak menahan respons, dan kegagalannya tidak pernah
+  // membatalkan pendaftaran yang sudah jadi (pola sama seperti referal di atas).
+  if (c.env.RESEND_API_KEY) {
+    c.executionCtx.waitUntil(addResendContact(c.env.RESEND_API_KEY, email, name));
+  } else {
+    console.error('[register] RESEND_API_KEY belum diset — kontak Resend tidak tersinkron');
   }
 
   const token = await createSession(c.env.DB, c.env.SESSION_SECRET, userId);
