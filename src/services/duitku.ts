@@ -1,6 +1,7 @@
 // Klien Duitku Payment Gateway (V.2 API) — gateway alternatif selain Pakasir.
-// QRIS saja untuk saat ini (paymentMethod 'SP' = ShopeePay QRIS, interoperabel
-// untuk semua aplikasi QRIS; bisa diganti via env DUITKU_QRIS_METHOD, mis. 'NQ').
+// QRIS saja untuk saat ini ('SP' = ShopeePay QRIS, 'NQ' = Nusapay/Nobu QRIS —
+// keduanya interoperabel untuk semua aplikasi QRIS; daftar preferensi diatur
+// via env DUITKU_QRIS_METHOD, mis. "SP,NQ" — lihat createTransaction).
 
 import { hmac } from '@noble/hashes/hmac.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -108,7 +109,7 @@ async function duitkuFetch(url: string, body: unknown): Promise<Record<string, u
   }
   const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok || !json) {
-    const msg = (json?.statusMessage ?? json?.responseMessage ?? `Duitku merespon ${res.status}`);
+    const msg = (json?.statusMessage ?? json?.responseMessage ?? json?.Message ?? `Duitku merespon ${res.status}`);
     throw new DuitkuError(String(msg), res.status);
   }
   return json;
@@ -116,6 +117,12 @@ async function duitkuFetch(url: string, body: unknown): Promise<Record<string, u
 
 // POST /v2/inquiry — buat invoice QRIS. merchantOrderId = reference transaksi
 // kita (format TO-... bersambung minus, diterima — lihat smoke test).
+//
+// DUITKU_QRIS_METHOD adalah daftar channel berurutan, dipisah koma (mis.
+// "SP,NQ"): inquiry memakai channel pertama yang tersedia — bila satu channel
+// ditolak (mis. dinonaktifkan di dashboard Duitku), otomatis jatuh ke channel
+// berikutnya tanpa deploy ulang. Gangguan jaringan tidak memicu retry channel
+// lain (server yang sama — percuma menambah latensi).
 export async function createTransaction(
   env: Env,
   opts: {
@@ -131,30 +138,50 @@ export async function createTransaction(
   const cfg = duitkuConfig(env);
   if (!cfg) throw new DuitkuError('Duitku belum dikonfigurasi');
 
-  const json = await duitkuFetch(`${cfg.base}/v2/inquiry`, {
-    merchantCode: cfg.merchantCode,
-    paymentAmount: opts.amount,
-    merchantOrderId: opts.orderId,
-    productDetails: opts.productDetails.slice(0, 255),
-    paymentMethod: (env.DUITKU_QRIS_METHOD || 'SP').toUpperCase(),
-    customerVaName: opts.customerName.slice(0, 20), // docs: string(20)
-    email: opts.email,
-    callbackUrl: opts.callbackUrl,
-    returnUrl: opts.returnUrl,
-    expiryPeriod: DUITKU_QRIS_EXPIRY_MINUTES,
-    signature: sign(cfg.merchantCode + opts.orderId + opts.amount, cfg.apiKey),
-  });
+  const methods = (env.DUITKU_QRIS_METHOD || 'SP')
+    .split(',')
+    .map((m) => m.trim().toUpperCase())
+    .filter(Boolean);
 
-  if (json.statusCode !== '00') {
-    throw new DuitkuError(String(json.statusMessage ?? 'Duitku menolak transaksi'));
+  let lastError: DuitkuError | null = null;
+  for (const method of methods) {
+    let json: Record<string, unknown>;
+    try {
+      json = await duitkuFetch(`${cfg.base}/v2/inquiry`, {
+        merchantCode: cfg.merchantCode,
+        paymentAmount: opts.amount,
+        merchantOrderId: opts.orderId,
+        productDetails: opts.productDetails.slice(0, 255),
+        paymentMethod: method,
+        customerVaName: opts.customerName.slice(0, 20), // docs: string(20)
+        email: opts.email,
+        callbackUrl: opts.callbackUrl,
+        returnUrl: opts.returnUrl,
+        expiryPeriod: DUITKU_QRIS_EXPIRY_MINUTES,
+        signature: sign(cfg.merchantCode + opts.orderId + opts.amount, cfg.apiKey),
+      });
+    } catch (e) {
+      // server tidak merespon / HTTP error — bukan soal channel ini saja,
+      // jangan coba channel berikutnya (hanya menambah latensi).
+      if (!(e instanceof DuitkuError) || e.status === undefined) throw e;
+      lastError = e;
+      console.warn('[duitku] channel', method, 'ditolak:', e.message);
+      continue;
+    }
+    if (json.statusCode !== '00') {
+      lastError = new DuitkuError(String(json.statusMessage ?? json.Message ?? 'Duitku menolak transaksi'));
+      console.warn('[duitku] channel', method, 'ditolak:', lastError.message);
+      continue;
+    }
+    return {
+      reference: String(json.reference ?? ''),
+      qr_string: typeof json.qrString === 'string' ? json.qrString : undefined,
+      payment_url: typeof json.paymentUrl === 'string' ? json.paymentUrl : undefined,
+      amount: typeof json.amount === 'string' ? Number(json.amount) : undefined,
+      is_sandbox: cfg.sandbox,
+    };
   }
-  return {
-    reference: String(json.reference ?? ''),
-    qr_string: typeof json.qrString === 'string' ? json.qrString : undefined,
-    payment_url: typeof json.paymentUrl === 'string' ? json.paymentUrl : undefined,
-    amount: typeof json.amount === 'string' ? Number(json.amount) : undefined,
-    is_sandbox: cfg.sandbox,
-  };
+  throw lastError ?? new DuitkuError('Duitku menolak transaksi');
 }
 
 // POST /transactionStatus — cek by merchantOrderId (= reference kita, bukan txn_id).

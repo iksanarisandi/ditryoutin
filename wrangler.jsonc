@@ -38,10 +38,12 @@
   //
   // Duitku (gateway alternatif QRIS): kredensial PRODUKSI terpasang sejak
   // 2026-10-12 (review Duitku lolos; smoke --prod: signature OK, akun aktif,
-  // tapi baru BRI VA — channel QRIS 'SP' menunggu aktivasi di sisi Duitku,
-  // sampai itu fallback duitku gagal "Payment channel not available").
-  // Setelah QRIS aktif: ulangi smoke --prod, cek kode QRIS di getpaymentmethod,
-  // sesuaikan DUITKU_QRIS_METHOD bila 'SP' bukan kodenya.
+  // tapi baru BRI VA — channel QRIS menunggu aktivasi di sisi Duitku, sampai
+  // itu fallback duitku gagal "Payment channel not available").
+  // DUITKU_QRIS_METHOD = daftar preferensi channel ("SP,NQ"): create memakai
+  // channel pertama yang tersedia — matikan salah satunya di dashboard Duitku
+  // tanpa perlu deploy ulang; balik urutan untuk mengutamakan NQ.
+  // Setelah QRIS aktif: ulangi smoke --prod untuk konfirmasi.
   // - DUITKU_API_KEY = RAHASIA (key produksi via wrangler secret), JANGAN di sini.
   // - Uji sandbox ke depannya lewat localhost (.dev.vars) — workers_dev sudah
   //   dimatikan pasca-review sehingga preview *.workers.dev tidak ada lagi.
@@ -52,7 +54,7 @@
     "ACTIVE_GATEWAY": "pakasir",
     "DUITKU_MERCHANT_CODE": "D25142",
     "DUITKU_SANDBOX": "false",
-    "DUITKU_QRIS_METHOD": "SP"
+    "DUITKU_QRIS_METHOD": "SP,NQ"
   },
   "workers_dev": false,
   // Rate limiter via Durable Object (binding "ratelimit" bawaan tidak enforce
