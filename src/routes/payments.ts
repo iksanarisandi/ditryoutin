@@ -4,10 +4,30 @@ import { requireAuth } from '../middleware/auth';
 import { toInt } from '../utils/validate';
 import { readJson } from '../utils/body';
 import { timingSafeEqual } from '../middleware/security';
-import { PakasirError, createTransaction, getTransactionStatus, qrStringToSvg } from '../services/pakasir';
-import { genReference, remainingSeconds, settlePayment, shouldCheckStatus, effectiveExpiryIso, PAKASIR_TTL_MS, type PaymentRow } from '../services/payments';
+import { PakasirError, createTransaction, getTransactionStatus } from '../services/pakasir';
+import {
+  createTransaction as createDuitkuTransaction,
+  getTransactionStatus as getDuitkuTransactionStatus,
+  callbackSignature,
+  duitkuConfig,
+  duitkuUsable,
+  guardHost,
+  isProdHost,
+  DuitkuError,
+  DUITKU_QRIS_EXPIRY_MINUTES,
+} from '../services/duitku';
+import { qrStringToSvg } from '../services/qr';
+import {
+  genReference,
+  remainingSeconds,
+  settlePayment,
+  shouldCheckStatus,
+  effectiveExpiryIso,
+  PAKASIR_TTL_MS,
+  type PaymentRow,
+} from '../services/payments';
 import { inviteeDiscountEligible, REFERRAL_INVITEE_DISCOUNT } from '../services/referrals';
-import { getPaymentMode } from '../services/settings';
+import { getPaymentMode, getActiveGateway, type Gateway } from '../services/settings';
 import type { AppEnv } from '../types';
 
 
@@ -47,7 +67,7 @@ payments.post('/create', requireAuth, async (c) => {
 
   // Amount SELALU dari database, bukan dari client. User yang terdaftar lewat
   // kode undangan berhak diskon pembelian pertama: amount di sini menjadi acuan
-  // tunggal — dikirim ke gateway, disimpan di payments, dan diverifikasi webhook
+  // tunggal — dikirim ke gateway, disimpan di payments, dan diverifikasi callback
   // terhadapnya — sehingga diskon konsisten di semua jalur settlement.
   const discountEligible = await inviteeDiscountEligible(c.env.DB, user.id);
   const amount = discountEligible
@@ -56,9 +76,9 @@ payments.post('/create', requireAuth, async (c) => {
 
   // Mode pembayaran efektif dari toggle admin (fallback env — services/settings):
   // "manual" = dipaksa global (fallback bila gateway bermasalah), "hybrid" =
-  // gateway + tombol manual, "pakasir" = gateway saja.
+  // gateway + tombol manual, "gateway" = gateway saja.
   const mode = await getPaymentMode(c.env);
-  const manualAllowed = mode !== 'pakasir';
+  const manualAllowed = mode !== 'gateway';
   if (body?.method === 'manual' && !manualAllowed) {
     return fail(c, 'Pembayaran manual sedang tidak tersedia. Silakan bayar via QRIS.', 400);
   }
@@ -97,49 +117,119 @@ payments.post('/create', requireAuth, async (c) => {
     );
   }
 
-  let txn;
-  try {
-    txn = await createTransaction(c.env, reference, amount, 'qris');
-  } catch (e) {
+  // Urutan gateway: gateway aktif (toggle admin) dulu, lalu gateway satunya
+  // sebagai fallback otomatis saat create error. Kandidat harus terkonfigurasi;
+  // Duitku sandbox tidak pernah dipakai di host produksi (duitkuUsable) —
+  // uang user nyata mustahil lewat environment uji coba.
+  const url = new URL(c.req.url);
+  const host = guardHost(c.req.header('host') || url.host, c.req.header('x-forwarded-proto'));
+  // Pembeli publik di ditryout.in mengikuti toggle admin. Hostname lain
+  // (localhost saat dev, preview *.workers.dev) memaksa Duitku — URL preview
+  // tidak dipublikasikan dan dipakai reviewer Duitku / pengujian internal
+  // gateway alternatif; sandbox tetap terblokir di host produksi karena
+  // duitkuUsable sudah menyaringnya.
+  const active = isProdHost(host) ? await getActiveGateway(c.env) : 'duitku';
+  const order: Gateway[] = active === 'duitku' ? ['duitku', 'pakasir'] : ['pakasir', 'duitku'];
+  const candidates = order.filter((g) =>
+    g === 'pakasir'
+      ? !!(c.env.PAKASIR_API_KEY && c.env.PAKASIR_PROJECT)
+      : duitkuUsable(c.env, host),
+  );
+
+  if (!candidates.length) {
     await c.env.DB.prepare(`UPDATE payments SET status='failed', updated_at=? WHERE id=?`)
       .bind(new Date().toISOString(), paymentId)
       .run();
-    return fail(c, e instanceof PakasirError ? e.message : 'Gagal membuat transaksi pembayaran', 502);
+    return fail(c, 'Payment gateway belum dikonfigurasi. Hubungi admin.', 502);
   }
 
-  await c.env.DB.prepare(
-    `UPDATE payments SET txn_id=?, qr_string=?, total_payment=?, fee=?, expires_at=?, updated_at=? WHERE id=?`,
-  )
-    .bind(
-      txn.txn_id,
-      txn.qr_string ?? null,
-      txn.total_payment ?? null,
-      txn.fee ?? null,
-      txn.expired_at ?? null,
-      new Date().toISOString(),
-      paymentId,
-    )
-    .run();
+  for (const g of candidates) {
+    try {
+      if (g === 'pakasir') {
+        const txn = await createTransaction(c.env, reference, amount, 'qris');
+        await c.env.DB.prepare(
+          `UPDATE payments SET gateway='pakasir', txn_id=?, qr_string=?, total_payment=?, fee=?, expires_at=?, updated_at=? WHERE id=?`,
+        )
+          .bind(
+            txn.txn_id,
+            txn.qr_string ?? null,
+            txn.total_payment ?? null,
+            txn.fee ?? null,
+            txn.expired_at ?? null,
+            new Date().toISOString(),
+            paymentId,
+          )
+          .run();
+        return ok(
+          c,
+          {
+            payment: { id: paymentId, reference, amount, product_name: product.name },
+            gateway: 'pakasir',
+            txn: {
+              txn_id: txn.txn_id,
+              total_payment: txn.total_payment ?? amount,
+              fee: txn.fee ?? 0,
+              expired_at: effectiveExpiryIso(txn.expired_at, new Date().toISOString()),
+              is_sandbox: !!txn.is_sandbox,
+            },
+            qr_svg: txn.qr_string ? qrStringToSvg(txn.qr_string) : null,
+            support_wa: c.env.MANUAL_WA || '',
+          },
+          201,
+        );
+      }
 
-  return ok(
-    c,
-    {
-      payment: { id: paymentId, reference, amount, product_name: product.name },
-      txn: {
-        txn_id: txn.txn_id,
-        total_payment: txn.total_payment ?? amount,
-        fee: txn.fee ?? 0,
-        expired_at: effectiveExpiryIso(txn.expired_at, new Date().toISOString()),
-        is_sandbox: !!txn.is_sandbox,
-      },
-      qr_svg: txn.qr_string ? qrStringToSvg(txn.qr_string) : null,
-      support_wa: c.env.MANUAL_WA || '',
-    },
-    201,
-  );
+      const dt = await createDuitkuTransaction(c.env, {
+        orderId: reference,
+        amount,
+        productDetails: product.name,
+        email: user.email,
+        customerName: user.name,
+        callbackUrl: `${url.origin}/api/payments/duitku/callback`,
+        returnUrl: `${url.origin}/payment.html?payment=${paymentId}`,
+      });
+      // Duitku tidak mengirim expiry di respons — batas bayar ditentukan kita
+      // (expiryPeriod saat create), simpan agar countdown & expiry lokal akurat.
+      const expiresAt = new Date(Date.now() + DUITKU_QRIS_EXPIRY_MINUTES * 60_000).toISOString();
+      await c.env.DB.prepare(
+        `UPDATE payments SET gateway='duitku', txn_id=?, qr_string=?, total_payment=?, fee=0, expires_at=?, payment_url=?, updated_at=? WHERE id=?`,
+      )
+        .bind(dt.reference, dt.qr_string ?? null, amount, expiresAt, dt.payment_url ?? null, new Date().toISOString(), paymentId)
+        .run();
+      return ok(
+        c,
+        {
+          payment: { id: paymentId, reference, amount, product_name: product.name },
+          gateway: 'duitku',
+          txn: {
+            txn_id: dt.reference,
+            total_payment: amount, // QRIS Duitku: user membayar nominal tepat (fee ditanggung merchant)
+            fee: 0,
+            expired_at: expiresAt,
+            is_sandbox: dt.is_sandbox,
+            payment_url: dt.payment_url ?? null, // link halaman bayar (dipakai admin saat uji sandbox)
+          },
+          qr_svg: dt.qr_string ? qrStringToSvg(dt.qr_string) : null,
+          support_wa: c.env.MANUAL_WA || '',
+        },
+        201,
+      );
+    } catch (e) {
+      // Gateway bermasalah -> coba gateway berikutnya dengan reference yang sama
+      // (aman: create Pakasir idempotent; inquiry Duitku gagal = invoice belum jadi,
+      // kemungkinan invoice "yatim" bila timeout sesudah terbit akan kedaluwarsa
+      // sendiri dalam 30 menit di sisi Duitku).
+      console.error('[create:fallback]', g, reference, e);
+    }
+  }
+
+  await c.env.DB.prepare(`UPDATE payments SET status='failed', updated_at=? WHERE id=?`)
+    .bind(new Date().toISOString(), paymentId)
+    .run();
+  return fail(c, 'Gagal membuat transaksi pembayaran. Silakan coba lagi.', 502);
 });
 
-// Status pembayaran (+ polling ke Pakasir sebagai fallback jika webhook belum/terlambat).
+// Status pembayaran (+ polling ke gateway sebagai fallback jika callback belum/terlambat).
 payments.get('/:id', requireAuth, async (c) => {
   const user = c.get('user');
   const id = toInt(c.req.param('id'), 0);
@@ -167,9 +257,34 @@ payments.get('/:id', requireAuth, async (c) => {
         .bind(new Date().toISOString(), p.id)
         .run();
       p.status = 'expired';
+    } else if (p.gateway === 'duitku') {
+      // QR Duitku mati permanen setelah expires_at — tandai kedaluwarsa secara
+      // lokal (tanpa panggilan API; callback terlambat tetap bisa settle).
+      if (p.expires_at && Date.now() > Date.parse(p.expires_at) + 60_000) {
+        await c.env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
+          .bind(new Date().toISOString(), p.id)
+          .run();
+        p.status = 'expired';
+      } else if (shouldCheckStatus(p.id, 15_000)) {
+        // Rate limit Duitku ketat (blokir ~1 jam bila terlalu rapat): 15 detik.
+        try {
+          const st = await getDuitkuTransactionStatus(c.env, p.reference);
+          if (st.state === 'completed') {
+            await settlePayment(c.env.DB, p);
+            p.status = 'paid';
+          } else if (st.state === 'expired') {
+            await c.env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
+              .bind(new Date().toISOString(), p.id)
+              .run();
+            p.status = 'expired';
+          }
+        } catch {
+          // rate-limit / jaringan: kembalikan status saat ini, polling berikutnya mencoba lagi
+        }
+      }
     } else if (shouldCheckStatus(p.id)) {
       try {
-        const txn = await getTransactionStatus(c.env, p.txn_id);
+        const txn = await getTransactionStatus(c.env, p.txn_id!);
         if (txn.status === 'completed') {
           await settlePayment(c.env.DB, p, txn.completed_at);
           p.status = 'paid';
@@ -204,12 +319,14 @@ payments.get('/:id', requireAuth, async (c) => {
       amount: p.amount,
       status: p.status,
       method: p.method,
+      gateway: p.gateway,
       paid_at: p.paid_at,
       created_at: p.created_at,
       product_name: p.product_name ?? null,
     },
     ...(p.status === 'pending' && p.txn_id
       ? {
+          gateway: p.gateway,
           txn: {
             txn_id: p.txn_id,
             total_payment: p.total_payment ?? p.amount,
@@ -219,6 +336,11 @@ payments.get('/:id', requireAuth, async (c) => {
             // maksimal transaksi di sisi aplikasi (24 jam sejak dibuat).
             expired_at: expiryIso,
             expired_in_seconds: remainingSeconds(expiryIso),
+            is_sandbox: p.gateway === 'duitku' ? c.env.DUITKU_SANDBOX === 'true' : false,
+            // Halaman bayar Duitku — di sandbox ini halaman simulator (satu-
+            // satunya cara menyelesaikan pembayaran uji; QR sandbox tak bisa
+            // discan aplikasi nyata), di produksi alternatif bayar via app.
+            payment_url: p.payment_url ?? null,
           },
           qr_svg: p.qr_string ? qrStringToSvg(p.qr_string) : null,
         }
@@ -276,6 +398,69 @@ payments.post('/webhook', async (c) => {
 
   const completedAt = typeof body.completed_at === 'string' ? body.completed_at : undefined;
   await settlePayment(c.env.DB, p, completedAt);
+  return ok(c, { ok: true });
+});
+
+// Callback Duitku: POST x-www-form-urlencoded (docs.duitku.com — callback).
+// Verifikasi: signature HMAC-SHA256 konstan-waktu + binding reference gateway
+// + amount, lalu double-check ke API status (pola sama dengan webhook Pakasir).
+// Balas 200 untuk diterima/duplikat/abaikan; selain itu Duitku retry maks 5x.
+payments.post('/duitku/callback', async (c) => {
+  const cfg = duitkuConfig(c.env);
+  if (!cfg) return fail(c, 'Duitku belum dikonfigurasi', 503);
+
+  const form = await c.req.parseBody();
+  const merchantCode = String(form.merchantCode ?? '');
+  const amount = String(form.amount ?? '');
+  const merchantOrderId = String(form.merchantOrderId ?? '');
+  const reference = String(form.reference ?? '');
+  const resultCode = String(form.resultCode ?? '');
+  const signature = String(form.signature ?? '');
+
+  if (merchantCode !== cfg.merchantCode) return fail(c, 'merchantCode tidak valid', 403);
+  // Signature: HMAC(merchantCode + amount + merchantOrderId, apiKey) — hex lowercase.
+  if (!timingSafeEqual(signature.toLowerCase(), callbackSignature(cfg, amount, merchantOrderId))) {
+    return fail(c, 'Signature tidak valid', 403);
+  }
+
+  const p = await c.env.DB.prepare('SELECT * FROM payments WHERE reference=?')
+    .bind(merchantOrderId)
+    .first<PaymentRow>();
+  if (!p) return fail(c, 'Referensi transaksi tidak dikenal', 404);
+
+  // Ikat callback pada invoice Duitku yang benar-benar kita buat (reference
+  // gateway tersimpan di txn_id saat create).
+  if (p.gateway !== 'duitku' || !p.txn_id || p.txn_id !== reference) {
+    return fail(c, 'Transaksi tidak cocok', 400);
+  }
+
+  if (resultCode === '01') {
+    // Dibatalkan/gagal di sisi Duitku — pending ditandai expired (idempoten;
+    // bila ternyata sudah lunas, biarkan: tidak menimpa status paid).
+    await c.env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
+      .bind(new Date().toISOString(), p.id)
+      .run();
+    return ok(c, { ok: true, failed: true });
+  }
+  if (resultCode !== '00') return ok(c, { ignored: true, reason: `resultCode=${resultCode}` });
+
+  if (toInt(amount, -1) !== p.amount) return fail(c, 'Amount tidak cocok', 400);
+  if (p.status === 'paid') return ok(c, { ok: true, already_paid: true });
+
+  // Double-check ke API status Duitku (jaringan bermasalah -> 502 agar Duitku
+  // me-retry callback ini nanti; hasil tidak cocok -> 400, jangan diulang).
+  let st;
+  try {
+    st = await getDuitkuTransactionStatus(c.env, p.reference);
+  } catch (e) {
+    const msg = e instanceof DuitkuError ? e.message : 'error';
+    return fail(c, `Gagal verifikasi ke Duitku: ${msg}`, 502);
+  }
+  if (st.state !== 'completed' || (st.amount !== undefined && st.amount !== p.amount)) {
+    return fail(c, 'Verifikasi status transaksi gagal', 400);
+  }
+
+  await settlePayment(c.env.DB, p);
   return ok(c, { ok: true });
 });
 

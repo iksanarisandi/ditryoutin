@@ -1,6 +1,7 @@
 // Settlement pembayaran + perpanjangan masa akses (idempotent).
 
 import { getTransactionStatus, PakasirError } from './pakasir';
+import { getTransactionStatus as getDuitkuTransactionStatus, DuitkuError, isDuitkuConfigured } from './duitku';
 import { claimReferralReward, REFERRAL_REFERRER_REWARD_DAYS } from './referrals';
 import type { Env } from '../types';
 
@@ -12,6 +13,8 @@ export type PaymentRow = {
   txn_id: string | null;
   amount: number;
   method: string;
+  gateway: string | null;
+  payment_url: string | null;
   status: 'pending' | 'paid' | 'failed' | 'expired';
   paid_at: string | null;
   created_at: string;
@@ -88,12 +91,14 @@ export function remainingSeconds(expiresAt: string): number {
   return Math.max(0, Math.floor((Date.parse(expiresAt) - Date.now()) / 1000));
 }
 
-// Rate limit polling ke API status Pakasir (maks 1x/4 detik per payment, per isolate).
+// Rate limit polling ke API status gateway. Pakasir: maks 1x/4,5 detik per
+// payment (limit gateway 1x/4 detik). Duitku: maks 1x/15 detik — polling
+// terlalu rapat memicu blokir ~1 jam dari sisi Duitku.
 const lastStatusCheck = new Map<number, number>();
-export function shouldCheckStatus(paymentId: number): boolean {
+export function shouldCheckStatus(paymentId: number, minIntervalMs: number = 4500): boolean {
   const now = Date.now();
   const last = lastStatusCheck.get(paymentId) ?? 0;
-  if (now - last < 4500) return false;
+  if (now - last < minIntervalMs) return false;
   lastStatusCheck.set(paymentId, now);
   return true;
 }
@@ -104,9 +109,7 @@ export function genReference(): string {
   return `TO-${Date.now().toString(36).toUpperCase()}-${suffix}`;
 }
 
-// Cek satu payment pending ke API status Pakasir: settle bila completed,
-// expire bila umur transaksi sudah lewat batas bayar dan gateway TIDAK
-// melaporkan completed. Aman dipanggil berkali-kali — settlePayment idempoten.
+// Tandai payment pending sebagai expired.
 async function expirePending(db: D1Database, id: number): Promise<void> {
   await db
     .prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
@@ -114,21 +117,31 @@ async function expirePending(db: D1Database, id: number): Promise<void> {
     .run();
 }
 
-async function reconcilePayment(
-  env: { DB: D1Database } & {
-    PAKASIR_API_KEY?: string;
-    PAKASIR_PROJECT?: string;
-  },
-  p: PaymentRow,
-): Promise<void> {
-  if (!env.PAKASIR_API_KEY || !env.PAKASIR_PROJECT || !p.txn_id) return;
-  const pastTtl = Date.parse(p.created_at) < Date.now() - PAKASIR_TTL_MS;
+// Cek satu payment pending ke API status gateway yang menanganinya:
+// settle bila completed, expire bila kedaluwarsa (gateway melapor, atau umur
+// transaksi lewat batas aplikasi). Aman dipanggil berkali-kali — settlePayment idempoten.
+async function reconcilePayment(env: Env, p: PaymentRow): Promise<void> {
+  if (!p.txn_id) return;
+  const pastTtl = Date.parse(p.created_at) < Date.now() - PAYMENT_TTL_MS;
+
   try {
-    const txn = await getTransactionStatus(env as Parameters<typeof getTransactionStatus>[0], p.txn_id);
+    if (p.gateway === 'duitku') {
+      const st = await getDuitkuTransactionStatus(env, p.reference);
+      if (st.state === 'completed') {
+        await settlePayment(env.DB, p);
+      } else if (st.state === 'expired') {
+        await expirePending(env.DB, p.id);
+      } else if (pastTtl) {
+        await expirePending(env.DB, p.id);
+      }
+      return;
+    }
+
+    const txn = await getTransactionStatus(env, p.txn_id);
     if (txn.status === 'completed') {
       await settlePayment(env.DB, p, txn.completed_at);
     } else if (pastTtl) {
-      // Lewat batas bayar 24 jam dan gateway tidak melaporkan completed:
+      // Lewat batas bayar 24 jam dan gateway tidak melapor completed:
       // apa pun statusnya sekarang (canceled/expired/bahkan masih pending di
       // gateway), transaksi tidak bisa menghasilkan pembayaran yang sah lagi
       // menurut batas aplikasi — identik dengan expiry di GET /api/payments/:id.
@@ -138,65 +151,88 @@ async function reconcilePayment(
   } catch (e) {
     // Transaksi tidak lagi dikenal gateway (404) + lewat TTL: mustahil lunas.
     // Error lain (jaringan/rate limit gateway): coba lagi pada kesempatan berikutnya.
-    if (pastTtl && e instanceof PakasirError && e.status === 404) {
+    if (
+      pastTtl &&
+      ((p.gateway === 'duitku' && e instanceof DuitkuError && e.status === 404) ||
+        (p.gateway !== 'duitku' && e instanceof PakasirError && e.status === 404))
+    ) {
       await expirePending(env.DB, p.id);
     }
   }
 }
 
-// Fallback tanpa webhook: cek payment pending milik user ke API status Pakasir.
+// Adakah gateway yang aktif terkonfigurasi? Rekonsiliasi hanya relevan bila ya.
+function anyGatewayConfigured(env: Env): boolean {
+  return !!(env.PAKASIR_API_KEY && env.PAKASIR_PROJECT) || isDuitkuConfigured(env);
+}
+
+// Fallback tanpa callback: cek payment pending milik user ke API status gateway.
 // Dipanggil saat login//me sehingga user yang menutup halaman pembayaran sebelum selesai
 // tetap mendapat perpanjangan akses begitu membuka aplikasi lagi. Pakai rate limit
 // shouldCheckStatus yang sama dengan polling halaman pembayaran.
-export async function reconcilePendingPayments(
-  env: { DB: D1Database } & {
-    PAKASIR_API_KEY?: string;
-    PAKASIR_PROJECT?: string;
-  },
-  userId: number,
-): Promise<void> {
-  if (!env.PAKASIR_API_KEY || !env.PAKASIR_PROJECT) return;
+export async function reconcilePendingPayments(env: Env, userId: number): Promise<void> {
+  if (!anyGatewayConfigured(env)) return;
   const pendings = await env.DB.prepare(
-    `SELECT id, user_id, product_id, reference, txn_id, amount, method, status, paid_at, created_at
+    `SELECT id, user_id, product_id, reference, txn_id, amount, method, gateway, status, paid_at, created_at
      FROM payments WHERE user_id=? AND status='pending' AND txn_id IS NOT NULL`,
   )
     .bind(userId)
     .all<PaymentRow>();
   for (const p of pendings.results ?? []) {
-    if (!shouldCheckStatus(p.id)) continue;
+    if (!shouldCheckStatus(p.id, p.gateway === 'duitku' ? 15_000 : 4500)) continue;
     await reconcilePayment(env, p);
   }
 }
 
-// Jaring pengaman bila webhook gagal (salah konfigurasi, gateway down): user yang
+// Jaring pengaman bila callback gagal (salah konfigurasi, gateway down): user yang
 // sudah membayar lalu menutup aplikasi dan tidak kembali-kembali tetap mendapat
-// aksesnya — cron harian memeriksa pending payment ber-transaksi ke API Pakasir.
-// Dibatasi 50 tertua per run agar tidak menghantam rate limit 1x/4 detik Pakasir.
-export async function reconcileStalePayments(env: Env, limit: number = 50): Promise<void> {
-  if (!env.PAKASIR_API_KEY || !env.PAKASIR_PROJECT) return;
-  const rows = await env.DB.prepare(
-    `SELECT id, user_id, product_id, reference, txn_id, amount, method, status, paid_at, created_at
-     FROM payments WHERE status='pending' AND txn_id IS NOT NULL AND created_at < ?
-     ORDER BY id LIMIT ?`,
+// aksesnya — cron harian memeriksa pending payment ber-transaksi ke API gateway.
+// Dipecah per gateway dengan kuota terpisah (Pakasir 50, Duitku 25) agar tidak
+// menghantam rate limit masing-masing (blokir Duitku berlaku ~1 jam).
+export async function reconcileStalePayments(env: Env): Promise<void> {
+  if (!anyGatewayConfigured(env)) return;
+  const olderThan = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+  const pakasirRows = await env.DB.prepare(
+    `SELECT id, user_id, product_id, reference, txn_id, amount, method, gateway, status, paid_at, created_at
+     FROM payments WHERE status='pending' AND txn_id IS NOT NULL AND (gateway IS NULL OR gateway='pakasir')
+       AND created_at < ? ORDER BY id LIMIT 50`,
   )
-    .bind(new Date(Date.now() - 10 * 60 * 1000).toISOString(), limit)
+    .bind(olderThan)
     .all<PaymentRow>();
-  for (const p of rows.results ?? []) {
+  for (const p of pakasirRows.results ?? []) {
+    await reconcilePayment(env, p);
+  }
+
+  if (!isDuitkuConfigured(env)) return;
+  const duitkuRows = await env.DB.prepare(
+    `SELECT id, user_id, product_id, reference, txn_id, amount, method, gateway, status, paid_at, created_at
+     FROM payments WHERE status='pending' AND txn_id IS NOT NULL AND gateway='duitku'
+       AND created_at < ? ORDER BY id LIMIT 25`,
+  )
+    .bind(olderThan)
+    .all<PaymentRow>();
+  for (const p of duitkuRows.results ?? []) {
     await reconcilePayment(env, p);
   }
 }
 
-// Umur maksimal transaksi Pakasir (auto-cancel setelah 1x24 jam).
-export const PAKASIR_TTL_MS = 24 * 3600 * 1000;
+// Umur maksimal transaksi gateway (Pakasir: auto-cancel 1x24 jam; Duitku kita
+// set 30 menit via expiryPeriod — batas 24 jam di sini hanya jaring pengaman
+// umum untuk transaksi yang tidak kunjung berstatus final).
+export const PAYMENT_TTL_MS = 24 * 3600 * 1000;
+
+// Alias lama — modul lain masih memakai nama ini (semantik sama persis).
+export const PAKASIR_TTL_MS = PAYMENT_TTL_MS;
 
 // Batas bayar efektif sebuah transaksi: lebih awal antara expiry gateway
-// (bila dikirim) dan umur maksimal aplikasi (dibuat + 24 jam). Gateway tidak
-// selalu menyertakan expired_at, jadi 24 jam adalah batas yang dijamin.
+// (bila ada) dan umur maksimal aplikasi (dibuat + 24 jam). Pakasir tidak
+// menyertakan expired_at; Duitku menyertakan expires_at buatan kita (+30 menit).
 export function effectiveExpiryIso(
   gatewayExpiry: string | null | undefined,
   createdAt: string,
 ): string {
-  const appMs = Date.parse(createdAt) + PAKASIR_TTL_MS;
+  const appMs = Date.parse(createdAt) + PAYMENT_TTL_MS;
   const gatewayMs = gatewayExpiry ? Date.parse(gatewayExpiry) : Infinity;
   return new Date(Math.min(appMs, gatewayMs)).toISOString();
 }

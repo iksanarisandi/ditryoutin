@@ -100,7 +100,7 @@ overview.get('/payments', async (c) => {
     .bind(...binds)
     .first<{ n: number }>();
   const rows = await c.env.DB.prepare(
-    `SELECT pm.id, pm.reference, pm.amount, pm.status, pm.method, pm.paid_at, pm.created_at,
+    `SELECT pm.id, pm.reference, pm.amount, pm.status, pm.method, pm.gateway, pm.paid_at, pm.created_at,
             u.name AS user_name, u.email AS user_email, pr.name AS product_name
      FROM payments pm
      JOIN users u ON u.id=pm.user_id

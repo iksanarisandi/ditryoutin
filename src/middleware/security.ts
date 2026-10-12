@@ -4,13 +4,14 @@ import type { AppEnv } from '../types';
 
 // Proteksi CSRF sederhana: cookie sesi memakai SameSite=Lax, dan setiap request
 // state-changing harus memiliki header Origin yang cocok dengan Host (jika Origin ada).
-// Webhook Pakasir (server-ke-server) dikecualikan — divalidasi lewat X-Secret.
+// Webhook/callback gateway (server-ke-server) dikecualikan — Pakasir divalidasi
+// lewat X-Secret, Duitku lewat signature HMAC (routes/payments).
 export const originGuard = createMiddleware<AppEnv>(async (c, next) => {
   const method = c.req.method;
   if (method === 'GET' || method === 'HEAD') return next();
 
   const path = new URL(c.req.url).pathname;
-  if (path === '/api/payments/webhook') return next();
+  if (path === '/api/payments/webhook' || path === '/api/payments/duitku/callback') return next();
 
   const origin = c.req.header('origin');
   if (origin) {

@@ -28,18 +28,33 @@
     "enabled": true
   },
   // Bukan rahasia — boleh di config. Nilai di sini hanya BASELINE: dipakai bila
-  // mode belum pernah diubah dari panel admin (Admin → Transaksi → Mode Pembayaran,
-  // tersimpan di tabel settings D1 dan menimpa env — tanpa deploy ulang).
-  // "pakasir" = gateway otomatis (QRIS dinamis); "manual" = QRIS pribadi + WA.
-  // 2026-10-05: server Pakasir maintenance (523) -> baseline sementara manual.
+  // mode belum pernah diubah dari panel admin (Admin → Transaksi → Mode Pembayaran
+  // & Gateway Aktif, tersimpan di tabel settings D1 dan menimpa env — tanpa deploy ulang).
+  // "gateway" = gateway otomatis (QRIS dinamis, Pakasir/Duitku); "manual" = QRIS pribadi + WA.
+  // 2026-10-08: baseline kembali "gateway" (Pakasir pulih; nilai lama "pakasir"
+  // di-rename "gateway" oleh migration 0015 — alias lama tetap diterima kode).
   // MANUAL_WA tetap dipakai sebagai kontak kendala pembayaran di halaman bayar.
   // SHOW_MANUAL_PAYMENT "true" = tampilkan lagi tombol Bayar Manual (fallback).
+  //
+  // Duitku (gateway alternatif QRIS): kredensial PRODUKSI terpasang sejak
+  // 2026-10-12 (review Duitku lolos; smoke --prod: signature OK, akun aktif,
+  // tapi baru BRI VA — channel QRIS 'SP' menunggu aktivasi di sisi Duitku,
+  // sampai itu fallback duitku gagal "Payment channel not available").
+  // Setelah QRIS aktif: ulangi smoke --prod, cek kode QRIS di getpaymentmethod,
+  // sesuaikan DUITKU_QRIS_METHOD bila 'SP' bukan kodenya.
+  // - DUITKU_API_KEY = RAHASIA (key produksi via wrangler secret), JANGAN di sini.
+  // - Uji sandbox ke depannya lewat localhost (.dev.vars) — workers_dev sudah
+  //   dimatikan pasca-review sehingga preview *.workers.dev tidak ada lagi.
   "vars": {
-    "PAYMENT_MODE": "manual",
+    "PAYMENT_MODE": "gateway",
     "SHOW_MANUAL_PAYMENT": "false",
-    "MANUAL_WA": "6282347303153"
+    "MANUAL_WA": "6282347303153",
+    "ACTIVE_GATEWAY": "pakasir",
+    "DUITKU_MERCHANT_CODE": "D25142",
+    "DUITKU_SANDBOX": "false",
+    "DUITKU_QRIS_METHOD": "SP"
   },
-  "workers_dev": true,
+  "workers_dev": false,
   // Rate limiter via Durable Object (binding "ratelimit" bawaan tidak enforce
   // pada akun ini). Batasan limit ada di kode: src/middleware/ratelimit.ts.
   "durable_objects": {

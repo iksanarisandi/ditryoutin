@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { fail, ok } from '../../utils/response';
 import { readJson } from '../../utils/body';
-import { getPaymentMode, setPaymentMode, parsePaymentMode } from '../../services/settings';
+import { getPaymentMode, setPaymentMode, parsePaymentMode, getActiveGateway, setActiveGateway, parseGateway } from '../../services/settings';
+import { isDuitkuConfigured } from '../../services/duitku';
 import type { AppEnv } from '../../types';
 
 // Pengaturan runtime panel admin. Seluruh grup sudah dibungkus requireAdmin
@@ -18,9 +19,34 @@ settings.get('/payment-mode', async (c) => {
 settings.post('/payment-mode', async (c) => {
   const body = await readJson(c);
   const mode = parsePaymentMode(body?.mode);
-  if (!mode) return fail(c, 'Mode tidak valid — pakai: pakasir | hybrid | manual', 422);
+  if (!mode) return fail(c, 'Mode tidak valid — pakai: gateway | hybrid | manual', 422);
   await setPaymentMode(c.env, mode);
   return ok(c, { ok: true, mode });
+});
+
+// Gateway aktif untuk transaksi QRIS baru + status konfigurasi tiap gateway
+// (dipakai UI: disable pilihan belum dikonfigurasi, peringatan sandbox).
+settings.get('/active-gateway', async (c) => {
+  return ok(c, {
+    gateway: await getActiveGateway(c.env),
+    pakasir_configured: !!(c.env.PAKASIR_API_KEY && c.env.PAKASIR_PROJECT),
+    duitku_configured: isDuitkuConfigured(c.env),
+    duitku_sandbox: c.env.DUITKU_SANDBOX === 'true',
+  });
+});
+
+settings.post('/active-gateway', async (c) => {
+  const body = await readJson(c);
+  const gateway = parseGateway(body?.gateway);
+  if (!gateway) return fail(c, 'Gateway tidak valid — pakai: pakasir | duitku', 422);
+  if (gateway === 'duitku' && !isDuitkuConfigured(c.env)) {
+    return fail(c, 'Duitku belum dikonfigurasi (DUITKU_MERCHANT_CODE / DUITKU_API_KEY)', 422);
+  }
+  if (gateway === 'pakasir' && !(c.env.PAKASIR_API_KEY && c.env.PAKASIR_PROJECT)) {
+    return fail(c, 'Pakasir belum dikonfigurasi (PAKASIR_API_KEY / PAKASIR_PROJECT)', 422);
+  }
+  await setActiveGateway(c.env, gateway);
+  return ok(c, { ok: true, gateway });
 });
 
 export default settings;

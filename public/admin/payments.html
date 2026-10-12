@@ -21,7 +21,7 @@
         <div class="filter-bar" style="margin:0">
           <strong style="white-space:nowrap">Mode Pembayaran:</strong>
           <select id="pay-mode" aria-label="Mode pembayaran">
-            <option value="pakasir">Gateway otomatis (QRIS dinamis)</option>
+            <option value="gateway">Gateway otomatis (QRIS dinamis)</option>
             <option value="hybrid">Gateway + tombol Bayar Manual</option>
             <option value="manual">Manual saja (dipaksa)</option>
           </select>
@@ -29,6 +29,18 @@
           <span class="small muted">Berlaku untuk transaksi baru langsung; halaman bayar mengikuti maks. 1 menit.</span>
         </div>
         <div id="mode-desc" class="small muted" style="margin-top:8px"></div>
+      </div>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px">
+        <div class="filter-bar" style="margin:0">
+          <strong style="white-space:nowrap">Gateway Aktif:</strong>
+          <select id="active-gw" aria-label="Gateway pembayaran aktif">
+            <option value="pakasir">Pakasir</option>
+            <option value="duitku">Duitku</option>
+          </select>
+          <button class="btn" id="gw-save" type="button">Simpan Gateway</button>
+          <span class="small muted">Gateway utama transaksi QRIS baru; bila error saat create, otomatis dialihkan ke gateway satunya.</span>
+        </div>
+        <div id="gw-desc" class="small muted" style="margin-top:8px"></div>
       </div>
       <div class="filter-bar">
         <select id="f-status">
@@ -66,9 +78,9 @@
       const modeDesc = document.getElementById('mode-desc');
       const modeSave = document.getElementById('mode-save');
       const MODE_DESC = {
-        pakasir: 'Gateway otomatis: user hanya membayar via QRIS dinamis Pakasir — akses aktif otomatis setelah bayar. Mode normal produksi.',
+        gateway: 'Gateway otomatis: user hanya membayar via QRIS dinamis (Pakasir/Duitku sesuai Gateway Aktif) — akses aktif otomatis setelah bayar. Mode normal produksi.',
         hybrid: 'Gateway + alternatif: QRIS dinamis tetap utama, tombol "Bayar Manual" juga tampil di tiap paket.',
-        manual: 'Semua transaksi dipaksa alur manual (QRIS statis + konfirmasi WA, verifikasi admin) dan banner gangguan tampil di halaman bayar. Pakai saat gateway bermasalah.',
+        manual: 'Semua transaksi dipaksa alur manual (QRIS statis + konfirmasi WA, verifikasi admin) dan banner gangguan tampil di halaman bayar. Pakai saat kedua gateway bermasalah.',
       };
       async function loadMode() {
         try {
@@ -85,6 +97,31 @@
         }).catch((e) => TO.toast(e.message, 'error'));
       });
       loadMode();
+
+      // ----- Gateway aktif (Pakasir / Duitku) + status konfigurasi -----
+      const gwSel = document.getElementById('active-gw');
+      const gwDesc = document.getElementById('gw-desc');
+      const gwSave = document.getElementById('gw-save');
+      function gwStatusText(d) {
+        if (!d.duitku_configured) return 'Duitku belum dikonfigurasi (DUITKU_MERCHANT_CODE / DUITKU_API_KEY belum di-set).';
+        if (d.duitku_sandbox) return 'Duitku: MODE SANDBOX — tidak dipakai untuk user di ditryout.in (hanya uji di localhost/preview). Set DUITKU_SANDBOX=false saat go-live.';
+        return 'Duitku: siap produksi.';
+      }
+      async function loadGateway() {
+        try {
+          const d = await TO.api('/api/admin/settings/active-gateway');
+          gwSel.value = d.gateway;
+          gwSel.options[1].disabled = !d.duitku_configured; // opsi Duitku
+          gwDesc.textContent = 'Pakasir: ' + (d.pakasir_configured ? 'terkonfigurasi.' : 'BELUM dikonfigurasi.') + ' ' + gwStatusText(d);
+        } catch (e) { gwDesc.textContent = 'Gagal memuat gateway: ' + e.message; }
+      }
+      gwSave.addEventListener('click', () => {
+        TO.busy(gwSave, 'Menyimpan…', async () => {
+          await TO.api('/api/admin/settings/active-gateway', { method: 'POST', body: { gateway: gwSel.value } });
+          TO.toast('Gateway aktif → ' + gwSel.value, 'success');
+        }).catch((e) => TO.toast(e.message, 'error'));
+      });
+      loadGateway();
 
       const listEl = document.getElementById('list');
       const pagerEl = document.getElementById('pager');
@@ -134,7 +171,7 @@
                     <td>${TO.esc(p.user_name)}<div class="small muted">${TO.esc(p.user_email)}</div></td>
                     <td>${TO.esc(p.product_name)}</td>
                     <td class="num">${TO.rupiah(p.amount)}</td>
-                    <td class="small">${p.method === 'manual' ? 'QRIS manual' : TO.esc(p.method || '-')}</td>
+                    <td class="small">${p.method === 'manual' ? 'QRIS manual' : p.gateway === 'duitku' ? 'QRIS · Duitku' : p.gateway === 'pakasir' ? 'QRIS · Pakasir' : TO.esc(p.method || '-')}</td>
                     <td>${statusBadge(p.status)}</td>
                     <td class="small">${p.paid_at ? TO.fmtDateTime(p.paid_at) : '<span class="muted">—</span>'}</td>
                     <td>${p.status === 'pending'

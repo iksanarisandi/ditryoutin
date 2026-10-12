@@ -27,6 +27,16 @@ TURNSTILE_SECRET_KEY=
 RESEND_API_KEY=
 
 # Mode pembayaran BUKAN rahasia — diatur di wrangler.jsonc bagian "vars":
-#   PAYMENT_MODE=pakasir -> gateway Pakasir produksi (isi PAKASIR_* di atas)
+#   PAYMENT_MODE=gateway -> gateway otomatis (Pakasir/Duitku sesuai ACTIVE_GATEWAY)
 #   PAYMENT_MODE=manual  -> QRIS pribadi (/public/img/qris.jpg) + verifikasi admin via WA
 #   SHOW_MANUAL_PAYMENT=true -> tampilkan tombol Bayar Manual (fallback gateway)
+
+# Duitku SANDBOX (gateway alternatif QRIS) — dashboard sandbox.duitku.com.
+# API key sandbox untuk uji lokal; key produksi (passport.duitku.com) hanya
+# via `wrangler secret put DUITKU_API_KEY`. Callback Duitku tidak terjangkau
+# dari localhost — alur lokal tuntas lewat polling status.
+# Set ACTIVE_GATEWAY=duitku untuk memaksa uji Duitku (fallback tetap pakasir).
+DUITKU_API_KEY=
+DUITKU_MERCHANT_CODE=
+DUITKU_SANDBOX=true
+ACTIVE_GATEWAY=pakasir

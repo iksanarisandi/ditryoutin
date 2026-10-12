@@ -29,20 +29,25 @@ npm run dev                      # http://localhost:8787
 | Nama | Wajib | Keterangan |
 |---|---|---|
 | `SESSION_SECRET` | ✅ | Kunci HMAC untuk hash token session di DB. String acak ≥ 32 karakter. |
-| `PAKASIR_API_KEY` | ✅ (mode pakasir) | API key dari dashboard Pakasir. |
-| `PAKASIR_PROJECT` | ✅ (mode pakasir) | Slug project Pakasir (`ditryoutin`). |
-| `PAKASIR_WEBHOOK_SECRET` | ✅ (mode pakasir) | Secret webhook dari detail project Pakasir. Dipakai untuk verifikasi header `X-Secret`. |
+| `PAKASIR_API_KEY` | ✅ (gateway pakasir) | API key dari dashboard Pakasir. |
+| `PAKASIR_PROJECT` | ✅ (gateway pakasir) | Slug project Pakasir (`ditryoutin`). |
+| `PAKASIR_WEBHOOK_SECRET` | ✅ (gateway pakasir) | Secret webhook dari detail project Pakasir. Dipakai untuk verifikasi header `X-Secret`. |
+| `DUITKU_API_KEY` | ⬜ (gateway duitku) | API key Duitku (sandbox: dashboard sandbox.duitku.com; produksi: passport.duitku.com). Signature HMAC-SHA256, tanpa webhook secret. |
 | `SETUP_SECRET` | ⬜ (disarankan produksi) | Mengunci halaman `/setup` (bootstrap admin pertama). |
 | `TURNSTILE_SITE_KEY` | ⬜ (disarankan produksi) | Site key Cloudflare Turnstile untuk captcha register/login (publik, boleh di frontend). |
 | `TURNSTILE_SECRET_KEY` | ⬜ (disarankan produksi) | Secret key Turnstile — verifikasi token di server. Aktif hanya jika site key juga terisi. |
 
-Dua var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
+Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 
 | Nama | Keterangan |
 |---|---|
-| `PAYMENT_MODE` | `pakasir` = gateway otomatis (mode produksi, aktif); `manual` = QRIS pribadi + konfirmasi WA (fallback bila gateway bermasalah). |
+| `PAYMENT_MODE` | `gateway` = gateway otomatis (mode produksi; nilai lama `pakasir` di-rename migration 0015, alias lama tetap diterima); `manual` = QRIS pribadi + konfirmasi WA (fallback bila kedua gateway bermasalah). |
 | `SHOW_MANUAL_PAYMENT` | `true` = tampilkan tombol **Bayar Manual** di halaman bayar (`method='manual'` di `POST /api/payments/create` ditolak server selain `true`, kecuali `PAYMENT_MODE=manual`). Default `false` — disembunyikan. |
 | `MANUAL_WA` | Nomor WA admin (format internasional tanpa `+`, mis. `6282347303153`). Dipakai untuk konfirmasi pembayaran manual **dan** tombol "Kendala pembayaran?" di halaman bayar gateway (`support_wa`). |
+| `ACTIVE_GATEWAY` | Gateway utama transaksi QRIS baru: `pakasir` (default) \| `duitku`. Bila gateway utama error saat create, otomatis dialihkan ke gateway satunya (bila layak: terkonfigurasi + bukan sandbox di host produksi). Toggle admin menimpa nilai ini. |
+| `DUITKU_MERCHANT_CODE` | merchantCode Duitku (sandbox `DS…`, produksi `D…`). |
+| `DUITKU_SANDBOX` | `true` = pakai sandbox.duitku.com. Sandbox **tidak pernah** dipakai untuk transaksi user di host produksi (diblokir di kode); uji penuh di localhost / preview `*.workers.dev`. |
+| `DUITKU_QRIS_METHOD` | Kode channel QRIS Duitku — default `SP` (ShopeePay QRIS, interoperabel semua app QRIS). |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
 
@@ -57,6 +62,8 @@ wrangler secret put PAKASIR_WEBHOOK_SECRET # X-Secret dari detail project Pakasi
 wrangler secret put SETUP_SECRET          # acak, dipakai sekali untuk /setup
 wrangler secret put TURNSTILE_SITE_KEY     # opsional: captcha register/login
 wrangler secret put TURNSTILE_SECRET_KEY   # opsional: pasangan site key
+wrangler secret put DUITKU_API_KEY         # gateway alternatif (key sandbox dulu utk uji;
+                                           # ganti key produksi saat go-live Duitku)
 
 # 2. migrasi database produksi
 npm run db:remote
@@ -81,13 +88,23 @@ npm run deploy
    `https://ditryout.in/api/payments/webhook`
    (Hati-hati **double slash** `//api/...` — router tidak mencocokkannya sehingga webhook 404 mentah. Worker kini menormalisasi path `//…` sebagai toleransi, tapi tetap gunakan URL bersih di dashboard.)
 
-Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id` mengecek status ke Pakasir dengan throttle 4,5 detik/transaksi/isolat) — webhook hanya membuatnya lebih cepat dan andal. Tambahan jaring pengaman: **cron harian** merekonsiliasi semua payment pending ber-transaksi ke API Pakasir (maks 50 tertua/run), sehingga user yang membayar lalu menutup aplikasi tanpa kembali tetap mendapat aksesnya paling lambat sehari.
+Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id` mengecek status ke Pakasir dengan throttle 4,5 detik/transaksi/isolat) — webhook hanya membuatnya lebih cepat dan andal. Tambahan jaring pengaman: **cron harian** merekonsiliasi semua payment pending ber-transaksi ke API gateway masing-masing (maks 50 tertua/run per Pakasir + 25 per Duitku), sehingga user yang membayar lalu menutup aplikasi tanpa kembali tetap mendapat aksesnya paling lambat sehari.
+
+### Gateway Duitku (alternatif QRIS)
+
+Duitku adalah gateway kedua — aktif dipilih admin, fallback otomatis bila gateway utama error saat create. QRIS Duitku berlaku **30 menit** (vs 24 jam Pakasir). Status: sandbox dulu sampai review produksi Duitku lolos.
+
+- Callback Duitku (server-ke-server, form-urlencoded + signature HMAC-SHA256): `https://ditryout.in/api/payments/duitku/callback` — juga dikirim per-transaksi saat create (URL mengikuti origin request, jadi uji localhost/preview otomatis memakai URL host itu sendiri).
+- Verifikasi callback: signature + merchantCode + binding `reference` gateway + amount, lalu double-check ke API status — pola sama dengan webhook Pakasir.
+- Polling status Duitku dibatasi 15 detik/transaksi (Duitku memblokir IP ~1 jam bila terlalu rapat).
+- Go-live checklist: `wrangler secret put DUITKU_API_KEY` (key produksi) → `wrangler.jsonc`: `DUITKU_MERCHANT_CODE` ke kode produksi (`D…`) + `DUITKU_SANDBOX: "false"` → deploy → (opsional) jalankan ulang `node scripts/duitku-smoke.mjs --prod` untuk memastikan signature diterima produksi → toggle **Gateway Aktif → Duitku** di panel admin bila mau jadikan utama.
+- Smoke test cepat kapan pun: `DUITKU_MERCHANT_CODE=… DUITKU_API_KEY=… node scripts/duitku-smoke.mjs [--prod]`.
 
 ## Mode pembayaran manual (fallback bila gateway bermasalah)
 
 Gateway Pakasir sudah **produksi** — tombol utama halaman bayar adalah **Bayar via QRIS** (otomatis). Alur manual disembunyikan secara default. Cara mengubah mode (urutan prioritas):
 
-1. **Toggle admin (utama, tanpa deploy)**: **Admin → Transaksi → Mode Pembayaran** — tiga pilihan: `Gateway otomatis` (pakasir), `Gateway + tombol Bayar Manual` (hybrid), `Manual saja / dipaksa` (manual → banner gangguan tampil + tombol gateway disembunyikan). Tersimpan di tabel `settings` D1 dan berlaku untuk transaksi baru langsung (halaman bayar mengikuti maks. 1 menit karena cache edge `/api/products`).
+1. **Toggle admin (utama, tanpa deploy)**: **Admin → Transaksi → Mode Pembayaran** — tiga pilihan: `Gateway otomatis` (gateway), `Gateway + tombol Bayar Manual` (hybrid), `Manual saja / dipaksa` (manual → banner gangguan tampil + tombol gateway disembunyikan). Di kartu yang sama ada **Gateway Aktif** (Pakasir/Duitku) untuk memilih gateway utama. Tersimpan di tabel `settings` D1 dan berlaku untuk transaksi baru langsung (halaman bayar mengikuti maks. 1 menit karena cache edge `/api/products`).
 2. **Env var (baseline)**: dipakai hanya bila belum pernah di-toggle — `PAYMENT_MODE=manual` atau `SHOW_MANUAL_PAYMENT=true` di `wrangler.jsonc` + deploy.
 
 Alur manual saat aktif:

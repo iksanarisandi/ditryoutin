@@ -218,21 +218,42 @@
       // ---------- Tahap 2: tampilkan QR & polling ----------
       function showQr(d, resumed) {
         stopPolling();
+        // Gateway dipilih server (Pakasir / Duitku) — label info saja.
+        const gw = d.gateway || (d.payment && d.payment.gateway);
+        const gwLabel = gw === 'duitku' ? 'via Duitku' : gw === 'pakasir' ? 'via Pakasir' : '';
+        // Halaman bayar Duitku: di sandbox = simulator (QR sandbox tidak bisa
+        // discan aplikasi nyata — ini satu-satunya cara menyelesaikan bayar uji),
+        // di produksi = alternatif bayar langsung dari aplikasi e-wallet.
+        const payUrl = d.txn && d.txn.payment_url;
+        const payUrlBtn = payUrl
+          ? '<a class="btn btn-block" style="text-decoration:none;display:block;margin:10px 0" target="_blank" rel="noopener" href="' + TO.esc(payUrl) + '">' +
+            (d.txn.is_sandbox
+              ? 'Selesaikan Pembayaran di Simulator Duitku →'
+              : 'Buka Halaman Pembayaran Duitku →') +
+            '</a>' +
+            (d.txn.is_sandbox
+              ? '<p class="small muted">QR di samping hanya tampilan (mode sandbox). Klik tombol di atas untuk membayar simulasi.</p>'
+              : '')
+          : '';
+        const feeNote = (d.txn.fee || 0) > 0
+          ? 'Nominal tagihan (sudah termasuk biaya layanan ' + TO.rupiah(d.txn.fee) + '). Bayar dengan nominal <strong>tepat sampai digit terakhir</strong>.'
+          : 'Bayar dengan nominal <strong>tepat sampai digit terakhir</strong>.';
         stage.innerHTML = `
           ${resumed ? resumedNote() : ''}
           <div class="card">
             <div class="pay-layout">
               <div class="qr-box">
-                <div style="font-weight:700;font-size:1.05rem;margin-bottom:6px">QRIS</div>
+                <div style="font-weight:700;font-size:1.05rem;margin-bottom:6px">QRIS ${gwLabel ? '<span class="muted" style="font-weight:600;font-size:.8rem">' + gwLabel + '</span>' : ''}</div>
                 <div id="qr-slot">${d.qr_svg || '<p class="muted">QR tidak tersedia.</p>'}</div>
                 <div class="small muted mt">Batas bayar: <strong id="qr-countdown" style="color:var(--red)">--:--:--</strong>${d.txn.expired_at ? ' <span>(berlaku sampai ' + TO.fmtDateTime(d.txn.expired_at) + ' WITA)</span>' : ''}</div>
               </div>
               <div>
                 <div id="pay-status"><span class="badge badge-warn">MENUNGGU PEMBAYARAN</span></div>
                 <div class="pay-amount" id="pay-total" style="margin:8px 0">${TO.rupiah(d.txn.total_payment)}</div>
-                <p class="muted small">Nominal tagihan (sudah termasuk biaya layanan ${TO.rupiah(d.txn.fee)}). Bayar dengan nominal <strong>tepat sampai digit terakhir</strong>.</p>
+                <p class="muted small">${feeNote}</p>
                 <p class="small">Kode referensi: <span class="mono">${TO.esc(d.payment.reference)}</span></p>
                 ${d.txn.is_sandbox ? '<div class="alert alert-warn small">MODE SANDBOX — transaksi percobaan.</div>' : ''}
+                ${payUrlBtn}
                 <div class="small muted">Status pembayaran diperiksa otomatis setiap beberapa detik. Halaman ini bisa tetap terbuka.</div>
                 ${waHelpLink(d.support_wa, d.payment.reference)}
               </div>

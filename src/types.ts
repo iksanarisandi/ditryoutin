@@ -7,6 +7,18 @@ export type Env = {
   PAKASIR_API_KEY?: string;
   PAKASIR_PROJECT?: string;
   PAKASIR_WEBHOOK_SECRET?: string;
+  // Duitku — gateway alternatif (QRIS). API key = RAHASIA: set lewat
+  // `wrangler secret put DUITKU_API_KEY` / .dev.vars, jangan di git.
+  // DUITKU_SANDBOX "true" = pakai sandbox.duitku.com (uji) — sandbox tidak
+  // pernah dipakai untuk transaksi user di host produksi (lihat services/duitku).
+  DUITKU_MERCHANT_CODE?: string;
+  DUITKU_API_KEY?: string;
+  DUITKU_SANDBOX?: string;
+  // Kode channel QRIS Duitku (default 'SP' = ShopeePay QRIS, interoperabel).
+  DUITKU_QRIS_METHOD?: string;
+  // Gateway aktif untuk transaksi baru (baseline env — toggle admin di tabel
+  // settings D1 menimpa ini, sama seperti payment_mode).
+  ACTIVE_GATEWAY?: string;
   SETUP_SECRET?: string;
   // "manual" = QRIS pribadi + verifikasi admin (mode fallback bila gateway bermasalah);
   // selain itu (default) = Pakasir.

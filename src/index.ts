@@ -4,6 +4,7 @@ import { attachUser, requireAdmin } from './middleware/auth';
 import { originGuard, securityHeaders } from './middleware/security';
 import { clientIp, limitOr429, rateLimit } from './middleware/ratelimit';
 import { PakasirError } from './services/pakasir';
+import { DuitkuError } from './services/duitku';
 import { POINTS_PER_CORRECT } from './services/scoring';
 import { reconcileStalePayments } from './services/payments';
 import { getPaymentMode } from './services/settings';
@@ -95,7 +96,7 @@ app.get('/api/products', async (c) => {
 
   const mode = await getPaymentMode(c.env);
   const manualForced = mode === 'manual';
-  const manualAvailable = mode !== 'pakasir';
+  const manualAvailable = mode !== 'gateway';
   const rows = await c.env.DB.prepare(
     'SELECT id, name, price, duration_days, description FROM products WHERE active=1 ORDER BY price',
   ).all();
@@ -268,7 +269,7 @@ app.notFound((c) => {
 
 app.onError((err, c) => {
   console.error(`[${c.req.method}] ${new URL(c.req.url).pathname}`, err);
-  if (err instanceof PakasirError) return fail(c, err.message, 502);
+  if (err instanceof PakasirError || err instanceof DuitkuError) return fail(c, err.message, 502);
   return fail(c, 'Terjadi kesalahan internal', 500);
 });
 
