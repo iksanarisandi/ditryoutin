@@ -1,8 +1,10 @@
 // Klien Duitku Payment Gateway (V.2 API) — gateway alternatif selain Pakasir.
-// QRIS saja untuk saat ini ('SQ' = Nusapay QRIS — kode di API PRODUKSI; 'NQ' =
-// Nobu/Nusapay QRIS versi SANDBOX saja, ditolak produksi; 'SP' = ShopeePay
-// QRIS — semua interoperabel antar aplikasi QRIS; daftar preferensi diatur
-// via env DUITKU_QRIS_METHOD, mis. "SQ,NQ,SP" — lihat createTransaction).
+// QRIS saja untuk saat ini. TIGA channel QRIS terpisah di katalog Duitku
+// (docs.duitku.com — "Metode Pembayaran"): 'SQ' = Nusapay, 'NQ' = Nobu,
+// 'SP' = ShopeePay — semuanya interoperabel antar aplikasi QRIS. (Hati-hati:
+// NusaPay adalah produk QRIS Bank Nobu, tapi di Duitku keduanya channel BERBEDA.)
+// Channel aktif per merchant bisa beda — cek getpaymentmethod (smoke test);
+// daftar preferensi diatur via env DUITKU_QRIS_METHOD, mis. "SQ,NQ,SP".
 
 import { hmac } from '@noble/hashes/hmac.js';
 import { sha256 } from '@noble/hashes/sha2.js';
