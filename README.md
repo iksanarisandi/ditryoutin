@@ -47,7 +47,7 @@ Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 | `ACTIVE_GATEWAY` | Gateway utama transaksi QRIS baru: `pakasir` (default) \| `duitku`. Bila gateway utama error saat create, otomatis dialihkan ke gateway satunya (bila layak: terkonfigurasi + bukan sandbox di host produksi). Toggle admin menimpa nilai ini. |
 | `DUITKU_MERCHANT_CODE` | merchantCode Duitku (sandbox `DS…`, produksi `D…`). |
 | `DUITKU_SANDBOX` | `true` = pakai sandbox.duitku.com. Sandbox **tidak pernah** dipakai untuk transaksi user di host produksi (diblokir di kode); uji penuh di localhost / preview `*.workers.dev`. |
-| `DUITKU_QRIS_METHOD` | Daftar preferensi channel QRIS Duitku, dipisah koma — default `NQ,SP` (Nusapay QRIS dulu — aktif 2026-10-14, ShopeePay QRIS fallback; interoperabel semua app QRIS). Channel pertama yang tersedia yang dipakai — salah satu boleh dinonaktifkan di dashboard Duitku. |
+| `DUITKU_QRIS_METHOD` | Daftar preferensi channel QRIS Duitku, dipisah koma — default `SQ,NQ,SP` (`SQ` = Nusapay QRIS, kode API **produksi** aktif 2026-10-14; `NQ` hanya berlaku di sandbox; semua interoperabel antar app QRIS). Channel pertama yang tersedia yang dipakai — salah satu boleh dinonaktifkan di dashboard Duitku. |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
 

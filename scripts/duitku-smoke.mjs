@@ -90,7 +90,7 @@ function genReferenceLike() {
 // — sama dengan DUITKU_QRIS_METHOD produksi; tiap channel dicoba sampai ada yang
 // lolos (urutan fallback sama dengan createTransaction di services/duitku).
 const methodArg = process.argv.find((a) => a.startsWith('--method='));
-const methods = (methodArg ? methodArg.slice(9) : 'NQ,SP').split(',').map((m) => m.trim().toUpperCase()).filter(Boolean);
+const methods = (methodArg ? methodArg.slice(9) : 'SQ,NQ,SP').split(',').map((m) => m.trim().toUpperCase()).filter(Boolean);
 
 let winner = null;
 for (const method of methods) {

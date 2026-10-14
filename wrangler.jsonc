@@ -40,11 +40,13 @@
   // 2026-10-12 (review Duitku lolos; smoke --prod: signature OK, akun aktif,
   // tapi baru BRI VA — channel QRIS menunggu aktivasi di sisi Duitku, sampai
   // itu fallback duitku gagal "Payment channel not available").
-  // 2026-10-14: QRIS NusaPay (NQ) diaktifkan Duitku — urutan channel dibalik
-  // jadi NQ dulu agar tidak ada 1 inquiry gagal percuma per transaksi;
-  // SP (ShopeePay QRIS) tetap fallback bila kelak ikut aktif.
-  // DUITKU_QRIS_METHOD = daftar preferensi channel ("NQ,SP"): create memakai
-  // channel pertama yang tersedia — matikan salah satunya di dashboard Duitku
+  // 2026-10-14: QRIS NusaPay AKTIF — kodenya "SQ" di API produksi (bukan "NQ"
+  // seperti di sandbox; NQ/SP ditolak "Payment channel not available").
+  // Urutan "SQ,NQ,SP": SQ dipakai dulu, NQ/SP fallback otomatis bila kelak
+  // ikut aktif di merchant (daftar channel aktif: lihat getpaymentmethod di
+  // scripts/duitku-smoke.mjs).
+  // DUITKU_QRIS_METHOD = daftar preferensi channel: create memakai channel
+  // pertama yang tersedia — aktifkan/matikan channel di dashboard Duitku
   // tanpa perlu deploy ulang; balik urutan untuk mengutamakan channel lain.
   // - DUITKU_API_KEY = RAHASIA (key produksi via wrangler secret), JANGAN di sini.
   // - Uji sandbox ke depannya lewat localhost (.dev.vars) — workers_dev sudah
@@ -56,7 +58,7 @@
     "ACTIVE_GATEWAY": "pakasir",
     "DUITKU_MERCHANT_CODE": "D25142",
     "DUITKU_SANDBOX": "false",
-    "DUITKU_QRIS_METHOD": "NQ,SP"
+    "DUITKU_QRIS_METHOD": "SQ,NQ,SP"
   },
   "workers_dev": false,
   // Rate limiter via Durable Object (binding "ratelimit" bawaan tidak enforce

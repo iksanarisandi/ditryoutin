@@ -1,7 +1,8 @@
 // Klien Duitku Payment Gateway (V.2 API) — gateway alternatif selain Pakasir.
-// QRIS saja untuk saat ini ('NQ' = Nusapay/Nobu QRIS, 'SP' = ShopeePay QRIS —
-// keduanya interoperabel untuk semua aplikasi QRIS; daftar preferensi diatur
-// via env DUITKU_QRIS_METHOD, mis. "NQ,SP" — lihat createTransaction).
+// QRIS saja untuk saat ini ('SQ' = Nusapay QRIS — kode di API PRODUKSI; 'NQ' =
+// Nobu/Nusapay QRIS versi SANDBOX saja, ditolak produksi; 'SP' = ShopeePay
+// QRIS — semua interoperabel antar aplikasi QRIS; daftar preferensi diatur
+// via env DUITKU_QRIS_METHOD, mis. "SQ,NQ,SP" — lihat createTransaction).
 
 import { hmac } from '@noble/hashes/hmac.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -138,7 +139,7 @@ export async function createTransaction(
   const cfg = duitkuConfig(env);
   if (!cfg) throw new DuitkuError('Duitku belum dikonfigurasi');
 
-  const methods = (env.DUITKU_QRIS_METHOD || 'NQ')
+  const methods = (env.DUITKU_QRIS_METHOD || 'SQ,NQ,SP')
     .split(',')
     .map((m) => m.trim().toUpperCase())
     .filter(Boolean);
