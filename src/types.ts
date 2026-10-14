@@ -16,6 +16,10 @@ export type Env = {
   DUITKU_SANDBOX?: string;
   // Kode channel QRIS Duitku (default 'SP' = ShopeePay QRIS, interoperabel).
   DUITKU_QRIS_METHOD?: string;
+  // Fee QRIS Duitku (%) yang ditanggung merchant — dipass-through ke pembeli
+  // via gross-up nominal (lihat duitkuFeePct/grossUp di services/duitku).
+  // "0.7" = MDR QRIS Duitku; kosong/0 = tanpa markup (fee menanggung merchant).
+  DUITKU_FEE_PCT?: string;
   // Gateway aktif untuk transaksi baru (baseline env — toggle admin di tabel
   // settings D1 menimpa ini, sama seperti payment_mode).
   ACTIVE_GATEWAY?: string;

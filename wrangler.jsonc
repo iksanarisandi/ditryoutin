@@ -49,6 +49,9 @@
   // pertama yang tersedia — aktifkan/matikan channel di dashboard Duitku
   // tanpa perlu deploy ulang; balik urutan untuk mengutamakan channel lain.
   // - DUITKU_API_KEY = RAHASIA (key produksi via wrangler secret), JANGAN di sini.
+  // - DUITKU_FEE_PCT = fee QRIS Duitku (%) yang ditanggung merchant (MDR 0,7%)
+  //   — di-pass-through ke pembeli via gross-up nominal (harga + fee; dana
+  //   masuk merchant tetap = harga). Kosongkan/0 untuk menanggung sendiri.
   // - Uji sandbox ke depannya lewat localhost (.dev.vars) — workers_dev sudah
   //   dimatikan pasca-review sehingga preview *.workers.dev tidak ada lagi.
   "vars": {
@@ -58,7 +61,8 @@
     "ACTIVE_GATEWAY": "pakasir",
     "DUITKU_MERCHANT_CODE": "D25142",
     "DUITKU_SANDBOX": "false",
-    "DUITKU_QRIS_METHOD": "SQ,NQ,SP"
+    "DUITKU_QRIS_METHOD": "SQ,NQ,SP",
+    "DUITKU_FEE_PCT": "0.7"
   },
   "workers_dev": false,
   // Rate limiter via Durable Object (binding "ratelimit" bawaan tidak enforce

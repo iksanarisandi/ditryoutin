@@ -11,6 +11,8 @@ import {
   callbackSignature,
   duitkuConfig,
   duitkuUsable,
+  duitkuFeePct,
+  grossUp,
   guardHost,
   isProdHost,
   DuitkuError,
@@ -179,9 +181,15 @@ payments.post('/create', requireAuth, async (c) => {
         );
       }
 
+      // Fee QRIS Duitku (MDR) ditanggung merchant secara kontrak — pass-through
+      // ke pembeli via gross-up: tagihan = harga + fee, dana masuk tetap = harga
+      // (pola sama dengan fee/total_payment Pakasir; halaman bayar otomatis
+      // menampilkan "termasuk biaya layanan"). payments.amount tetap harga dasar.
+      const feePct = duitkuFeePct(c.env);
+      const charge = grossUp(amount, feePct);
       const dt = await createDuitkuTransaction(c.env, {
         orderId: reference,
-        amount,
+        amount: charge,
         productDetails: product.name,
         email: user.email,
         customerName: user.name,
@@ -192,9 +200,9 @@ payments.post('/create', requireAuth, async (c) => {
       // (expiryPeriod saat create), simpan agar countdown & expiry lokal akurat.
       const expiresAt = new Date(Date.now() + DUITKU_QRIS_EXPIRY_MINUTES * 60_000).toISOString();
       await c.env.DB.prepare(
-        `UPDATE payments SET gateway='duitku', txn_id=?, qr_string=?, total_payment=?, fee=0, expires_at=?, payment_url=?, updated_at=? WHERE id=?`,
+        `UPDATE payments SET gateway='duitku', txn_id=?, qr_string=?, total_payment=?, fee=?, expires_at=?, payment_url=?, updated_at=? WHERE id=?`,
       )
-        .bind(dt.reference, dt.qr_string ?? null, amount, expiresAt, dt.payment_url ?? null, new Date().toISOString(), paymentId)
+        .bind(dt.reference, dt.qr_string ?? null, charge, charge - amount, expiresAt, dt.payment_url ?? null, new Date().toISOString(), paymentId)
         .run();
       return ok(
         c,
@@ -203,8 +211,8 @@ payments.post('/create', requireAuth, async (c) => {
           gateway: 'duitku',
           txn: {
             txn_id: dt.reference,
-            total_payment: amount, // QRIS Duitku: user membayar nominal tepat (fee ditanggung merchant)
-            fee: 0,
+            total_payment: charge,
+            fee: charge - amount,
             expired_at: expiresAt,
             is_sandbox: dt.is_sandbox,
             payment_url: dt.payment_url ?? null, // link halaman bayar (dipakai admin saat uji sandbox)
@@ -425,7 +433,7 @@ payments.post('/duitku/callback', async (c) => {
 
   const p = await c.env.DB.prepare('SELECT * FROM payments WHERE reference=?')
     .bind(merchantOrderId)
-    .first<PaymentRow>();
+    .first<PaymentRow & { total_payment: number | null }>();
   if (!p) return fail(c, 'Referensi transaksi tidak dikenal', 404);
 
   // Ikat callback pada invoice Duitku yang benar-benar kita buat (reference
@@ -444,7 +452,11 @@ payments.post('/duitku/callback', async (c) => {
   }
   if (resultCode !== '00') return ok(c, { ignored: true, reason: `resultCode=${resultCode}` });
 
-  if (toInt(amount, -1) !== p.amount) return fail(c, 'Amount tidak cocok', 400);
+  // Nominal yang dibayar pembeli = total tagihan (harga + fee pass-through,
+  // gross-up) — BUKAN amount dasar (harga produk). total_payment row lama
+  // (pra-markup) memang = amount, jadi fallback ?? tetap konsisten.
+  const charge = p.total_payment ?? p.amount;
+  if (toInt(amount, -1) !== charge) return fail(c, 'Amount tidak cocok', 400);
   if (p.status === 'paid') return ok(c, { ok: true, already_paid: true });
 
   // Double-check ke API status Duitku (jaringan bermasalah -> 502 agar Duitku
@@ -456,7 +468,7 @@ payments.post('/duitku/callback', async (c) => {
     const msg = e instanceof DuitkuError ? e.message : 'error';
     return fail(c, `Gagal verifikasi ke Duitku: ${msg}`, 502);
   }
-  if (st.state !== 'completed' || (st.amount !== undefined && st.amount !== p.amount)) {
+  if (st.state !== 'completed' || (st.amount !== undefined && st.amount !== charge)) {
     return fail(c, 'Verifikasi status transaksi gagal', 400);
   }
 

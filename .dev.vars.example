@@ -36,6 +36,8 @@ RESEND_API_KEY=
 # via `wrangler secret put DUITKU_API_KEY`. Callback Duitku tidak terjangkau
 # dari localhost — alur lokal tuntas lewat polling status.
 # Set ACTIVE_GATEWAY=duitku untuk memaksa uji Duitku (fallback tetap pakasir).
+# DUITKU_FEE_PCT (default ambil wrangler.jsonc): fee QRIS % yang di-pass-
+# through ke pembeli via gross-up nominal — kosongkan untuk tanpa markup.
 DUITKU_API_KEY=
 DUITKU_MERCHANT_CODE=
 DUITKU_SANDBOX=true

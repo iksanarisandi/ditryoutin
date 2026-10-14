@@ -23,6 +23,25 @@ export class DuitkuError extends Error {
   }
 }
 
+// Fee QRIS Duitku (%) yang secara kontrak ditanggung merchant. Duitku memotong
+// fee dari dana settlement, bukan menambahkannya ke tagihan pembeli — supaya
+// dana diterima tetap = harga produk, nominal tagihan di-gross-up (pass-through
+// fee, pola sama dengan fee/total_payment Pakasir). Baca dari env agar mudah
+// disesuaikan saat rate berubah; nilai absurd ditolak (fallback tanpa markup).
+export function duitkuFeePct(env: Env): number {
+  const n = Number(env.DUITKU_FEE_PCT);
+  return Number.isFinite(n) && n > 0 && n < 10 ? n : 0;
+}
+
+// Nominal yang dibayar pembeli agar SETELAH dipotong fee (pct%) dana yang
+// masuk ke merchant tepat `amount`: ceil(amount / (1 - pct/100)) — dibulatkan
+// ke atas ke rupiah utuh (QRIS tanpa sen); selisih ceil menambah receivables
+// beberapa rupiah, tidak pernah menguranginya. pct <= 0 -> nominal apa adanya.
+export function grossUp(amount: number, pct: number): number {
+  if (pct <= 0) return amount;
+  return Math.ceil((amount * 100) / (100 - pct));
+}
+
 export type DuitkuTxn = {
   reference: string; // referensi gateway — disimpan ke payments.txn_id
   qr_string?: string;

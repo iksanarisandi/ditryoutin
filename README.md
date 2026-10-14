@@ -48,6 +48,7 @@ Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 | `DUITKU_MERCHANT_CODE` | merchantCode Duitku (sandbox `DS…`, produksi `D…`). |
 | `DUITKU_SANDBOX` | `true` = pakai sandbox.duitku.com. Sandbox **tidak pernah** dipakai untuk transaksi user di host produksi (diblokir di kode); uji penuh di localhost / preview `*.workers.dev`. |
 | `DUITKU_QRIS_METHOD` | Daftar preferensi channel QRIS Duitku, dipisah koma — default `SQ,NQ,SP` (`SQ` = Nusapay, `NQ` = Nobu, `SP` = ShopeePay — tiga channel TERPISU di katalog Duitku walau NusaPay produk Bank Nobu; semua interoperabel antar app QRIS). Channel pertama yang tersedia yang dipakai — channel aktif per merchant bisa beda, cek `getpaymentmethod` via smoke test. |
+| `DUITKU_FEE_PCT` | Fee QRIS Duitku (%) yang ditanggung merchant — default `0.7` (MDR QRIS). Di-pass-through ke pembeli via gross-up: tagihan = harga + fee (dibulatkan ceil ke rupiah), dana masuk merchant tetap = harga produk; `payments.amount` menyimpan harga dasar, `total_payment`/`fee` nominal bayar (pola sama Pakasir). `0`/kosong = tanpa markup. |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
 
