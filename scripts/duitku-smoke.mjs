@@ -5,6 +5,7 @@
 // Pemakaian:
 //   DUITKU_MERCHANT_CODE=DSxxxxx DUITKU_API_KEY=xxxx node scripts/duitku-smoke.mjs          # sandbox
 //   DUITKU_MERCHANT_CODE=Dxxxxx DUITKU_API_KEY=xxxx node scripts/duitku-smoke.mjs --prod    # produksi
+//   --method=NQ (opsional) — channel yang diuji; default SP,NQ urut fallback produksi
 //
 // Kredensial HANYA dari environment — jangan pernah hardcode di file ini.
 // Output: statusCode inquiry, skema signature yang lolos, hadirnya qrString,
@@ -85,19 +86,28 @@ function genReferenceLike() {
   return `TO-${Date.now().toString(36).toUpperCase()}-${suffix}`;
 }
 
+// Channel yang diuji: --method=NQ (atau daftar --method=NQ,SP). Default keduanya
+// — sama dengan DUITKU_QRIS_METHOD produksi; tiap channel dicoba sampai ada yang
+// lolos (urutan fallback sama dengan createTransaction di services/duitku).
+const methodArg = process.argv.find((a) => a.startsWith('--method='));
+const methods = (methodArg ? methodArg.slice(9) : 'NQ,SP').split(',').map((m) => m.trim().toUpperCase()).filter(Boolean);
+
 let winner = null;
-for (const [name, scheme] of [['hmac-sha256', signHmac], ['md5', signMd5]]) {
-  const orderId = genReferenceLike();
-  const r = await tryInquiry(scheme, orderId, 'SP');
-  const sc = r.json?.statusCode ?? '(no json)';
-  const msg = r.json?.statusMessage ?? r.text;
-  console.log(`[inquiry:${name}] order=${orderId} http=${r.httpStatus} statusCode=${sc} statusMessage=${msg}`);
-  if (r.json?.statusCode === '00') {
-    console.log(`  >> LOLOS dengan ${name}`);
-    console.log(`  >> reference=${r.json.reference ?? '-'} qrString=${r.json.qrString ? 'ADA (' + r.json.qrString.slice(0, 40) + '...)' : 'TIDAK ADA'} paymentUrl=${r.json.paymentUrl ?? '-'}`);
-    winner = { name, scheme, orderId, ref: r.json.reference };
-    break;
+for (const method of methods) {
+  for (const [name, scheme] of [['hmac-sha256', signHmac], ['md5', signMd5]]) {
+    const orderId = genReferenceLike();
+    const r = await tryInquiry(scheme, orderId, method);
+    const sc = r.json?.statusCode ?? '(no json)';
+    const msg = r.json?.statusMessage ?? r.text;
+    console.log(`[inquiry:${method}:${name}] order=${orderId} http=${r.httpStatus} statusCode=${sc} statusMessage=${msg}`);
+    if (r.json?.statusCode === '00') {
+      console.log(`  >> LOLOS channel ${method} dengan ${name}`);
+      console.log(`  >> reference=${r.json.reference ?? '-'} qrString=${r.json.qrString ? 'ADA (' + r.json.qrString.slice(0, 40) + '...)' : 'TIDAK ADA'} paymentUrl=${r.json.paymentUrl ?? '-'}`);
+      winner = { name, scheme, orderId, ref: r.json.reference };
+      break;
+    }
   }
+  if (winner) break;
 }
 
 if (!winner) {
