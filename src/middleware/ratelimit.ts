@@ -28,7 +28,9 @@ export type LimiterName =
   | 'RATE_LIMIT_REGISTER'
   | 'RATE_LIMIT_RESET'
   | 'RATE_LIMIT_WRITE'
-  | 'RATE_LIMIT_LOGINFAIL';
+  | 'RATE_LIMIT_LOGINFAIL'
+  | 'RATE_LIMIT_RECONCILE'
+  | 'RATE_LIMIT_MATERIAL';
 
 const LIMITS: Record<LimiterName, { limit: number; period: number }> = {
   RATE_LIMIT_API: { limit: 300, period: 60 },
@@ -56,6 +58,15 @@ const LIMITS: Record<LimiterName, { limit: number; period: number }> = {
   // panggilan ke-5 (yang harus membalas 429, persis akun sungguhan) terblokir.
   // period = LOCK_MS (15 menit).
   RATE_LIMIT_LOGINFAIL: { limit: 4, period: 900 },
+  // Rekonsiliasi pending payment di /me & /login: maks 1 pass per user per 15
+  // detik. Gate persisten (DO) lintas-isolate — throttle in-memory per-isolate
+  // tidak cukup karena /me yang dibanjiri bisa memicu polling status Duitku
+  // berlebih dari banyak isolate (Duitku memblokir IP merchant ~1 jam).
+  RATE_LIMIT_RECONCILE: { limit: 1, period: 15 },
+  // Unduh byte PDF materi per user. Longgar agar pdf.js (banyak range-request
+  // saat membuka 1 dokumen) tidak pernah tersendat, tapi menutup abuse bandwidth
+  // skrip dari satu akun yang menembus batas /api umum (per IP).
+  RATE_LIMIT_MATERIAL: { limit: 150, period: 60 },
 };
 
 // IP asli klien di edge Cloudflare (tidak bisa dipalsukan visitor).
@@ -64,14 +75,19 @@ export function clientIp(c: Context): string {
   return c.req.header('cf-connecting-ip') || 'unknown';
 }
 
-/** Jalankan cek limit via Durable Object; kembalikan respons 429 jika terlampau, atau null jika boleh lanjut. */
-export async function limitOr429(
-  c: Context<AppEnv>,
+/**
+ * Inti cek limit ke Durable Object — menerima namespace DO langsung sehingga
+ * bisa dipakai di luar middleware (mis. services, yang tidak punya Context).
+ * Kembalikan true bila request masih DIIZINKAN (success), false bila terlampaui.
+ * Fail-open (true) bila binding tidak ada / DO error — konsisten dengan kebijakan
+ * "rate limit tidak boleh membuat situs mati total".
+ */
+export async function checkLimit(
+  ns: DurableObjectNamespace | undefined,
   limiterName: LimiterName,
   key: string,
-): Promise<Response | null> {
-  const ns = c.env.RATE_LIMIT_DO;
-  if (!ns) return null;
+): Promise<boolean> {
+  if (!ns) return true;
   try {
     // Satu instance DO per (limiter, key) — window terpisah antar namespace.
     const id = ns.idFromName(`${limiterName}:${key}`);
@@ -80,12 +96,23 @@ export async function limitOr429(
       body: JSON.stringify(LIMITS[limiterName]),
     });
     const { success } = (await res.json()) as { success: boolean };
-    if (!success) {
-      c.header('Retry-After', '60');
-      return fail(c, 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.', 429);
-    }
+    return success;
   } catch (e) {
     console.error(`[ratelimit] ${limiterName} error`, e);
+    return true;
+  }
+}
+
+/** Jalankan cek limit via Durable Object; kembalikan respons 429 jika terlampau, atau null jika boleh lanjut. */
+export async function limitOr429(
+  c: Context<AppEnv>,
+  limiterName: LimiterName,
+  key: string,
+): Promise<Response | null> {
+  const allowed = await checkLimit(c.env.RATE_LIMIT_DO, limiterName, key);
+  if (!allowed) {
+    c.header('Retry-After', '60');
+    return fail(c, 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.', 429);
   }
   return null;
 }
@@ -96,20 +123,7 @@ export async function isLimited(
   limiterName: LimiterName,
   key: string,
 ): Promise<boolean> {
-  const ns = c.env.RATE_LIMIT_DO;
-  if (!ns) return false;
-  try {
-    const id = ns.idFromName(`${limiterName}:${key}`);
-    const res = await ns.get(id).fetch('https://do/rate-limit', {
-      method: 'POST',
-      body: JSON.stringify(LIMITS[limiterName]),
-    });
-    const { success } = (await res.json()) as { success: boolean };
-    return !success;
-  } catch (e) {
-    console.error(`[ratelimit] ${limiterName} error`, e);
-    return false; // fail-open, konsisten dengan limitOr429
-  }
+  return !(await checkLimit(c.env.RATE_LIMIT_DO, limiterName, key));
 }
 
 /** Middleware rate limit dengan key tetap per request (mis. per IP). */

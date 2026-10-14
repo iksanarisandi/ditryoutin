@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { fail, ok } from '../utils/response';
 import { requireAuth } from '../middleware/auth';
+import { limitOr429 } from '../middleware/ratelimit';
 import { toInt, trimStr } from '../utils/validate';
 import type { AppEnv } from '../types';
 
@@ -60,6 +61,12 @@ materials.get('/:id', async (c) => {
 // Cache HANYA browser (private) — cache edge mengabaikan cookie dan akan
 // membocorkan PDF ke pengunjung anonim yang berbagi colo.
 materials.get('/:id/file', async (c) => {
+  // Limiter per-user khusus byte PDF: cache browser (private) membuat tiap hit
+  // nyata men-stream dari R2 lewat Worker, jadi batasi abuse bandwidth per akun
+  // (menembus batas /api umum yang per-IP). Longgar agar range-request pdf.js lolos.
+  const blocked = await limitOr429(c, 'RATE_LIMIT_MATERIAL', `u:${c.get('user').id}`);
+  if (blocked) return blocked;
+
   const id = toInt(c.req.param('id'), 0);
   const row = await c.env.DB.prepare(
     'SELECT file_key, original_filename, file_size FROM materials WHERE id=? AND active=1',

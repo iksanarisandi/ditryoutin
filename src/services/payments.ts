@@ -3,6 +3,7 @@
 import { getTransactionStatus, PakasirError } from './pakasir';
 import { getTransactionStatus as getDuitkuTransactionStatus, DuitkuError, isDuitkuConfigured } from './duitku';
 import { claimReferralReward, REFERRAL_REFERRER_REWARD_DAYS } from './referrals';
+import { checkLimit } from '../middleware/ratelimit';
 import type { Env } from '../types';
 
 export type PaymentRow = {
@@ -172,6 +173,10 @@ function anyGatewayConfigured(env: Env): boolean {
 // shouldCheckStatus yang sama dengan polling halaman pembayaran.
 export async function reconcilePendingPayments(env: Env, userId: number): Promise<void> {
   if (!anyGatewayConfigured(env)) return;
+  // Gate persisten lintas-isolate: maks 1 pass per user per 15 detik. Mencegah
+  // /me yang dibanjiri memicu polling status gateway berlebih (throttle
+  // shouldCheckStatus di bawah hanya per-isolate; Duitku memblokir IP ~1 jam).
+  if (!(await checkLimit(env.RATE_LIMIT_DO, 'RATE_LIMIT_RECONCILE', `u:${userId}`))) return;
   const pendings = await env.DB.prepare(
     `SELECT id, user_id, product_id, reference, txn_id, amount, method, gateway, status, paid_at, created_at
      FROM payments WHERE user_id=? AND status='pending' AND txn_id IS NOT NULL`,

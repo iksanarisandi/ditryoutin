@@ -24,17 +24,27 @@ export class RateLimiter implements DurableObject {
     }
 
     const now = Date.now();
-    const w = (await this.state.storage.get<Window>('w')) ?? { start: now, count: 0 };
-    let success: boolean;
-    if (now - w.start >= cfg.period * 1000) {
-      // window baru
+    const periodMs = cfg.period * 1000;
+    const stored = await this.state.storage.get<Window>('w');
+
+    if (!stored || now - stored.start >= periodMs) {
+      // Window baru (atau pertama kali): mulai hitung dan pasang alarm di akhir
+      // window agar storage DO dibersihkan sendiri (lihat alarm()). Tanpa ini,
+      // tiap key unik (ip:*, email:*) meninggalkan satu baris storage selamanya.
       await this.state.storage.put('w', { start: now, count: 1 });
-      success = true;
-    } else {
-      w.count += 1;
-      await this.state.storage.put('w', w);
-      success = w.count <= cfg.limit;
+      await this.state.storage.setAlarm(now + periodMs);
+      return Response.json({ success: true });
     }
-    return Response.json({ success });
+    const count = stored.count + 1;
+    await this.state.storage.put('w', { start: stored.start, count });
+    return Response.json({ success: count <= cfg.limit });
+  }
+
+  // Window berakhir -> buang seluruh state DO. Instance menjadi "kosong" dan
+  // tidak lagi menyimpan apa pun, sehingga jumlah key tak terbatas (IP/email
+  // yang dikendalikan penyerang) tidak menumpuk storage selamanya. Hit baru
+  // setelah ini otomatis membuka window + alarm baru.
+  async alarm(): Promise<void> {
+    await this.state.storage.deleteAll();
   }
 }
