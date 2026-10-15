@@ -39,6 +39,7 @@
       const stage = document.getElementById('stage');
       let pollTimer = null;
       let cdTimer = null;
+      let stopPriceAnimation = () => {};
       let paymentId = TO.qs('payment') ? Number(TO.qs('payment')) : null;
 
       function stopPolling() {
@@ -77,6 +78,7 @@
       // ---------- Tahap 1: pilih produk ----------
       async function showProducts() {
         stopPolling();
+        stopPriceAnimation();
         // Diskon undangan diambil paralel dengan produk (tampilan saja —
         // nominal final tetap dihitung server saat create payment).
         const [prodRes, refRes] = await Promise.allSettled([
@@ -99,22 +101,27 @@
           ${me.access.active ? '<div class="alert alert-info mb">Akses Anda masih aktif. Pembelian baru akan <strong>ditambahkan</strong> ke sisa masa akses.</div>' : ''}
           ${manualForced ? '<div class="alert alert-warn mb">⚠️ <strong>Pembayaran otomatis sedang tidak tersedia</strong> — server gateway pembayaran sedang maintenance. Silakan bayar manual: scan QRIS lalu konfirmasi via WhatsApp, akses diaktifkan admin biasanya &lt; 1 jam.</div>' : ''}
           ${refPct ? '<div class="alert alert-success mb">🎉 <strong>Diskon undangan ' + refPct + '%</strong> aktif untuk pembelian pertamamu — harga di bawah sudah dipotong.</div>' : ''}
-          <div class="grid ${products.length >= 3 ? 'grid-3' : 'grid-2'}">
+          <div class="grid payment-products ${products.length >= 3 ? 'grid-3' : 'grid-2'}">
             ${products.map((p) => {
               // Rumus sama seperti server (routes/payments.ts): price - round(price * pct/100).
               const finalPrice = refPct ? p.price - Math.round(p.price * refPct / 100) : p.price;
               const perDay = Math.floor(finalPrice / p.duration_days);
-              const priceHtml = refPct
+              // Penanda mengikuti harga dasar, bukan urutan produk atau diskon undangan.
+              const popular = Number(p.price) === 29000;
+              const bestValue = Number(p.price) === 69000;
+              const discountHtml = refPct
                 ? '<div><span class="muted" style="text-decoration:line-through;font-size:1rem;font-weight:600">' + TO.rupiah(p.price) + '</span> ' +
-                  '<span class="badge badge-success">Diskon ' + refPct + '%</span></div>' +
-                  '<div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">' + TO.rupiah(finalPrice) + '</div>'
-                : '<div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark)">' + TO.rupiah(p.price) + '</div>';
+                  '<span class="badge badge-success">Diskon ' + refPct + '%</span></div>'
+                : '';
               return `
-              <div class="card price-card">
+              <div class="card price-card ${popular ? 'featured' : bestValue ? 'best-value' : ''}">
+                ${popular ? '<span class="badge badge-primary price-badge">Paling Populer</span>' : ''}
+                ${bestValue ? '<span class="badge badge-success price-badge">Paling Hemat</span>' : ''}
                 <h3>${TO.esc(p.name)}</h3>
                 ${p.description ? `<p class="muted small">${TO.esc(p.description)}</p>` : ''}
                 <div class="price-duration"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg><strong>${p.duration_days} Hari</strong> Akses Penuh</div>
-                ${priceHtml}
+                ${discountHtml}
+                <div class="payment-price" data-count="${finalPrice}" data-count-format="rupiah">${TO.rupiah(finalPrice)}</div>
                 <p class="muted small">ke seluruh paket tryout · setara ${TO.rupiah(perDay)}/hari</p>
                 <button class="btn btn-block buy-btn" data-id="${p.id}" ${preset === p.id ? 'style="outline:2px solid var(--green)"' : ''}>Bayar via QRIS</button>
                 ${manualAvailable && !manualForced ? '<button class="btn btn-block btn-ghost manual-btn" data-id="' + p.id + '" style="margin:8px 0 0">Bayar Manual</button>' : ''}
@@ -125,6 +132,8 @@
               ? '<strong>Mode pembayaran manual</strong>: scan QRIS dengan nominal tepat, lalu konfirmasi via WhatsApp — akses diaktifkan admin setelah diverifikasi (biasanya &lt; 1 jam).'
               : '<strong>Bayar via QRIS</strong>: scan dan bayar nominal tepat — akses aktif otomatis setelah pembayaran terverifikasi.' + (manualAvailable ? '<br><strong>Bayar Manual</strong> (alternatif): scan QRIS, lalu konfirmasi via WhatsApp ke admin — akses diaktifkan setelah diverifikasi.' : '')}
           </div>`;
+        // Nominal tagihan QRIS tetap langsung final, hanya harga paket yang bergerak.
+        stopPriceAnimation = TO.animateCounts(stage);
         stage.querySelectorAll('.buy-btn').forEach((btn) => {
           // manualForced: kirim method='manual' eksplisit (server juga memaksa
           // via PAYMENT_MODE) agar analitik begin_checkout tercatat benar.
@@ -137,6 +146,7 @@
 
       // ---------- Buat transaksi ----------
       async function createPayment(productId, method) {
+        stopPriceAnimation();
         stage.innerHTML = '<div class="card"><p class="muted">Membuat transaksi…</p></div>';
         try {
           const d = await TO.api('/api/payments/create', {

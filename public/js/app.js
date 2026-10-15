@@ -45,6 +45,53 @@
   function rupiah(n) {
     return 'Rp' + Number(n || 0).toLocaleString('id-ID');
   }
+  // Angka bergerak sekali saat terlihat; teks final tetap tersedia bagi
+  // pembaca layar. Cleanup dipakai halaman bayar saat kartu diganti QRIS.
+  function animateCounts(root = document) {
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (motion.matches || !('IntersectionObserver' in window)) return () => {};
+    const frames = new Map();
+    const elements = Array.from(root.querySelectorAll('[data-count]'));
+    const format = (el, n) => (el.dataset.countFormat === 'rupiah'
+      ? rupiah(n) : n.toLocaleString('id-ID')) + (el.dataset.countSuffix || '');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        observer.unobserve(el);
+        const target = Number(el.dataset.count);
+        if (!Number.isFinite(target) || motion.matches) return;
+        const label = document.createElement('span');
+        label.className = 'sr-only';
+        label.textContent = format(el, target);
+        const value = document.createElement('span');
+        value.setAttribute('aria-hidden', 'true');
+        value.textContent = format(el, 0);
+        el.replaceChildren(label, value);
+        const start = performance.now();
+        function tick(now) {
+          if (!el.isConnected) { frames.delete(el); return; }
+          const progress = motion.matches ? 1 : Math.min((now - start) / 900, 1);
+          value.textContent = format(el, Math.round(target * (1 - Math.pow(1 - progress, 3))));
+          if (progress < 1) frames.set(el, requestAnimationFrame(tick));
+          else {
+            el.textContent = format(el, target);
+            frames.delete(el);
+          }
+        }
+        frames.set(el, requestAnimationFrame(tick));
+      });
+    }, { threshold: .25 });
+    elements.forEach((el) => observer.observe(el));
+    return () => {
+      observer.disconnect();
+      frames.forEach((id, el) => {
+        cancelAnimationFrame(id);
+        el.textContent = format(el, Number(el.dataset.count));
+      });
+      frames.clear();
+    };
+  }
   function fmtDur(sec) {
     sec = Math.max(0, Math.round(sec || 0));
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
@@ -225,7 +272,7 @@
   else initPwToggles();
 
   window.TO = {
-    api, esc, rupiah, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft, snippet,
+    api, esc, rupiah, animateCounts, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft, snippet,
     toast, busy, copy, fetchMe, requireUser, requireAdmin, logout,
     renderHeader, openModal, closeModal, WA_ADMIN,
   };

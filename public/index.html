@@ -130,7 +130,7 @@
       <div class="lp-stats" id="lp-stats">
         <div class="lp-stat"><div class="value" id="stat-packages">—</div><div class="label">Paket Tryout</div></div>
         <div class="lp-stat"><div class="value" id="stat-questions">—</div><div class="label">Soal + Pembahasan</div></div>
-        <div class="lp-stat"><div class="value">5</div><div class="label">Kategori Ujian</div></div>
+        <div class="lp-stat"><div class="value" data-count="5">5</div><div class="label">Kategori Ujian</div></div>
         <!-- Ditampilkan via JS hanya bila statistik berhasil dimuat, supaya
              fallback tanpa JS tidak memperlihatkan angka 0. -->
         <div class="lp-stat" id="stat-users" hidden><div class="value">0</div><div class="label">Pengguna Terdaftar</div></div>
@@ -255,8 +255,8 @@
           <h3>Coba &amp; Uji Kemampuan</h3>
           <p class="muted small">Coba fitur tryout &amp; ukur kemampuan awalmu.</p>
           <div class="price-duration"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg><strong>3 Hari</strong> Akses Penuh</div>
-          <div class="price">Rp9.000</div>
-          <p class="muted small">setara Rp3.000/hari</p>
+          <div class="price" data-count="9000" data-count-format="rupiah">Rp9.000</div>
+          <p class="muted small">setara <span data-count="3000" data-count-format="rupiah">Rp3.000</span>/hari</p>
           <ul class="price-perks">
             <li>Semua paket soal &amp; pembahasan</li>
             <li>Bank soal terus bertambah</li>
@@ -268,8 +268,8 @@
           <h3>Persiapan Intensif</h3>
           <p class="muted small">Pilihan untuk latihan rutin menjelang UPKP &amp; UDIN.</p>
           <div class="price-duration"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg><strong>30 Hari</strong> Akses Penuh</div>
-          <div class="price">Rp29.000</div>
-          <p class="muted small">setara Rp966/hari</p>
+          <div class="price" data-count="29000" data-count-format="rupiah">Rp29.000</div>
+          <p class="muted small">setara <span data-count="966" data-count-format="rupiah">Rp966</span>/hari</p>
           <ul class="price-perks">
             <li>Semua paket soal &amp; pembahasan</li>
             <li>Bank soal terus bertambah</li>
@@ -282,8 +282,8 @@
           <h3>Persiapan Jangka Panjang</h3>
           <p class="muted small">Akses lebih lama untuk latihan bertahap dan berulang.</p>
           <div class="price-duration"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg><strong>180 Hari</strong> Akses Penuh</div>
-          <div class="price">Rp89.000</div>
-          <p class="muted small">setara Rp494/hari</p>
+          <div class="price" data-count="89000" data-count-format="rupiah">Rp89.000</div>
+          <p class="muted small">setara <span data-count="494" data-count-format="rupiah">Rp494</span>/hari</p>
           <ul class="price-perks">
             <li>Semua paket soal &amp; pembahasan</li>
             <li>Bank soal terus bertambah</li>
@@ -484,19 +484,30 @@
       try { stats = await TO.api('/api/site-stats'); } catch (e) { /* fallback statis */ }
       if (stats) {
         const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-        set('chip-packages', stats.packages + ' paket tryout');
-        set('chip-questions', fmt(stats.questions) + '+ soal latihan');
+        const setCount = (id, number, suffix = '') => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.textContent = fmt(number) + suffix;
+          el.dataset.count = number;
+          el.dataset.countSuffix = suffix;
+        };
+        setCount('chip-packages', stats.packages, ' paket tryout');
+        setCount('chip-questions', stats.questions, '+ soal latihan');
         set('copy-features', stats.packages + ' paket, ' + fmt(stats.questions) + '+ soal, ringkasan materi PDF, timer ujian, random soal & pilihan, pembahasan, riwayat nilai, serta simulasi passing grade.');
         set('pillar-bank', fmt(stats.questions) + '+ soal di ' + stats.packages + ' paket — terus bertambah');
         set('copy-access', stats.packages + ' paket, ' + fmt(stats.questions) + '+ soal — semua terbuka penuh selama masa aksesmu, tanpa biaya tambahan.');
-        set('stat-packages', String(stats.packages));
-        set('stat-questions', fmt(stats.questions) + '+');
+        setCount('stat-packages', stats.packages);
+        setCount('stat-questions', stats.questions, '+');
         const card = document.getElementById('stat-users');
         if (card && stats.users > 0) {
-          card.querySelector('.value').textContent = fmt(stats.users);
+          const users = card.querySelector('.value');
+          users.textContent = fmt(stats.users);
+          users.dataset.count = stats.users;
           card.hidden = false;
         }
       }
+      TO.animateCounts(document.querySelector('.lp-trust'));
+      TO.animateCounts(document.getElementById('lp-stats'));
 
       // Harga produk live untuk SEMUA pengunjung (endpoint publik). Dulu hanya
       // dirender untuk yang login, sehingga pengunjung anonim selalu melihat
@@ -533,8 +544,8 @@
               <h3>${TO.esc(p.name)}</h3>
               ${p.description ? `<p class="muted small">${TO.esc(p.description)}</p>` : ''}
               <div class="price-duration">${calIcon}<strong>${p.duration_days} Hari</strong> Akses Penuh</div>
-              <div class="price">${TO.rupiah(p.price)}</div>
-              <p class="muted small">setara ${TO.rupiah(perDay)}/hari</p>
+              <div class="price" data-count="${p.price}" data-count-format="rupiah">${TO.rupiah(p.price)}</div>
+              <p class="muted small">setara <span data-count="${perDay}" data-count-format="rupiah">${TO.rupiah(perDay)}</span>/hari</p>
               <ul class="price-perks">
                 <li>${perkPkg}</li>
                 <li>${perkQ}</li>
@@ -545,6 +556,7 @@
           }).join('');
         }
       } catch (e) { /* fallback ke harga statis */ }
+      TO.animateCounts(document.getElementById('pricing'));
     })();
     (function () {
       var btn = document.getElementById('demo-video');

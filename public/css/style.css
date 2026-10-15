@@ -44,6 +44,17 @@ p { margin: .35rem 0 .7rem; }
 .mono { font-family: Consolas, Menlo, monospace; }
 .center { text-align: center; }
 .nowrap { white-space: nowrap; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+[data-count] { font-variant-numeric: tabular-nums; }
 
 .container { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
 .container-sm { max-width: 480px; margin: 0 auto; padding: 0 16px; }
@@ -819,6 +830,9 @@ body.exam-page { background: #eef2f7; }
 .qr-box { text-align: center; }
 .qr-box svg { width: 100%; max-width: 260px; height: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 .pay-amount { font-size: 1.6rem; font-weight: 800; color: var(--primary-dark); }
+.payment-products { padding-top: 12px; gap: 24px; }
+.payment-products .best-value { border-color: var(--green); box-shadow: 0 14px 36px rgba(21, 128, 61, .1); }
+.payment-price { font-size: 1.5rem; font-weight: 800; color: var(--primary-dark); }
 .countdown { font-family: Consolas, Menlo, monospace; font-size: 1.1rem; font-weight: 700; }
 
 /* ===== Admin ===== */
