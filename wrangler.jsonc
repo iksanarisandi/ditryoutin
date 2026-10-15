@@ -65,7 +65,12 @@
     "DUITKU_FEE_PCT": "0.7",
     // Kuota email harian paket Resend (Free = 100). Dipakai penjaga kuota
     // email notifikasi (services/resend) — naikkan bila paket Resend di-upgrade.
-    "EMAIL_DAILY_LIMIT": "100"
+    "EMAIL_DAILY_LIMIT": "100",
+    // Login dengan Google — Client ID OAuth memang publik (ikut tampil di URL
+    // Google). Client SECRET = rahasia: `wrangler secret put GOOGLE_CLIENT_SECRET`.
+    // Redirect URI terdaftar di Google Console: https://ditryout.in/api/auth/google/callback
+    // dan http://localhost:8787/api/auth/google/callback (dev).
+    "GOOGLE_CLIENT_ID": "322912399103-s1s5uajgh4fi3qj82gd9p2q6ephngen0.apps.googleusercontent.com"
   },
   "workers_dev": false,
   // Rate limiter via Durable Object (binding "ratelimit" bawaan tidak enforce

@@ -55,6 +55,7 @@ Output: inquiry per channel (`--method=SQ,NQ,SP` menguji urutan tertentu), dafta
 | Alur ujian (mulai, autosave, submit) | `src/routes/attempts.ts` | Jangan kirim `correct_answer` sebelum submit |
 | Hasil & pembahasan | `src/routes/results.ts` | Pembahasan hanya setelah submit |
 | Auth, register, lupa password | `src/routes/auth.ts`, `src/utils/session.ts`, `src/utils/hash.ts` | Turnstile dicek sebelum argon2 |
+| Login dengan Google | `src/routes/google-auth.ts`, `src/services/google.ts`, `TO.renderGoogleAuth` di `public/js/app.js` | Efek samping akun baru lewat `afterSignup()` (`src/services/signup.ts`); redirect URI jangan dari `c.req.url` |
 | Referral | `src/services/referrals.ts`, `src/routes/referral.ts` | Diskon 10% invitee; bonus +3 hari saat lunas pertama |
 | Email (transport, kuota, template, reset password, kontak broadcast) | `src/services/resend.ts` | Semua email lewat `sendEmail()` (kuota + `email_log`); gagal tidak boleh membatalkan alur |
 | Email notifikasi (sambutan, bukti bayar, pengingat belum bayar) | `src/services/notifications.ts`, `sendAbandonedPaymentReminders` di `src/services/payments.ts` | Bukti bayar dikirim dari `settlePayment`; kuota Resend Free 100/hari (`EMAIL_DAILY_LIMIT`) |
@@ -109,7 +110,7 @@ Format respons API SELALU `{ success: true, data }` atau `{ success: false, erro
 5. Perbarui `docs/API.md`.
 
 **Tambah/ubah skema (migrasi)**
-1. File BARU `migrations/NNNN_deskripsi.sql`, nomor = terbesar + 1 (saat ini terakhir `0017`). Jangan pernah mengedit migrasi yang sudah diterapkan.
+1. File BARU `migrations/NNNN_deskripsi.sql`, nomor = terbesar + 1 (saat ini terakhir `0018`). Jangan pernah mengedit migrasi yang sudah diterapkan.
 2. Hindari `CASE … END` dan compound `SELECT … UNION ALL` panjang di file migrasi (splitter wrangler/D1 bermasalah — lihat `0007`). Satu statement per aturan.
 3. `npm run db:local` → uji → perbarui `docs/DATABASE.md`. `npm run db:remote` hanya setelah user setuju (produksi).
 4. Kode harus aman berjalan **sebelum** migrasi remote diterapkan bila deploy & migrasi tidak bersamaan — atau terapkan migrasi dulu, lalu deploy.
@@ -144,7 +145,7 @@ Format respons API SELALU `{ success: true, data }` atau `{ success: false, erro
 ## Operasional produksi
 
 - **Baca D1 remote**: `wrangler d1 execute --remote` biasanya ditolak oleh permission layer; pakai `wrangler d1 export <db> --table=<nama> --no-schema --remote --output=file.sql` (simpan di luar git, mis. `backups/`). Tabel `settings` = sumber kebenaran mode pembayaran (`payment_mode`) & gateway aktif (`active_gateway`) — **toggle admin menimpa env vars**, tanpa deploy.
-- **Log live**: `npx wrangler tail --format json` + grep. Create gateway yang sukses TIDAK mengelog apa pun (diam = bagus); kegagalan terlihat sebagai `[duitku] channel <kode> ditolak: <pesan>` dan `[create:fallback] <gateway>`. Prefix log lain: `[settle:referral]`, `[register:referral]`, `[resend]` (termasuk `[resend] kuota <jenis> dilewati` = kuota harian menipis), `[email:welcome|receipt|reminder]`, `[cron:reminder]`, `[ratelimit]`.
+- **Log live**: `npx wrangler tail --format json` + grep. Create gateway yang sukses TIDAK mengelog apa pun (diam = bagus); kegagalan terlihat sebagai `[duitku] channel <kode> ditolak: <pesan>` dan `[create:fallback] <gateway>`. Prefix log lain: `[settle:referral]`, `[register:referral]`, `[google]` (tukar kode gagal, mis. `invalid_client` = secret salah), `[google:referral]`, `[resend]` (termasuk `[resend] kuota <jenis> dilewati` = kuota harian menipis), `[email:welcome|receipt|reminder]`, `[cron:reminder]`, `[ratelimit]`.
 - **Email**: kuota Resend (Free = 100/hari) dipakai bersama semua email; penjaga kuota di `sendEmail()` mendahulukan reset password > bukti bayar > pengingat > sambutan. Jejak kirim di tabel `email_log` (export `--table=email_log` untuk audit).
 - **Duitku**: polling status maks 1x/15 detik per transaksi (lebih rapat = blokir IP ~1 jam); QRIS kedaluwarsa 30 menit; callback = form-urlencoded + signature HMAC-SHA256.
 - **Pakasir**: polling maks 1x/4,5 detik per transaksi; batas bayar 24 jam ditegakkan aplikasi (Pakasir tidak mengirim `expired_at`); webhook `X-Secret` + double-check API status.

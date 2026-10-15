@@ -26,6 +26,14 @@ TURNSTILE_SECRET_KEY=
 # harus berstatus Verified di Resend agar email tidak ditolak.
 RESEND_API_KEY=
 
+# Login dengan Google — Client ID sudah ada di wrangler.jsonc (publik); secret
+# dari Google Cloud Console -> Clients. Di produksi: `wrangler secret put
+# GOOGLE_CLIENT_SECRET`. Kosong = tombol Google tidak tampil.
+# GOOGLE_REDIRECT_URI hanya perlu bila wrangler dev tidak di port 8787
+# (URI harus terdaftar juga di Google Console).
+GOOGLE_CLIENT_SECRET=
+# GOOGLE_REDIRECT_URI=http://localhost:8787/api/auth/google/callback
+
 # Mode pembayaran BUKAN rahasia — diatur di wrangler.jsonc bagian "vars":
 #   PAYMENT_MODE=gateway -> gateway otomatis (Pakasir/Duitku sesuai ACTIVE_GATEWAY)
 #   PAYMENT_MODE=manual  -> QRIS pribadi (/public/img/qris.jpg) + verifikasi admin via WA

@@ -614,6 +614,11 @@ footer.site-footer {
 .auth-wrap { min-height: calc(100vh - 56px); display: flex; align-items: flex-start; justify-content: center; padding: 48px 0; }
 .auth-card { width: 100%; }
 .auth-logo { display: block; margin: 0 auto 14px; border-radius: 18px; }
+.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #1f1f1f; border: 1px solid #747775; box-shadow: none; }
+.btn-google:hover { background: #f6f8fb; color: #1f1f1f; box-shadow: none; }
+.auth-or { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--muted); font-size: .82rem; }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
+.auth-inapp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .side-brand {
   display: flex;
   align-items: center;

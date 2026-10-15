@@ -29,8 +29,9 @@
       <div class="card auth-card">
         <img class="auth-logo" src="/img/logo-192.png" alt="Tryout UPKP" width="64" height="64">
         <h1>Masuk</h1>
-        <p class="muted">Gunakan email dan password akun Anda.</p>
+        <p class="muted">Masuk ke akun Tryout UPKP Anda.</p>
         <div id="error-box" hidden><div class="alert alert-danger" id="error-msg"></div></div>
+        <div id="google-auth" hidden></div>
         <form id="login-form">
           <div class="form-group">
             <label for="email">Email</label>
@@ -60,12 +61,19 @@
       const btn = document.getElementById('btn-submit');
       const errBox = document.getElementById('error-box');
       const errMsg = document.getElementById('error-msg');
+      const gErr = TO.googleErrorMessage();
+      if (gErr) { errMsg.textContent = gErr; errBox.hidden = false; }
 
       // Turnstile (aktif hanya jika server mengonfigurasi kuncinya).
       let turnstileToken = '';
       let tsWidget = null;
+      let googleOn = false;
       try {
         const cfg = await TO.api('/api/auth/captcha');
+        if (cfg.google) {
+          googleOn = true;
+          TO.renderGoogleAuth(document.getElementById('google-auth'), { from: 'login', label: 'Masuk dengan Google' });
+        }
         if (cfg.enabled) {
           await new Promise((res, rej) => {
             if (window.turnstile) return res();
@@ -98,7 +106,10 @@
           const dest = next && next.startsWith('/') ? next : (data.user.role === 'admin' ? '/admin/' : '/dashboard.html');
           location.href = dest;
         } catch (err) {
-          errMsg.textContent = err.message;
+          // Akun yang dibuat lewat Google tidak punya password.
+          errMsg.textContent = err.message + (googleOn && err.status === 401
+            ? ' Jika Anda biasa masuk dengan Google, gunakan tombol "Masuk dengan Google" di atas.'
+            : '');
           errBox.hidden = false;
           btn.disabled = false;
           btn.textContent = 'Masuk';

@@ -16,6 +16,7 @@ import type { AppEnv } from '../types';
 // - RATE_LIMIT_REGISTER: register per IP (vektor utama penghabisan kuota tulis D1)
 // - RATE_LIMIT_RESET:    reset-password per IP (argon2 mahal CPU + tulis D1)
 // - RATE_LIMIT_WRITE:    endpoint tulis per user (autosave ujian) atau per IP (anonim)
+// - RATE_LIMIT_OAUTH:    callback Login dengan Google per IP
 //
 // Jika DO error, request DIIZINKAN (fail-open) — rate limit tidak boleh
 // membuat situs mati total, hanya membatasi.
@@ -30,7 +31,8 @@ export type LimiterName =
   | 'RATE_LIMIT_WRITE'
   | 'RATE_LIMIT_LOGINFAIL'
   | 'RATE_LIMIT_RECONCILE'
-  | 'RATE_LIMIT_MATERIAL';
+  | 'RATE_LIMIT_MATERIAL'
+  | 'RATE_LIMIT_OAUTH';
 
 const LIMITS: Record<LimiterName, { limit: number; period: number }> = {
   RATE_LIMIT_API: { limit: 300, period: 60 },
@@ -67,6 +69,9 @@ const LIMITS: Record<LimiterName, { limit: number; period: number }> = {
   // saat membuka 1 dokumen) tidak pernah tersendat, tapi menutup abuse bandwidth
   // skrip dari satu akun yang menembus batas /api umum (per IP).
   RATE_LIMIT_MATERIAL: { limit: 150, period: 60 },
+  // Callback Login Google per IP: tiap panggilan = fetch ke Google + tulis D1.
+  // Manusia butuh 1-2x; 20/10 menit memberi ruang NAT kantor/kampus.
+  RATE_LIMIT_OAUTH: { limit: 20, period: 600 },
 };
 
 // IP asli klien di edge Cloudflare (tidak bisa dipalsukan visitor).

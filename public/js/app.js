@@ -241,6 +241,58 @@
     if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); logout(); });
   }
 
+  // ---- Login dengan Google ----
+  // Alur sepenuhnya di server (/api/auth/google → Google → callback); kegagalan
+  // kembali ke halaman asal dengan ?google_error=<kode>.
+  const GOOGLE_ERRORS = {
+    cancelled: 'Login dengan Google dibatalkan.',
+    expired: 'Sesi login Google kedaluwarsa. Silakan coba lagi.',
+    failed: 'Login dengan Google gagal. Coba lagi, atau gunakan email dan password.',
+    unverified: 'Email akun Google Anda belum terverifikasi. Gunakan akun Google lain atau daftar dengan email.',
+    conflict: 'Email ini sudah terhubung dengan akun Google lain. Hubungi admin untuk bantuan.',
+    limited: 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.',
+    unavailable: 'Login dengan Google sedang tidak tersedia. Gunakan email dan password.',
+  };
+  function googleErrorMessage() {
+    const code = qs('google_error');
+    return code ? (GOOGLE_ERRORS[code] || GOOGLE_ERRORS.failed) : '';
+  }
+  // Google menolak OAuth di WebView aplikasi (403 disallowed_useragent) —
+  // banyak pengunjung datang dari bio/iklan Instagram & TikTok.
+  const IN_APP_RE = /FBAN|FBAV|FB_IAB|Instagram|Line\/|TikTok|musical_ly|BytedanceWebview|Snapchat|Twitter|; wv\)/i;
+  const GOOGLE_G_SVG =
+    '<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+  function renderGoogleAuth(el, opts = {}) {
+    if (!el) return;
+    const divider = '<div class="auth-or"><span>atau dengan email</span></div>';
+    if (IN_APP_RE.test(navigator.userAgent)) {
+      const chrome = /Android/i.test(navigator.userAgent)
+        ? `<a class="btn btn-sm" href="${esc('intent://' + location.host + location.pathname + location.search + '#Intent;scheme=https;package=com.android.chrome;end')}">Buka di Chrome</a>`
+        : '';
+      el.innerHTML =
+        '<div class="alert alert-warn small">Login dengan Google tidak bisa dibuka dari browser di dalam aplikasi (Instagram, TikTok, Facebook, dll.). ' +
+        'Buka halaman ini di Chrome atau Safari, atau gunakan email di bawah.' +
+        `<div class="auth-inapp-actions">${chrome}<button type="button" class="btn btn-sm btn-ghost" data-copy-link>Salin tautan</button></div></div>` +
+        divider;
+      el.querySelector('[data-copy-link]').addEventListener('click', async () => {
+        toast((await copy(location.href)) ? 'Tautan disalin — tempel di Chrome/Safari.' : 'Gagal menyalin tautan.');
+      });
+    } else {
+      el.innerHTML =
+        `<button type="button" class="btn btn-block btn-google">${GOOGLE_G_SVG}<span>${esc(opts.label || 'Masuk dengan Google')}</span></button>` +
+        divider;
+      el.querySelector('.btn-google').addEventListener('click', () => {
+        const p = new URLSearchParams({ from: opts.from === 'register' ? 'register' : 'login' });
+        const next = qs('next');
+        if (next && next.startsWith('/')) p.set('next', next);
+        const ref = opts.getRef ? opts.getRef() : '';
+        if (ref) p.set('ref', ref);
+        location.href = '/api/auth/google?' + p.toString();
+      });
+    }
+    el.hidden = false;
+  }
+
   // ---- Modal helper ----
   function openModal(id) { const m = document.getElementById(id); if (m) m.hidden = false; }
   function closeModal(id) { const m = document.getElementById(id); if (m) m.hidden = true; }
@@ -274,6 +326,6 @@
   window.TO = {
     api, esc, rupiah, animateCounts, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft, snippet,
     toast, busy, copy, fetchMe, requireUser, requireAdmin, logout,
-    renderHeader, openModal, closeModal, WA_ADMIN,
+    renderHeader, openModal, closeModal, WA_ADMIN, renderGoogleAuth, googleErrorMessage,
   };
 })();

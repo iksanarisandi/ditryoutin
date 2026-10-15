@@ -31,6 +31,7 @@
         <h1>Daftar Akun</h1>
         <p class="muted">Langsung bisa masuk setelah mendaftar.</p>
         <div id="error-box" hidden><div class="alert alert-danger" id="error-msg"></div></div>
+        <div id="google-auth" hidden></div>
         <form id="reg-form">
           <div class="form-group">
             <label for="name">Nama Lengkap</label>
@@ -80,11 +81,21 @@
           'untuk pembelian akses pertamamu.</div>');
       }
 
+      const gErr = TO.googleErrorMessage();
+      if (gErr) { errMsg.textContent = gErr; errBox.hidden = false; }
+
       // Turnstile (aktif hanya jika server mengonfigurasi kuncinya).
       let turnstileToken = '';
       let tsWidget = null;
       try {
         const cfg = await TO.api('/api/auth/captcha');
+        if (cfg.google) {
+          TO.renderGoogleAuth(document.getElementById('google-auth'), {
+            from: 'register',
+            label: 'Daftar dengan Google',
+            getRef: () => form.ref.value.trim(),
+          });
+        }
         if (cfg.enabled) {
           await new Promise((res, rej) => {
             if (window.turnstile) return res();

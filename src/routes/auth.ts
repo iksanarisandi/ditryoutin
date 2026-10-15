@@ -9,8 +9,8 @@ import {
   isSecureRequest,
   sessionSetCookie,
 } from '../utils/session';
-import { sendPasswordResetEmail, addResendContact } from '../services/resend';
-import { sendWelcomeEmail } from '../services/notifications';
+import { sendPasswordResetEmail } from '../services/resend';
+import { afterSignup } from '../services/signup';
 import { normalizeEmail, trimStr, validPassword } from '../utils/validate';
 import { readJson } from '../utils/body';
 import { accessActive, requireAuth } from '../middleware/auth';
@@ -18,7 +18,7 @@ import { ipRateLimit, clientIp, isLimited } from '../middleware/ratelimit';
 import { verifyTurnstile } from '../services/turnstile';
 import { finalizeUserExpiredAttempts } from '../services/scoring';
 import { reconcilePendingPayments } from '../services/payments';
-import { recordReferral } from '../services/referrals';
+import { googleEnabled } from '../services/google';
 import type { AppEnv } from '../types';
 
 const auth = new Hono<AppEnv>();
@@ -43,11 +43,13 @@ auth.use('/forgot-password', ipRateLimit('RATE_LIMIT_FORGOT'));
 // Argon2 + tulis D1, manusia kirim sekali: 6x/10 menit per IP.
 auth.use('/reset-password', ipRateLimit('RATE_LIMIT_RESET'));
 
-// Konfigurasi captcha untuk frontend (site key memang publik).
+// Konfigurasi halaman login/daftar: captcha (site key memang publik) + apakah
+// tombol Login dengan Google ditampilkan.
 auth.get('/captcha', (c) =>
   ok(c, {
     enabled: !!(c.env.TURNSTILE_SITE_KEY && c.env.TURNSTILE_SECRET_KEY),
     site_key: c.env.TURNSTILE_SITE_KEY ?? null,
+    google: googleEnabled(c.env),
   }),
 );
 
@@ -93,29 +95,7 @@ auth.post('/register', async (c) => {
     .run();
   const userId = Number(res.meta.last_row_id);
 
-  // Referal opsional: catat siapa mengundang — TANPA hadiah di muka (diskon
-  // invitee & bonus pengundang keluar di jalur pembayaran). Kode salah
-  // diam-diam diabaikan (tanpa pesan error — mencegah oracle enumerasi kode),
-  // dan kegagalan apa pun TIDAK boleh membatalkan pendaftaran yang sudah jadi.
-  if (body.ref) {
-    try {
-      await recordReferral(c.env.DB, body.ref, userId);
-    } catch (e) {
-      console.error('[register:referral]', email, e);
-    }
-  }
-
-  // Sinkron ke daftar kontak Resend (bahan Broadcast info/promo) + email
-  // sambutan: fire-and-forget via waitUntil — tidak menahan respons, dan
-  // kegagalannya tidak pernah membatalkan pendaftaran yang sudah jadi (pola
-  // sama seperti referal di atas). Sambutan dicatat SETELAH referal agar
-  // diskon undangan ikut tampil di email.
-  if (c.env.RESEND_API_KEY) {
-    c.executionCtx.waitUntil(addResendContact(c.env.RESEND_API_KEY, email, name));
-    c.executionCtx.waitUntil(sendWelcomeEmail(c.env, userId, email, name));
-  } else {
-    console.error('[register] RESEND_API_KEY belum diset — kontak Resend tidak tersinkron');
-  }
+  await afterSignup(c.env, c.executionCtx, { id: userId, email, name }, body.ref, 'register');
 
   const token = await createSession(c.env.DB, c.env.SESSION_SECRET, userId);
   c.header('Set-Cookie', sessionSetCookie(token, isSecureRequest(c)));
@@ -313,9 +293,10 @@ auth.post('/reset-password', async (c) => {
     c.env.DB.prepare('UPDATE password_reset_tokens SET used_at=? WHERE id=?').bind(now, row.id),
     c.env.DB.prepare('DELETE FROM password_reset_tokens WHERE user_id=? AND id<>?')
       .bind(row.user_id, row.id),
+    // Token dari email terpakai = kepemilikan email terbukti.
     c.env.DB.prepare(
-      'UPDATE users SET password_hash=?, failed_attempts=0, locked_until=NULL, updated_at=? WHERE id=?',
-    ).bind(hashPassword(password), now, row.user_id),
+      'UPDATE users SET password_hash=?, failed_attempts=0, locked_until=NULL, email_verified_at=COALESCE(email_verified_at, ?), updated_at=? WHERE id=?',
+    ).bind(hashPassword(password), now, now, row.user_id),
     c.env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(row.user_id),
   ]);
   return ok(c, { message: 'Password berhasil diganti. Silakan masuk dengan password baru.' });

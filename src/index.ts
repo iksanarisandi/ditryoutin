@@ -10,6 +10,7 @@ import { reconcileStalePayments, sendAbandonedPaymentReminders } from './service
 import { getPaymentMode } from './services/settings';
 
 import authRoutes from './routes/auth';
+import googleAuthRoutes from './routes/google-auth';
 import setupRoutes from './routes/setup';
 import packagesRoutes from './routes/packages';
 import attemptsRoutes from './routes/attempts';
@@ -74,6 +75,7 @@ app.use('/api/*', async (c, next) => {
 app.use('*', originGuard);
 app.use('*', securityHeaders);
 
+app.route('/api/auth/google', googleAuthRoutes);
 app.route('/api/auth', authRoutes);
 app.route('/api/setup', setupRoutes);
 app.route('/api/packages', packagesRoutes);

@@ -43,6 +43,14 @@ export type Env = {
   // Kuota email harian paket Resend (default 100 = paket Free). Penjaga kuota
   // berhenti mengirim email prioritas rendah sebelum batas ini tercapai.
   EMAIL_DAILY_LIMIT?: string;
+  // Login dengan Google (OAuth). Client ID publik (wrangler.jsonc vars);
+  // client secret = RAHASIA (`wrangler secret put GOOGLE_CLIENT_SECRET`).
+  // Tombol Google aktif hanya bila keduanya terisi.
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  // Opsional: paksa redirect URI (mis. wrangler dev di port selain 8787).
+  // Default: https://ditryout.in/... di edge, http://localhost:8787/... lokal.
+  GOOGLE_REDIRECT_URI?: string;
   // Durable Object rate limiter (counter per limiter+key).
   RATE_LIMIT_DO: DurableObjectNamespace;
 };

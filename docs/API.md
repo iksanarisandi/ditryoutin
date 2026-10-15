@@ -28,14 +28,23 @@ Semua endpoint di bawah `/api/*`, dilayani Worker (`src/index.ts` me-mount route
 
 | Method | Path | Guard | Fungsi |
 |---|---|---|---|
-| GET | `/captcha` | publik | Site key Turnstile (kosong = captcha nonaktif) |
+| GET | `/captcha` | publik | Konfigurasi halaman login/daftar: site key Turnstile (kosong = captcha nonaktif) + `google` (tombol Login Google aktif) |
 | POST | `/register` | publik, 6/mnt/IP | `{ name, email, password, turnstile_token?, ref? }` — buat akun + sesi; `ref` = kode referral (salah = diabaikan diam-diam); sinkron kontak Resend + email sambutan (waitUntil) |
 | POST | `/login` | publik, 12/mnt/IP | `{ email, password, turnstile_token? }` — lockout 5 gagal/15 mnt (password benar tetap bisa masuk); email tak terdaftar dikunci virtual (anti-enumeration) |
 | POST | `/logout` | user | Hapus sesi ini |
 | GET | `/me` | user | Profil + status akses (`access.active`, `days_left`, `is_admin`, `has_access`). Efek samping: finalisasi attempt kedaluwarsa + rekonsiliasi payment pending (maks 1x/15 dtk/user) |
 | POST | `/heartbeat` | user | Cek sesi masih valid (dipakai halaman ujian; tanpa efek samping) |
 | POST | `/forgot-password` | publik, 5/15 mnt/IP + 3/15 mnt/email | `{ email }` — kirim tautan reset (Resend). Respons selalu netral |
-| POST | `/reset-password` | publik, 6/10 mnt/IP | `{ token, password }` — token sekali pakai 1 jam; sukses = hapus semua sesi user + buka lockout |
+| POST | `/reset-password` | publik, 6/10 mnt/IP | `{ token, password }` — token sekali pakai 1 jam; sukses = hapus semua sesi user + buka lockout + tandai `email_verified_at` |
+
+## Login dengan Google — `src/routes/google-auth.ts` (`/api/auth/google`)
+
+Navigasi top-level (bukan `fetch`): semua respons berupa redirect 302. Gagal → kembali ke `/login.html` atau `/register.html` dengan `?google_error=<cancelled|expired|failed|unverified|conflict|limited|unavailable>` (pesan di `TO.googleErrorMessage()`).
+
+| Method | Path | Guard | Fungsi |
+|---|---|---|---|
+| GET | `/` | publik | `?from=login\|register&next=&ref=` — set cookie alur `g_oauth` (state + PKCE verifier + next/ref, 10 menit, `Path=/api/auth/google`) lalu redirect ke Google. `www.` dialihkan dulu ke apex |
+| GET | `/callback` | publik, 20/10 mnt/IP | Cek `state` = cookie, tukar `code` (PKCE) di Google, wajib `email_verified`. Urutan cocok: `google_sub` → email (akun lama ditautkan; password akun yang emailnya belum terbukti dimatikan, kecuali admin) → buat akun baru (referral + kontak Resend + email sambutan). Buat sesi, redirect ke `next` / dashboard |
 
 ## Setup — `src/routes/setup.ts` (`/api/setup`)
 

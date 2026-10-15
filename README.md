@@ -39,6 +39,8 @@ npm run dev                      # http://localhost:8787
 | `TURNSTILE_SITE_KEY` | ⬜ (disarankan produksi) | Site key Cloudflare Turnstile untuk captcha register/login (publik, boleh di frontend). |
 | `TURNSTILE_SECRET_KEY` | ⬜ (disarankan produksi) | Secret key Turnstile — verifikasi token di server. Aktif hanya jika site key juga terisi. |
 | `RESEND_API_KEY` | ⬜ (wajib untuk lupa password & notifikasi email) | API key Resend — kirim email reset password, sambutan pendaftaran, bukti bayar, pengingat belum bayar + sinkron pendaftar baru ke Contacts Resend (bahan broadcast). Domain pengirim `ditryout.in` harus Verified di Resend. Kosong = email tidak terkirim (alur tetap jalan, error di log). |
+| `GOOGLE_CLIENT_SECRET` | ⬜ (Login dengan Google) | Client secret OAuth (Google Cloud Console → Clients). Tombol Google tampil hanya bila secret ini + `GOOGLE_CLIENT_ID` terisi. |
+| `GOOGLE_REDIRECT_URI` | ⬜ (dev saja) | Paksa redirect URI OAuth (mis. wrangler dev di port selain 8787). Default: `https://ditryout.in/api/auth/google/callback` di edge, `http://localhost:8787/api/auth/google/callback` lokal — keduanya harus terdaftar di Google Console. |
 
 Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 
@@ -51,6 +53,7 @@ Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 | `DUITKU_MERCHANT_CODE` | merchantCode Duitku (sandbox `DS…`, produksi `D…`). |
 | `DUITKU_SANDBOX` | `true` = pakai sandbox.duitku.com. Sandbox **tidak pernah** dipakai untuk transaksi user di host produksi (diblokir di kode); uji penuh di localhost (preview `*.workers.dev` sudah dimatikan: `workers_dev: false`). |
 | `DUITKU_QRIS_METHOD` | Daftar preferensi channel QRIS Duitku, dipisah koma — default `SQ,NQ,SP` (`SQ` = Nusapay, `NQ` = Nobu, `SP` = ShopeePay — tiga channel TERPISAH di katalog Duitku walau NusaPay produk Bank Nobu; semua interoperabel antar app QRIS). Channel pertama yang tersedia yang dipakai — channel aktif per merchant bisa beda, cek `getpaymentmethod` via smoke test. |
+| `GOOGLE_CLIENT_ID` | Client ID OAuth Login dengan Google (publik — ikut tampil di URL Google). |
 | `EMAIL_DAILY_LIMIT` | Kuota email harian paket Resend — default `100` (paket Free). Dasar penjaga kuota email notifikasi (lihat "Email notifikasi"). Naikkan bila paket Resend di-upgrade. |
 | `DUITKU_FEE_PCT` | Fee QRIS Duitku (%) yang ditanggung merchant — default `0.7` (MDR QRIS). Di-pass-through ke pembeli via gross-up: tagihan = harga + fee (dibulatkan ceil ke rupiah), dana masuk merchant tetap = harga produk; `payments.amount` menyimpan harga dasar, `total_payment`/`fee` nominal bayar (pola sama Pakasir). `0`/kosong = tanpa markup. |
 
@@ -70,6 +73,7 @@ wrangler secret put TURNSTILE_SECRET_KEY   # opsional: pasangan site key
 wrangler secret put DUITKU_API_KEY         # gateway alternatif (key sandbox dulu utk uji;
                                            # ganti key produksi saat go-live Duitku)
 wrangler secret put RESEND_API_KEY         # email lupa password, notifikasi + kontak broadcast
+wrangler secret put GOOGLE_CLIENT_SECRET   # Login dengan Google (client ID di wrangler.jsonc)
 
 # 2. migrasi database produksi
 npm run db:remote
@@ -218,6 +222,7 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Rate limit berlapis via Durable Object (`src/do/ratelimit.ts`, angka di `LIMITS` `src/middleware/ratelimit.ts`):** semua `/api/*` 300/menit per IP; login & setup 12/menit per IP; register 6/menit per IP; lupa password 5/15 menit per IP + 3/15 menit per email; reset password 6/10 menit per IP; endpoint tulis lain 90/menit per user; unduh PDF materi 150/menit per user; rekonsiliasi pembayaran via `/me` maks 1x/15 detik per user. Counter fixed-window kuat-konsisten per key (satu instance DO per limiter+key). Jika DO error, fail-open (situs tidak mati). CATATAN: binding `ratelimit` bawaan Cloudflare pernah dicoba tapi tidak enforce pada akun ini (selalu success=true) — karena itu dipakai DO. Untuk flood yang lebih besar, tambahkan WAF Rate Limiting rule di dashboard Cloudflare (blokir `contains "/api/auth/"` > 10/menit per IP) — itu menahan serangan SEBELUM menyentuh Worker.
 - **Lockout per-akun:** 5 login gagal → akun terkunci 15 menit untuk percobaan password SALAH berikutnya (password benar tetap bisa masuk, agar orang lain tidak bisa mengunci akun korban). Email tak terdaftar mendapat kunci virtual yang sama (counter DO) supaya respons tidak membocorkan email mana yang terdaftar.
 - **Lupa password:** `POST /api/auth/forgot-password` mengirim tautan via Resend (`RESEND_API_KEY`) berisi token sekali pakai berlaku 1 jam (DB hanya menyimpan hash, tabel `password_reset_tokens`). Respons selalu netral. Reset sukses = semua sesi user dihapus + lockout dibuka.
+- **Login dengan Google (`src/routes/google-auth.ts`, `src/services/google.ts`):** OAuth authorization code + PKCE di server, scope `openid email profile` saja, tanpa SDK Google di frontend dan tanpa menyimpan token Google. Hanya email `email_verified` yang diterima → `users.email_verified_at`. Akun dicocokkan via `google_sub`, lalu email: akun lama ditautkan otomatis; bila email akun lama belum pernah terbukti (tidak pernah login Google/reset password), password-nya dimatikan (`!google-only`) agar pendaftar palsu dengan email orang lain tidak ikut memegang akun — pemilik bisa membuat password baru via Lupa password (admin dikecualikan). Akun baru melewati alur yang sama dengan register (referral, kontak Resend, sambutan) via `afterSignup()` (`src/services/signup.ts`). Browser in-app (Instagram/TikTok/Facebook) diblokir Google (`disallowed_useragent`) — halaman menampilkan ajakan buka di Chrome/Safari, login email tetap tersedia. Redirect URI tidak diturunkan dari `c.req.url` (jebakan rewrite host wrangler dev).
 - **Program referral:** setiap user punya kode undangan (dibuat saat pertama dibuka di dashboard, link `register.html?ref=KODE`). Yang diundang mendapat diskon 10% pada pembelian pertama yang lunas; pengundang mendapat +3 hari akses saat transaksi pertama invitee lunas (bukan saat daftar — akun palsu tidak menghasilkan apa pun). Satu akun hanya bisa jadi invitee sekali (`referrals.invitee_id` UNIQUE). Konstanta di `src/services/referrals.ts`.
 - **Kontak broadcast:** pendaftar baru disinkron ke Contacts Resend (fire-and-forget, tidak pernah menggagalkan registrasi).
 - **Email notifikasi (Resend, `src/services/notifications.ts` + template di `src/services/resend.ts`):**

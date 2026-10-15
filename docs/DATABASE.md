@@ -18,7 +18,9 @@ Akun peserta & admin.
 | Kolom | Catatan |
 |---|---|
 | `email` | UNIQUE, dinormalisasi lowercase |
-| `password_hash` | Argon2id (`src/utils/hash.ts`) |
+| `password_hash` | Argon2id (`src/utils/hash.ts`). `!google-only` = akun tanpa password (dibuat via Google, atau password dimatikan saat ditautkan) — tidak pernah cocok; bisa dibuat lewat Lupa password |
+| `google_sub` | Klaim `sub` Google (ID akun permanen). NULL = belum pernah Login Google. Unique parsial `idx_users_google_sub` |
+| `email_verified_at` | Kapan kepemilikan email terbukti (Login Google `email_verified`, atau reset password via tautan email). NULL = belum |
 | `role` | `'user' \| 'admin'` — partial unique index `idx_users_single_admin` = maks 1 admin |
 | `access_expires_at` | Batas akses tryout; NULL = belum pernah beli. Akses aktif ⇔ > sekarang |
 | `access_started_at` | Awal periode akses berjalan (direset bila akses sempat habis) |
@@ -114,7 +116,7 @@ Metadata materi PDF; byte file di R2 `MATERI_BUCKET` dengan key `materi/{uuid}.p
 | `idx_payments_status_created` | Cron pengingat belum bayar (status + rentang umur) |
 | `idx_email_log_kind_payment` (unique parsial), `idx_email_log_created_at`, `idx_email_log_user_kind` | Anti-dobel email, kuota harian, batas pengingat per user |
 | `idx_sessions_expires_at`, `idx_users_access_expires_at` | Cron & statistik akses |
-| `idx_users_single_admin`, `idx_users_referral_code` | Partial unique (lihat atas) |
+| `idx_users_single_admin`, `idx_users_referral_code`, `idx_users_google_sub` | Partial unique (lihat atas) |
 
 ## Migrasi
 
@@ -137,8 +139,9 @@ Metadata materi PDF; byte file di R2 `MATERI_BUCKET` dengan key `materi/{uuid}.p
 | `0015_payments_gateway_and_mode` | `payments.gateway`, rename mode `pakasir` → `gateway` |
 | `0016_payments_payment_url` | `payments.payment_url` (Duitku) |
 | `0017_email_log` | Tabel `email_log` (kuota & anti-dobel email notifikasi) + index `payments(status, created_at)` |
+| `0018_google_login` | `users.google_sub` (+ unique parsial), `users.email_verified_at` — Login dengan Google |
 
-Catatan: ada **dua file bernomor `0004`** (sejarah) — wrangler melacak migrasi per nama file di tabel `d1_migrations`, jadi keduanya sudah diterapkan dan tidak boleh di-rename. Migrasi berikutnya: `0018_…`.
+Catatan: ada **dua file bernomor `0004`** (sejarah) — wrangler melacak migrasi per nama file di tabel `d1_migrations`, jadi keduanya sudah diterapkan dan tidak boleh di-rename. Migrasi berikutnya: `0019_…`.
 
 Aturan menulis migrasi:
 - Selalu file baru; jangan mengedit migrasi yang sudah diterapkan (komentar lama di dalamnya boleh tertinggal — mis. `0012` masih menyebut mode `pakasir`).
