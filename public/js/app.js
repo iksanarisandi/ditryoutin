@@ -71,7 +71,7 @@
         const start = performance.now();
         function tick(now) {
           if (!el.isConnected) { frames.delete(el); return; }
-          const progress = motion.matches ? 1 : Math.min((now - start) / 900, 1);
+          const progress = motion.matches ? 1 : Math.max(0, Math.min((now - start) / 900, 1));
           value.textContent = format(el, Math.round(target * (1 - Math.pow(1 - progress, 3))));
           if (progress < 1) frames.set(el, requestAnimationFrame(tick));
           else {
