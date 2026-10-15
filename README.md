@@ -4,6 +4,8 @@ Platform tryout berbayar untuk persiapan **UPKP Imipas** (Kementerian Imigrasi d
 
 **Live:** https://ditryout.in
 
+**Dokumentasi lain:** [`AGENTS.md`](AGENTS.md) (panduan kerja untuk AI agent/maintainer: peta file, invarian, checklist, jebakan) · [`docs/API.md`](docs/API.md) (semua endpoint) · [`docs/DATABASE.md`](docs/DATABASE.md) (skema D1 & aturan migrasi) · `prd.txt` (PRD asli).
+
 ## Stack
 
 | Lapisan | Teknologi |
@@ -11,7 +13,7 @@ Platform tryout berbayar untuk persiapan **UPKP Imipas** (Kementerian Imigrasi d
 | Runtime | Cloudflare Workers (Hono) |
 | Database | Cloudflare D1 (SQLite) + raw SQL, tanpa ORM |
 | Auth | Cookie session (HttpOnly), hash password **Argon2id** (@noble/hashes, JS murni) |
-| Pembayaran | Pakasir API v2 (QRIS) — atau mode manual: QRIS pribadi + verifikasi admin via WA |
+| Pembayaran | Dua gateway QRIS dinamis: **Pakasir** (utama) & **Duitku** (aktif via toggle admin, fallback otomatis) — atau mode manual: QRIS pribadi + verifikasi admin via WA |
 | Frontend | HTML + CSS + vanilla JS (static assets via Workers Assets) |
 
 ## Setup Lokal
@@ -36,6 +38,7 @@ npm run dev                      # http://localhost:8787
 | `SETUP_SECRET` | ⬜ (disarankan produksi) | Mengunci halaman `/setup` (bootstrap admin pertama). |
 | `TURNSTILE_SITE_KEY` | ⬜ (disarankan produksi) | Site key Cloudflare Turnstile untuk captcha register/login (publik, boleh di frontend). |
 | `TURNSTILE_SECRET_KEY` | ⬜ (disarankan produksi) | Secret key Turnstile — verifikasi token di server. Aktif hanya jika site key juga terisi. |
+| `RESEND_API_KEY` | ⬜ (wajib untuk lupa password) | API key Resend — kirim email reset password + sinkron pendaftar baru ke Contacts Resend (bahan broadcast). Domain pengirim `ditryout.in` harus Verified di Resend. Kosong = email tidak terkirim (respons tetap netral, error di log). |
 
 Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 
@@ -46,8 +49,8 @@ Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 | `MANUAL_WA` | Nomor WA admin (format internasional tanpa `+`, mis. `6282347303153`). Dipakai untuk konfirmasi pembayaran manual **dan** tombol "Kendala pembayaran?" di halaman bayar gateway (`support_wa`). |
 | `ACTIVE_GATEWAY` | Gateway utama transaksi QRIS baru: `pakasir` (default) \| `duitku`. Bila gateway utama error saat create, otomatis dialihkan ke gateway satunya (bila layak: terkonfigurasi + bukan sandbox di host produksi). Toggle admin menimpa nilai ini. |
 | `DUITKU_MERCHANT_CODE` | merchantCode Duitku (sandbox `DS…`, produksi `D…`). |
-| `DUITKU_SANDBOX` | `true` = pakai sandbox.duitku.com. Sandbox **tidak pernah** dipakai untuk transaksi user di host produksi (diblokir di kode); uji penuh di localhost / preview `*.workers.dev`. |
-| `DUITKU_QRIS_METHOD` | Daftar preferensi channel QRIS Duitku, dipisah koma — default `SQ,NQ,SP` (`SQ` = Nusapay, `NQ` = Nobu, `SP` = ShopeePay — tiga channel TERPISU di katalog Duitku walau NusaPay produk Bank Nobu; semua interoperabel antar app QRIS). Channel pertama yang tersedia yang dipakai — channel aktif per merchant bisa beda, cek `getpaymentmethod` via smoke test. |
+| `DUITKU_SANDBOX` | `true` = pakai sandbox.duitku.com. Sandbox **tidak pernah** dipakai untuk transaksi user di host produksi (diblokir di kode); uji penuh di localhost (preview `*.workers.dev` sudah dimatikan: `workers_dev: false`). |
+| `DUITKU_QRIS_METHOD` | Daftar preferensi channel QRIS Duitku, dipisah koma — default `SQ,NQ,SP` (`SQ` = Nusapay, `NQ` = Nobu, `SP` = ShopeePay — tiga channel TERPISAH di katalog Duitku walau NusaPay produk Bank Nobu; semua interoperabel antar app QRIS). Channel pertama yang tersedia yang dipakai — channel aktif per merchant bisa beda, cek `getpaymentmethod` via smoke test. |
 | `DUITKU_FEE_PCT` | Fee QRIS Duitku (%) yang ditanggung merchant — default `0.7` (MDR QRIS). Di-pass-through ke pembeli via gross-up: tagihan = harga + fee (dibulatkan ceil ke rupiah), dana masuk merchant tetap = harga produk; `payments.amount` menyimpan harga dasar, `total_payment`/`fee` nominal bayar (pola sama Pakasir). `0`/kosong = tanpa markup. |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
@@ -65,6 +68,7 @@ wrangler secret put TURNSTILE_SITE_KEY     # opsional: captcha register/login
 wrangler secret put TURNSTILE_SECRET_KEY   # opsional: pasangan site key
 wrangler secret put DUITKU_API_KEY         # gateway alternatif (key sandbox dulu utk uji;
                                            # ganti key produksi saat go-live Duitku)
+wrangler secret put RESEND_API_KEY         # email lupa password + kontak broadcast
 
 # 2. migrasi database produksi
 npm run db:remote
@@ -93,13 +97,27 @@ Tanpa webhook, pembayaran tetap tuntas lewat **polling** (`GET /api/payments/:id
 
 ### Gateway Duitku (alternatif QRIS)
 
-Duitku adalah gateway kedua — aktif dipilih admin, fallback otomatis bila gateway utama error saat create. QRIS Duitku berlaku **30 menit** (vs 24 jam Pakasir). Status: sandbox dulu sampai review produksi Duitku lolos.
+Duitku adalah gateway kedua — **LIVE di produksi sejak 14 Okt 2026** (QRIS Nusapay `SQ`; settle uang nyata terverifikasi). Dipilih via toggle admin (Gateway Aktif), fallback otomatis bila gateway utama error saat create. QRIS Duitku berlaku **30 menit** (vs 24 jam Pakasir).
+
+**Kode channel QRIS — tiga channel TERPISAH, katalog sandbox ≠ produksi:**
+
+| Kode | Channel | Status di merchant `D25142` (14 Okt 2026) |
+|---|---|---|
+| `SQ` | Nusapay | ✅ aktif — dipakai saat ini |
+| `NQ` | Nobu | hanya muncul di sandbox; ditolak produksi |
+| `SP` | ShopeePay | belum aktif |
+
+NusaPay memang produk QRIS Bank Nobu, tapi di katalog Duitku keduanya channel **berbeda** — jangan digabung (inilah sumber salah kode 14 Okt: komentar lama menulis "NQ = Nusapay/Nobu"). `DUITKU_QRIS_METHOD="SQ,NQ,SP"` = daftar preferensi berurutan: channel pertama yang diterima yang dipakai; mengaktifkan/mematikan channel di dashboard Duitku tidak perlu deploy ulang.
+
+**Diagnosa error `Payment channel not available`** (HTTP 404 saat inquiry): artinya channel belum aktif untuk merchant — BUKAN salah signature/kredensial. Lihat channel yang benar-benar aktif via `getpaymentmethod` (bagian dari smoke test): output-nya juga menguji inquiry per channel (`--method=SQ`) dan `transactionStatus`.
+
+**Fee QRIS 0,7% (MDR) — pass-through ke pembeli:** Duitku memotong fee dari settlement merchant, jadi tagihan di-gross-up agar dana masuk tetap = harga produk: `DUITKU_FEE_PCT="0.7"` (wrangler.jsonc) → tagihan = `ceil(harga/(1-0,7%))`, mis. 9.000 → bayar **9.064**. `payments.amount` menyimpan harga dasar; `total_payment`/`fee` menyimpan tagihan + selisih (pola sama dengan fee Pakasir — halaman bayar otomatis menulis "termasuk biaya layanan Rp X"). Set `0`/kosong untuk menanggung fee sendiri. Verifikasi callback & polling membandingkan **nominal tagihan** (`total_payment`), bukan harga dasar.
 
 - Callback Duitku (server-ke-server, form-urlencoded + signature HMAC-SHA256): `https://ditryout.in/api/payments/duitku/callback` — juga dikirim per-transaksi saat create (URL mengikuti origin request, jadi uji localhost/preview otomatis memakai URL host itu sendiri).
 - Verifikasi callback: signature + merchantCode + binding `reference` gateway + amount, lalu double-check ke API status — pola sama dengan webhook Pakasir.
 - Polling status Duitku dibatasi 15 detik/transaksi (Duitku memblokir IP ~1 jam bila terlalu rapat).
-- Go-live checklist: `wrangler secret put DUITKU_API_KEY` (key produksi) → `wrangler.jsonc`: `DUITKU_MERCHANT_CODE` ke kode produksi (`D…`) + `DUITKU_SANDBOX: "false"` → deploy → (opsional) jalankan ulang `node scripts/duitku-smoke.mjs --prod` untuk memastikan signature diterima produksi → toggle **Gateway Aktif → Duitku** di panel admin bila mau jadikan utama.
-- Smoke test cepat kapan pun: `DUITKU_MERCHANT_CODE=… DUITKU_API_KEY=… node scripts/duitku-smoke.mjs [--prod]`.
+- Go-live (SELESAI 12–14 Okt 2026, sebagai catatan): `wrangler secret put DUITKU_API_KEY` → `DUITKU_MERCHANT_CODE=D25142` + `DUITKU_SANDBOX="false"` di wrangler.jsonc → deploy → smoke `--prod` (signature HMAC-SHA256 diterima) → tunggu Duitku mengaktifkan channel QRIS → konfirmasi via `getpaymentmethod` → toggle **Gateway Aktif → Duitku** di panel admin.
+- Smoke test cepat kapan pun: `DUITKU_MERCHANT_CODE=… DUITKU_API_KEY=… node scripts/duitku-smoke.mjs [--prod] [--method=SQ,NQ,SP]`.
 
 ## Mode pembayaran manual (fallback bila gateway bermasalah)
 
@@ -123,23 +141,45 @@ Catatan: payment manual tidak pernah auto-expire — uang bisa saja sudah masuk 
 | Skrip | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan lokal |
-| `npm run deploy` | Deploy ke Cloudflare Workers |
-| `npm run typecheck` | Cek tipe TypeScript |
+| `npm run deploy` | Deploy ke Cloudflare Workers (**langsung produksi**) |
+| `npm run typecheck` | Cek tipe TypeScript — satu-satunya pemeriksaan otomatis (belum ada test suite) |
 | `npm run db:local` / `db:remote` | Terapkan migrasi D1 lokal/produksi |
 | `npm run seed:local` | Seed paket demo 10 soal (hanya lokal) |
+| `node scripts/duitku-smoke.mjs [--prod] [--method=SQ,NQ,SP]` | Smoke test Duitku (butuh env `DUITKU_MERCHANT_CODE` + `DUITKU_API_KEY`) |
 
 ## Struktur
 
 ```
-migrations/          Skema D1 (0001 tabel, 0002 index, 0003 seed produk+kategori)
-scripts/seed-local.sql   Data demo lokal
+AGENTS.md / CLAUDE.md  Panduan AI agent (CLAUDE.md hanya meng-import AGENTS.md)
+docs/                  API.md (endpoint), DATABASE.md (skema D1)
+migrations/            Skema D1 berurutan 0001…0016 (detail: docs/DATABASE.md)
+scripts/
+  seed-local.sql       Data demo lokal
+  duitku-smoke.mjs     Smoke test gateway Duitku (sandbox/produksi)
+.github/workflows/     backup-d1.yml — backup mingguan D1 → artifact GitHub
+wrangler.jsonc         Binding (D1, R2, DO, assets), vars non-rahasia, cron, custom domain
 src/
-  index.ts           Assembly app + routing
-  routes/            auth, setup, packages, attempts, results, payments, materials, admin/*
-  services/          pakasir, scoring, payments, importer
-  middleware/        auth (session), security (CSRF origin guard)
-  utils/             hash (argon2id), session, validate, response
-public/              Frontend vanilla (css/, js/, *.html, admin/*.html)
+  index.ts             Middleware global, endpoint publik (products, site-stats,
+                       recent-results), mount router, cron `scheduled`
+  types.ts             Tipe Env (semua binding + env var) & SessionUser
+  routes/              auth, setup, packages, attempts, results, payments,
+                       materials, referral, admin/{overview,users,catalog,
+                       questions,materials,settings}
+  services/            payments (settle/akses/rekonsiliasi), pakasir, duitku,
+                       settings (mode & gateway aktif), scoring, passing-grades,
+                       importer, referrals, resend (email), turnstile, qr (SVG)
+  middleware/          auth (sesi & guard), security (CSRF + header), ratelimit
+  do/ratelimit.ts      Durable Object counter rate limit
+  utils/               hash (argon2id), session, validate, body (batas ukuran), response
+public/                Frontend vanilla, di-serve Workers Assets (tanpa build)
+  *.html               Halaman user (index, dashboard, exam, result, payment, materi, baca, …)
+  admin/*.html         Panel admin
+  artikel/*.html       Artikel SEO statis (+ sitemap.xml, robots.txt)
+  js/app.js            Helper global `window.TO` (api, esc, format, header, auth)
+  js/admin.js          Shell admin `window.ADM` (sidebar NAV, pager)
+  js/reader.js         Pembaca PDF (pdf.js di js/vendor/)
+  js/social-proof.js   Popup bukti sosial di landing
+  _headers             Header keamanan aset statis
 ```
 
 ## Format import soal (JSON)
@@ -173,8 +213,13 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Session:** token acak 256-bit dikirim via cookie HttpOnly; DB menyimpan HMAC-SHA256(token) sehingga kebocoran DB saja tidak bisa memalsukan session. Login baru menghapus session lama (satu device per akun).
 - **Pembayaran idempoten:** settle memakai `UPDATE ... WHERE status!='paid'` bersyarat; webhook ganda tidak menggandakan perpanjangan akses. Webhook juga memverifikasi ulang status ke API Pakasir.
 - **Akses berbayar:** perpanjangan dihitung dari `max(sekarang, expiry saat ini)` — bayar duluan saat masih aktif menumpuk, tidak mengganti.
-- **Rate limit berlapis via Durable Object (`src/do/ratelimit.ts`):** semua `/api/*` 300/menit per IP; login/lupa-password/setup 12/menit per IP; register 6/menit per IP; endpoint tulis lain 90/menit per user. Counter fixed-window kuat-konsisten per key (satu instance DO per limiter+key). Jika DO error, fail-open (situs tidak mati). CATATAN: binding `ratelimit` bawaan Cloudflare pernah dicoba tapi tidak enforce pada akun ini (selalu success=true) — karena itu dipakai DO. Untuk flood yang lebih besar, tambahkan WAF Rate Limiting rule di dashboard Cloudflare (blokir `contains "/api/auth/"` > 10/menit per IP) — itu menahan serangan SEBELUM menyentuh Worker.
-- **Lockout per-akun:** 5 login gagal → akun terkunci 15 menit (dikombinasi dengan rate limit IP agar tidak bisa dipakai mengunci akun orang lain secara massal).
+- **Rate limit berlapis via Durable Object (`src/do/ratelimit.ts`, angka di `LIMITS` `src/middleware/ratelimit.ts`):** semua `/api/*` 300/menit per IP; login & setup 12/menit per IP; register 6/menit per IP; lupa password 5/15 menit per IP + 3/15 menit per email; reset password 6/10 menit per IP; endpoint tulis lain 90/menit per user; unduh PDF materi 150/menit per user; rekonsiliasi pembayaran via `/me` maks 1x/15 detik per user. Counter fixed-window kuat-konsisten per key (satu instance DO per limiter+key). Jika DO error, fail-open (situs tidak mati). CATATAN: binding `ratelimit` bawaan Cloudflare pernah dicoba tapi tidak enforce pada akun ini (selalu success=true) — karena itu dipakai DO. Untuk flood yang lebih besar, tambahkan WAF Rate Limiting rule di dashboard Cloudflare (blokir `contains "/api/auth/"` > 10/menit per IP) — itu menahan serangan SEBELUM menyentuh Worker.
+- **Lockout per-akun:** 5 login gagal → akun terkunci 15 menit untuk percobaan password SALAH berikutnya (password benar tetap bisa masuk, agar orang lain tidak bisa mengunci akun korban). Email tak terdaftar mendapat kunci virtual yang sama (counter DO) supaya respons tidak membocorkan email mana yang terdaftar.
+- **Lupa password:** `POST /api/auth/forgot-password` mengirim tautan via Resend (`RESEND_API_KEY`) berisi token sekali pakai berlaku 1 jam (DB hanya menyimpan hash, tabel `password_reset_tokens`). Respons selalu netral. Reset sukses = semua sesi user dihapus + lockout dibuka.
+- **Program referral:** setiap user punya kode undangan (dibuat saat pertama dibuka di dashboard, link `register.html?ref=KODE`). Yang diundang mendapat diskon 10% pada pembelian pertama yang lunas; pengundang mendapat +3 hari akses saat transaksi pertama invitee lunas (bukan saat daftar — akun palsu tidak menghasilkan apa pun). Satu akun hanya bisa jadi invitee sekali (`referrals.invitee_id` UNIQUE). Konstanta di `src/services/referrals.ts`.
+- **Kontak broadcast:** pendaftar baru disinkron ke Contacts Resend (fire-and-forget, tidak pernah menggagalkan registrasi).
+- **Landing page dinamis:** statistik publik `/api/site-stats` (cache edge 3 jam) dan popup bukti sosial `/api/recent-results` (cache 60 detik; hanya nama depan, 30 hari terakhir).
+- **Artikel SEO:** halaman statis di `public/artikel/` (URL tanpa `.html`), didaftarkan di `public/artikel/index.html` dan `public/sitemap.xml`.
 - **Turnstile (captcha) register/login:** aktif otomatis jika `TURNSTILE_SITE_KEY`+`TURNSTILE_SECRET_KEY` terisi; dicek SEBELUM verifikasi argon2 agar request tanpa captcha tidak bisa membakar CPU.
 - **Batas ukuran body:** semua body JSON dibatasi 64 KB (`src/utils/body.ts`) — import soal admin 8 MB. Mencegah OOM isolate dari body raksasa.
 - **Satu admin maksimal:** partial unique index `users(role) WHERE role='admin'` (migrasi 0005) menutup race setup bersamaan.
@@ -182,7 +227,7 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Materi bacaan PDF:** byte file di R2 (`MATERI_BUCKET`, key `materi/{uuid}.pdf` immutable), metadata di D1 (`material_categories` + `materials`, migrasi 0009). Semua user login boleh membaca (tanpa langganan); admin unggah/hapus lewat `/admin/materials.html`. File di-serve HANYA lewat `GET /api/materials/:id/file` yang cek sesi (aset statis mem-bypass Worker) dengan cache `private` browser-only — cache edge tidak peduli cookie dan akan membocorkan PDF ke anonim. ETag dari (id, ukuran) + dukungan Range. Unggah = satu-satunya endpoint multipart: pre-check Content-Length 26 MB, batas 25 MB/file, validasi magic bytes `%PDF-`; jumlah halaman dihitung pdf.js di klien sebelum unggah. Pembaca `/baca.html` memakai pdf.js v4 legacy yang di-vendor di `public/js/vendor/` (perbarui: `npm i -D pdfjs-dist@<versi>` lalu salin ulang `legacy/build/pdf*.min.mjs`).
 - **Batas transaksi pending:** maksimal 5 payment `pending` per user (anti-spam tulis D1).
 - **Batas bayar QRIS: 24 jam** sejak transaksi dibuat (`PAKASIR_TTL_MS`). Pakasir tidak mengirim `expired_at` pada transaksinya, jadi aplikasi yang menjamin batasnya: lewat 24 jam transaksi ditandai `expired`; halaman bayar menampilkan hitungan mundur dari nilai efektif `min(expired_at gateway, dibuat+24 jam)` via `effectiveExpiryIso()`. Pembayaran manual tidak pernah auto-expire.
-- **Cache edge:** `/api/products` di-cache 60 detik — landing page ramai tidak menghantam D1.
+- **Cache edge:** `/api/products` & `/api/recent-results` 60 detik, `/api/site-stats` 3 jam — landing page ramai tidak menghantam D1. Hanya respons yang identik untuk semua pengunjung yang boleh di-cache edge (cache edge mengabaikan cookie).
 - **Header keamanan:** `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS — untuk respons Worker via middleware, untuk aset statis via `public/_headers`.
 - **CSRF:** cookie `SameSite=Lax` + middleware Origin check untuk POST/PUT/DELETE (webhook dikecualikan, dilindungi `X-Secret` timing-safe).
 - **Admin bootstrap:** halaman `/setup` hanya aktif selama belum ada admin; dikunci `SETUP_SECRET` di produksi. Kredensial admin tidak pernah tersimpan di file/kode mana pun.

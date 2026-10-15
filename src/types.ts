@@ -14,7 +14,8 @@ export type Env = {
   DUITKU_MERCHANT_CODE?: string;
   DUITKU_API_KEY?: string;
   DUITKU_SANDBOX?: string;
-  // Kode channel QRIS Duitku (default 'SP' = ShopeePay QRIS, interoperabel).
+  // Daftar preferensi channel QRIS Duitku, dipisah koma (default 'SQ,NQ,SP' —
+  // SQ = Nusapay, NQ = Nobu, SP = ShopeePay; channel pertama yang diterima dipakai).
   DUITKU_QRIS_METHOD?: string;
   // Fee QRIS Duitku (%) yang ditanggung merchant — dipass-through ke pembeli
   // via gross-up nominal (lihat duitkuFeePct/grossUp di services/duitku).
@@ -25,7 +26,8 @@ export type Env = {
   ACTIVE_GATEWAY?: string;
   SETUP_SECRET?: string;
   // "manual" = QRIS pribadi + verifikasi admin (mode fallback bila gateway bermasalah);
-  // selain itu (default) = Pakasir.
+  // selain itu (default) = gateway otomatis. Baseline saja — toggle admin
+  // (settings.payment_mode) menimpa nilai ini.
   PAYMENT_MODE?: string;
   // "true" = tombol Bayar Manual tampil di halaman bayar (fallback gateway).
   // Selain "true" = disembunyikan; alur manual tetap hidup jika PAYMENT_MODE=manual.
