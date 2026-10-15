@@ -182,6 +182,12 @@ google.get('/callback', async (c) => {
       if (byEmail.google_sub && byEmail.google_sub !== identity.sub) {
         return backWithError(c, from, 'conflict', next, ref);
       }
+      // Penautan otomatis hanya bila Google otoritatif atas email tersebut
+      // (panduan Google untuk account linking); selain itu pemilik akun
+      // diminta masuk dengan password seperti biasa.
+      if (!identity.emailAuthoritative) {
+        return backWithError(c, from, 'exists', next, ref);
+      }
       // Akun lama yang emailnya BELUM pernah terbukti bisa saja didaftarkan
       // orang lain memakai email ini; password-nya dimatikan saat pemilik asli
       // pertama kali masuk via Google (bisa dibuat ulang lewat Lupa password).

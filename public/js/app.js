@@ -109,6 +109,9 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   }
   function qs(name) { return new URLSearchParams(location.search).get(name); }
+  // ?next= hanya boleh path di situs sendiri: "//host" dan "/\host" dibaca
+  // browser sebagai URL absolut (open redirect ke situs phishing).
+  function safeNext(v) { return typeof v === 'string' && /^\/(?![\/\\])/.test(v) ? v : null; }
   // Cuplikan teks soal untuk pesan WA laporan kekeliruan — nomor soal adalah
   // urutan acak per-attempt, jadi admin melacak soalnya lewat teksnya.
   function snippet(text, max = 100) {
@@ -250,6 +253,7 @@
     failed: 'Login dengan Google gagal. Coba lagi, atau gunakan email dan password.',
     unverified: 'Email akun Google Anda belum terverifikasi. Gunakan akun Google lain atau daftar dengan email.',
     conflict: 'Email ini sudah terhubung dengan akun Google lain. Hubungi admin untuk bantuan.',
+    exists: 'Email ini sudah terdaftar. Silakan masuk dengan email dan password (atau gunakan Lupa password).',
     limited: 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.',
     unavailable: 'Login dengan Google sedang tidak tersedia. Gunakan email dan password.',
   };
@@ -283,8 +287,8 @@
         divider;
       el.querySelector('.btn-google').addEventListener('click', () => {
         const p = new URLSearchParams({ from: opts.from === 'register' ? 'register' : 'login' });
-        const next = qs('next');
-        if (next && next.startsWith('/')) p.set('next', next);
+        const next = safeNext(qs('next'));
+        if (next) p.set('next', next);
         const ref = opts.getRef ? opts.getRef() : '';
         if (ref) p.set('ref', ref);
         location.href = '/api/auth/google?' + p.toString();
@@ -324,7 +328,7 @@
   else initPwToggles();
 
   window.TO = {
-    api, esc, rupiah, animateCounts, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, daysLeft, snippet,
+    api, esc, rupiah, animateCounts, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, safeNext, daysLeft, snippet,
     toast, busy, copy, fetchMe, requireUser, requireAdmin, logout,
     renderHeader, openModal, closeModal, WA_ADMIN, renderGoogleAuth, googleErrorMessage,
   };

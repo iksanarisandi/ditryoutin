@@ -69,6 +69,10 @@ export type GoogleIdentity = {
   sub: string;
   email: string;
   emailVerified: boolean;
+  // Google otoritatif atas email ini (Gmail, atau akun Workspace ber-klaim hd).
+  // Untuk alamat lain, email_verified hanya berarti "pernah diverifikasi" —
+  // kepemilikannya bisa sudah berpindah (mis. domain kedaluwarsa dibeli orang).
+  emailAuthoritative: boolean;
   name: string;
 };
 
@@ -120,11 +124,16 @@ export async function exchangeGoogleCode(
   if (typeof claims.sub !== 'string' || !claims.sub || typeof claims.email !== 'string') {
     throw new GoogleAuthError('klaim sub/email tidak ada');
   }
+  const lower = claims.email.toLowerCase();
   return {
     sub: claims.sub,
     email: claims.email,
     // Google mengirim boolean; sebagian dokumentasi lama menyebut string "true".
     emailVerified: claims.email_verified === true || claims.email_verified === 'true',
+    emailAuthoritative:
+      lower.endsWith('@gmail.com') ||
+      lower.endsWith('@googlemail.com') ||
+      (typeof claims.hd === 'string' && claims.hd !== ''),
     name: typeof claims.name === 'string' ? claims.name : '',
   };
 }

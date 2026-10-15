@@ -39,12 +39,12 @@ Semua endpoint di bawah `/api/*`, dilayani Worker (`src/index.ts` me-mount route
 
 ## Login dengan Google — `src/routes/google-auth.ts` (`/api/auth/google`)
 
-Navigasi top-level (bukan `fetch`): semua respons berupa redirect 302. Gagal → kembali ke `/login.html` atau `/register.html` dengan `?google_error=<cancelled|expired|failed|unverified|conflict|limited|unavailable>` (pesan di `TO.googleErrorMessage()`).
+Navigasi top-level (bukan `fetch`): semua respons berupa redirect 302. Gagal → kembali ke `/login.html` atau `/register.html` dengan `?google_error=<cancelled|expired|failed|unverified|conflict|exists|limited|unavailable>` (pesan di `TO.googleErrorMessage()`).
 
 | Method | Path | Guard | Fungsi |
 |---|---|---|---|
 | GET | `/` | publik | `?from=login\|register&next=&ref=` — set cookie alur `g_oauth` (state + PKCE verifier + next/ref, 10 menit, `Path=/api/auth/google`) lalu redirect ke Google. `www.` dialihkan dulu ke apex |
-| GET | `/callback` | publik, 20/10 mnt/IP | Cek `state` = cookie, tukar `code` (PKCE) di Google, wajib `email_verified`. Urutan cocok: `google_sub` → email (akun lama ditautkan; password akun yang emailnya belum terbukti dimatikan, kecuali admin) → buat akun baru (referral + kontak Resend + email sambutan). Buat sesi, redirect ke `next` / dashboard |
+| GET | `/callback` | publik, 20/10 mnt/IP | Cek `state` = cookie, tukar `code` (PKCE) di Google, wajib `email_verified`. Urutan cocok: `google_sub` → email (akun lama ditautkan hanya bila Google otoritatif atas email itu — Gmail atau klaim `hd` Workspace, selain itu `exists`; password akun yang emailnya belum terbukti dimatikan, kecuali admin) → buat akun baru (referral + kontak Resend + email sambutan). Buat sesi, redirect ke `next` / dashboard |
 
 ## Setup — `src/routes/setup.ts` (`/api/setup`)
 
