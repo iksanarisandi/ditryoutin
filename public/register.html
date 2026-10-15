@@ -29,7 +29,7 @@
       <div class="card auth-card">
         <img class="auth-logo" src="/img/logo-192.png" alt="Tryout UPKP" width="64" height="64">
         <h1>Daftar Akun</h1>
-        <p class="muted">Tanpa verifikasi email — langsung bisa masuk.</p>
+        <p class="muted">Langsung bisa masuk setelah mendaftar.</p>
         <div id="error-box" hidden><div class="alert alert-danger" id="error-msg"></div></div>
         <form id="reg-form">
           <div class="form-group">
@@ -38,7 +38,9 @@
           </div>
           <div class="form-group">
             <label for="email">Email</label>
-            <input type="email" id="email" required placeholder="nama@email.com">
+            <input type="email" id="email" required placeholder="nama@email.com" autocomplete="email" aria-describedby="email-help">
+            <p class="muted small" id="email-help" style="margin:6px 0 0">Gunakan email aktif yang bisa Anda buka. Bukti pembayaran dan tautan reset password dikirim ke email ini.</p>
+            <div class="alert alert-warn small" id="email-suggest" role="status" hidden style="margin:8px 0 0"></div>
           </div>
           <div class="form-group">
             <label for="password">Password</label>
@@ -99,8 +101,65 @@
         }
       } catch (e) { /* captcha opsional — biarkan form tetap jalan */ }
 
+      // Saran salah ketik domain email populer. Email salah = bukti bayar &
+      // reset password tidak pernah sampai, dan email yang memantul merusak
+      // reputasi pengirim di Resend. Hanya saran: user tetap boleh lanjut.
+      const DOMAIN_FIX = {
+        'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gmal.com': 'gmail.com',
+        'gamil.com': 'gmail.com', 'gnail.com': 'gmail.com', 'gmaill.com': 'gmail.com',
+        'gmeil.com': 'gmail.com', 'gmail.co': 'gmail.com', 'gmail.cm': 'gmail.com',
+        'gmail.om': 'gmail.com', 'gmail.coom': 'gmail.com', 'gmail.co.id': 'gmail.com',
+        'gmail.id': 'gmail.com', 'gmali.com': 'gmail.com', 'gimail.com': 'gmail.com',
+        'yaho.com': 'yahoo.com', 'yhoo.com': 'yahoo.com', 'yahooo.com': 'yahoo.com',
+        'yahoo.co': 'yahoo.com', 'yaho.co.id': 'yahoo.co.id', 'yahoo.co.i': 'yahoo.co.id',
+        'hotmial.com': 'hotmail.com', 'hotmai.com': 'hotmail.com', 'hotmail.co': 'hotmail.com',
+        'outlok.com': 'outlook.com', 'outlook.co': 'outlook.com', 'iclod.com': 'icloud.com',
+        'icloud.co': 'icloud.com',
+      };
+      function suggestEmail(raw) {
+        const v = String(raw || '').trim().toLowerCase();
+        const at = v.lastIndexOf('@');
+        if (at < 1) return '';
+        const domain = v.slice(at + 1);
+        let fixed = DOMAIN_FIX[domain] || '';
+        // Akhiran .com yang salah ketik (.con, .cpm, .comm, .vom, .xom) di domain apa pun.
+        if (!fixed && /\.(con|cpm|comm|vom|xom|cim)$/.test(domain)) fixed = domain.replace(/\.[a-z]+$/, '.com');
+        return fixed && fixed !== domain ? v.slice(0, at + 1) + fixed : '';
+      }
+      const suggestBox = document.getElementById('email-suggest');
+      let warnedFor = '';
+      function showSuggestion() {
+        const s = suggestEmail(form.email.value);
+        if (!s) { suggestBox.hidden = true; return ''; }
+        // Render ulang hanya bila saran berubah: blur saat mengklik tautan
+        // saran tidak boleh mengganti elemennya di tengah klik.
+        if (suggestBox.hidden || suggestBox.dataset.s !== s) {
+          suggestBox.dataset.s = s;
+          suggestBox.innerHTML = 'Maksud Anda <a href="#" data-fix><strong>' + TO.esc(s) + '</strong></a>? Periksa lagi agar email kami sampai.';
+          suggestBox.hidden = false;
+        }
+        return s;
+      }
+      suggestBox.addEventListener('click', (ev) => {
+        if (!ev.target.closest('[data-fix]')) return;
+        ev.preventDefault();
+        form.email.value = suggestBox.dataset.s || form.email.value;
+        suggestBox.hidden = true;
+        form.email.focus();
+      });
+      form.email.addEventListener('blur', showSuggestion);
+      form.email.addEventListener('input', () => { if (!suggestBox.hidden) showSuggestion(); });
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        // Ada saran salah ketik yang belum dilihat: tahan sekali saja; kirim
+        // ulang tanpa mengubah email = user yakin emailnya benar.
+        const email = form.email.value.trim().toLowerCase();
+        if (showSuggestion() && warnedFor !== email) {
+          warnedFor = email;
+          form.email.focus();
+          return;
+        }
         errBox.hidden = true;
         btn.disabled = true;
         btn.textContent = 'Memproses…';

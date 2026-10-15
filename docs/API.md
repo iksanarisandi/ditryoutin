@@ -28,7 +28,7 @@ Semua endpoint di bawah `/api/*`, dilayani Worker (`src/index.ts` me-mount route
 | Method | Path | Guard | Fungsi |
 |---|---|---|---|
 | GET | `/captcha` | publik | Site key Turnstile (kosong = captcha nonaktif) |
-| POST | `/register` | publik, 6/mnt/IP | `{ name, email, password, turnstile_token?, ref? }` — buat akun + sesi; `ref` = kode referral (salah = diabaikan diam-diam); sinkron kontak Resend (waitUntil) |
+| POST | `/register` | publik, 6/mnt/IP | `{ name, email, password, turnstile_token?, ref? }` — buat akun + sesi; `ref` = kode referral (salah = diabaikan diam-diam); sinkron kontak Resend + email sambutan (waitUntil) |
 | POST | `/login` | publik, 12/mnt/IP | `{ email, password, turnstile_token? }` — lockout 5 gagal/15 mnt (password benar tetap bisa masuk); email tak terdaftar dikunci virtual (anti-enumeration) |
 | POST | `/logout` | user | Hapus sesi ini |
 | GET | `/me` | user | Profil + status akses (`access.active`, `days_left`, `is_admin`, `has_access`). Efek samping: finalisasi attempt kedaluwarsa + rekonsiliasi payment pending (maks 1x/15 dtk/user) |
@@ -85,7 +85,7 @@ Semua endpoint di bawah `/api/*`, dilayani Worker (`src/index.ts` me-mount route
 |---|---|---|
 | GET | `/stats` | Kartu dashboard (9 query dalam satu `DB.batch`) |
 | GET | `/payments` | `?status=&from=YYYY-MM-DD&to=YYYY-MM-DD&page=` — daftar transaksi (25/hal) + pendapatan rentang (menurut `paid_at`, WIB) |
-| POST | `/payments/:id/mark-paid` | Tandai lunas manual → `settlePayment` |
+| POST | `/payments/:id/mark-paid` | Tandai lunas manual → `settlePayment` (ikut mengirim email bukti bayar) |
 | GET | `/results` | `?q=&page=` — semua attempt (25/hal) |
 | GET / POST | `/settings/payment-mode` | Baca/ubah `{ mode: 'gateway' \| 'hybrid' \| 'manual' }` (alias lama `pakasir` diterima) |
 | GET / POST | `/settings/active-gateway` | Baca (+ status konfigurasi tiap gateway) / ubah `{ gateway: 'pakasir' \| 'duitku' }` |

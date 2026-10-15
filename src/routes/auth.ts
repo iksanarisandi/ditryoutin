@@ -10,6 +10,7 @@ import {
   sessionSetCookie,
 } from '../utils/session';
 import { sendPasswordResetEmail, addResendContact } from '../services/resend';
+import { sendWelcomeEmail } from '../services/notifications';
 import { normalizeEmail, trimStr, validPassword } from '../utils/validate';
 import { readJson } from '../utils/body';
 import { accessActive, requireAuth } from '../middleware/auth';
@@ -104,11 +105,14 @@ auth.post('/register', async (c) => {
     }
   }
 
-  // Sinkron ke daftar kontak Resend (bahan Broadcast info/promo): fire-and-forget
-  // via waitUntil — tidak menahan respons, dan kegagalannya tidak pernah
-  // membatalkan pendaftaran yang sudah jadi (pola sama seperti referal di atas).
+  // Sinkron ke daftar kontak Resend (bahan Broadcast info/promo) + email
+  // sambutan: fire-and-forget via waitUntil — tidak menahan respons, dan
+  // kegagalannya tidak pernah membatalkan pendaftaran yang sudah jadi (pola
+  // sama seperti referal di atas). Sambutan dicatat SETELAH referal agar
+  // diskon undangan ikut tampil di email.
   if (c.env.RESEND_API_KEY) {
     c.executionCtx.waitUntil(addResendContact(c.env.RESEND_API_KEY, email, name));
+    c.executionCtx.waitUntil(sendWelcomeEmail(c.env, userId, email, name));
   } else {
     console.error('[register] RESEND_API_KEY belum diset — kontak Resend tidak tersinkron');
   }
@@ -200,7 +204,7 @@ auth.get('/me', requireAuth, async (c) => {
   // Auto-submit attempt yang kehabisan waktu saat user membuka aplikasi.
   await finalizeUserExpiredAttempts(c.env.DB, user.id);
   // Rekonsiliasi pembayaran pending (fallback saat webhook belum dikonfigurasi).
-  await reconcilePendingPayments(c.env, user.id);
+  await reconcilePendingPayments(c.env, user.id, c.executionCtx);
   const fresh = await c.env.DB.prepare(
     'SELECT access_expires_at, access_started_at FROM users WHERE id=?',
   )
@@ -265,7 +269,8 @@ auth.post('/forgot-password', async (c) => {
       if (c.env.RESEND_API_KEY) {
         const origin = new URL(c.req.url).origin;
         await sendPasswordResetEmail(
-          c.env.RESEND_API_KEY,
+          c.env,
+          user.id,
           email,
           `${origin}/reset.html?token=${token}`,
         );

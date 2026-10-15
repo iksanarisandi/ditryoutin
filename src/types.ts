@@ -40,6 +40,9 @@ export type Env = {
   // Resend — pengirim email reset password. Rahasia: set lewat
   // `wrangler secret put RESEND_API_KEY` atau dashboard Cloudflare, bukan di git.
   RESEND_API_KEY?: string;
+  // Kuota email harian paket Resend (default 100 = paket Free). Penjaga kuota
+  // berhenti mengirim email prioritas rendah sebelum batas ini tercapai.
+  EMAIL_DAILY_LIMIT?: string;
   // Durable Object rate limiter (counter per limiter+key).
   RATE_LIMIT_DO: DurableObjectNamespace;
 };

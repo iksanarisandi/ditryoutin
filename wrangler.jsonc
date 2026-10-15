@@ -62,7 +62,10 @@
     "DUITKU_MERCHANT_CODE": "D25142",
     "DUITKU_SANDBOX": "false",
     "DUITKU_QRIS_METHOD": "SQ,NQ,SP",
-    "DUITKU_FEE_PCT": "0.7"
+    "DUITKU_FEE_PCT": "0.7",
+    // Kuota email harian paket Resend (Free = 100). Dipakai penjaga kuota
+    // email notifikasi (services/resend) — naikkan bila paket Resend di-upgrade.
+    "EMAIL_DAILY_LIMIT": "100"
   },
   "workers_dev": false,
   // Rate limiter via Durable Object (binding "ratelimit" bawaan tidak enforce
@@ -72,8 +75,11 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimiter"] }],
   // Bersihkan session kedaluwarsa harian (03:17 WIB = 20:17 UTC).
+  // "*/15 * * * *" = pengingat email "pembayaran belum selesai" (jam tenang
+  // 22:00–07:00 WITA ditegakkan di kode). String harus sama dengan
+  // REMINDER_CRON di src/index.ts.
   "triggers": {
-    "crons": ["17 20 * * *"]
+    "crons": ["17 20 * * *", "*/15 * * * *"]
   },
   "routes": [
     { "pattern": "ditryout.in", "custom_domain": true },

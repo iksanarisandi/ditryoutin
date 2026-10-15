@@ -6,7 +6,7 @@ import { clientIp, limitOr429, rateLimit } from './middleware/ratelimit';
 import { PakasirError } from './services/pakasir';
 import { DuitkuError } from './services/duitku';
 import { POINTS_PER_CORRECT } from './services/scoring';
-import { reconcileStalePayments } from './services/payments';
+import { reconcileStalePayments, sendAbandonedPaymentReminders } from './services/payments';
 import { getPaymentMode } from './services/settings';
 
 import authRoutes from './routes/auth';
@@ -283,6 +283,15 @@ async function cleanupExpiredSessions(env: Env): Promise<void> {
   await env.DB.prepare('DELETE FROM password_reset_tokens WHERE expires_at < ?')
     .bind(now)
     .run();
+  // Log email cukup 90 hari (kuota & anti-dobel hanya butuh ≤ 24 jam terakhir).
+  // Tabel belum ada (migrasi 0017 belum diterapkan) tidak boleh menggagalkan cron.
+  try {
+    await env.DB.prepare('DELETE FROM email_log WHERE created_at < ?')
+      .bind(new Date(Date.now() - 90 * 86400000).toISOString())
+      .run();
+  } catch (e) {
+    console.error('[cron] email_log cleanup', e);
+  }
 }
 
 // Sapu objek R2 materi yang yatim: sisa unggah yang gagal masuk DB, atau
@@ -305,9 +314,20 @@ async function cleanupOrphanMaterials(env: Env): Promise<void> {
   }
 }
 
+// Harus sama persis dengan entri di wrangler.jsonc → triggers.crons.
+const REMINDER_CRON = '*/15 * * * *';
+
 export default {
   fetch: app.fetch,
-  scheduled: async (_event: ScheduledController, env: Env) => {
+  scheduled: async (event: ScheduledController, env: Env) => {
+    if (event.cron === REMINDER_CRON) {
+      try {
+        await sendAbandonedPaymentReminders(env);
+      } catch (e) {
+        console.error('[cron:reminder]', e);
+      }
+      return;
+    }
     await cleanupExpiredSessions(env);
     await reconcileStalePayments(env);
     await cleanupOrphanMaterials(env);

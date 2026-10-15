@@ -142,7 +142,7 @@ overview.post('/payments/:id/mark-paid', async (c) => {
   if (!p) return fail(c, 'Transaksi tidak ditemukan', 404);
   if (p.status === 'paid') return fail(c, 'Transaksi ini sudah lunas', 409);
 
-  await settlePayment(c.env.DB, p);
+  await settlePayment(c.env, p, undefined, c.executionCtx);
   return ok(c, { ok: true, payment_id: p.id, status: 'paid' });
 });
 

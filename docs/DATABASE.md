@@ -88,6 +88,18 @@ Key-value runtime yang diubah dari panel admin tanpa deploy; **menimpa env vars*
 | `payment_mode` | `gateway` \| `hybrid` \| `manual` (alias lama `pakasir` = `gateway`) |
 | `active_gateway` | `pakasir` \| `duitku` |
 
+### `email_log`
+Log email keluar via Resend (migrasi 0017). Tanpa foreign key — log tidak boleh menghalangi penghapusan data lain.
+
+| Kolom | Catatan |
+|---|---|
+| `kind` | `'reset' \| 'welcome' \| 'receipt' \| 'reminder'` |
+| `user_id`, `payment_id` | Penerima & transaksi terkait (`payment_id` NULL untuk reset/sambutan) |
+| `status` | `sending → sent \| failed`. `failed` tidak dihitung ke kuota dan tidak di-retry |
+| `created_at` | Dasar penjaga kuota rolling 24 jam (`EMAIL_DAILY_LIMIT`) |
+
+Unique index parsial `(kind, payment_id) WHERE payment_id IS NOT NULL` = maks satu bukti bayar/pengingat per transaksi. Cron harian menghapus baris > 90 hari.
+
 ### `material_categories`, `materials`
 Metadata materi PDF; byte file di R2 `MATERI_BUCKET` dengan key `materi/{uuid}.pdf` (immutable — ganti file = unggah materi baru). `file_size`, `page_count` (dihitung pdf.js di klien).
 
@@ -99,6 +111,8 @@ Metadata materi PDF; byte file di R2 `MATERI_BUCKET` dengan key `materi/{uuid}.p
 | `idx_attempts_status` | Hitung attempt per status (dashboard admin) |
 | `idx_questions_package_id`, `idx_questions_category_id` | Soal per paket/kategori |
 | `idx_payments_user_id`, `idx_payments_status` | Pending per user, statistik |
+| `idx_payments_status_created` | Cron pengingat belum bayar (status + rentang umur) |
+| `idx_email_log_kind_payment` (unique parsial), `idx_email_log_created_at`, `idx_email_log_user_kind` | Anti-dobel email, kuota harian, batas pengingat per user |
 | `idx_sessions_expires_at`, `idx_users_access_expires_at` | Cron & statistik akses |
 | `idx_users_single_admin`, `idx_users_referral_code` | Partial unique (lihat atas) |
 
@@ -122,8 +136,9 @@ Metadata materi PDF; byte file di R2 `MATERI_BUCKET` dengan key `materi/{uuid}.p
 | `0014_password_reset_tokens` | Reset password via email |
 | `0015_payments_gateway_and_mode` | `payments.gateway`, rename mode `pakasir` → `gateway` |
 | `0016_payments_payment_url` | `payments.payment_url` (Duitku) |
+| `0017_email_log` | Tabel `email_log` (kuota & anti-dobel email notifikasi) + index `payments(status, created_at)` |
 
-Catatan: ada **dua file bernomor `0004`** (sejarah) — wrangler melacak migrasi per nama file di tabel `d1_migrations`, jadi keduanya sudah diterapkan dan tidak boleh di-rename. Migrasi berikutnya: `0017_…`.
+Catatan: ada **dua file bernomor `0004`** (sejarah) — wrangler melacak migrasi per nama file di tabel `d1_migrations`, jadi keduanya sudah diterapkan dan tidak boleh di-rename. Migrasi berikutnya: `0018_…`.
 
 Aturan menulis migrasi:
 - Selalu file baru; jangan mengedit migrasi yang sudah diterapkan (komentar lama di dalamnya boleh tertinggal — mis. `0012` masih menyebut mode `pakasir`).

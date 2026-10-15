@@ -4,7 +4,20 @@ import { getTransactionStatus, PakasirError } from './pakasir';
 import { getTransactionStatus as getDuitkuTransactionStatus, DuitkuError, isDuitkuConfigured } from './duitku';
 import { claimReferralReward, REFERRAL_REFERRER_REWARD_DAYS } from './referrals';
 import { checkLimit } from '../middleware/ratelimit';
+import { sendPaymentReceipt, sendPaymentReminder, type ReminderTarget } from './notifications';
 import type { Env } from '../types';
+
+// Konteks request (c.executionCtx): email dikirim di latar belakang tanpa
+// menahan respons. Tanpa ctx (cron) email di-await langsung.
+export type BackgroundCtx = Pick<ExecutionContext, 'waitUntil'>;
+
+function runInBackground(ctx: BackgroundCtx | undefined, job: Promise<void>): Promise<void> {
+  if (ctx) {
+    ctx.waitUntil(job);
+    return Promise.resolve();
+  }
+  return job;
+}
 
 export type PaymentRow = {
   id: number;
@@ -21,13 +34,16 @@ export type PaymentRow = {
   created_at: string;
 };
 
-// Tandai payment berbayas + perpanjang akses user.
-// Aman dipanggil berkali-kali: UPDATE bersyarat status!='paid' mencegah duplikasi perpanjangan.
+// Tandai payment berbayas + perpanjang akses user + kirim bukti bayar.
+// Aman dipanggil berkali-kali: UPDATE bersyarat status!='paid' mencegah duplikasi
+// perpanjangan, dan hanya pemenang UPDATE itu yang mengirim email.
 export async function settlePayment(
-  db: D1Database,
+  env: Env,
   payment: PaymentRow,
   completedAt?: string,
+  ctx?: BackgroundCtx,
 ): Promise<{ alreadyPaid: boolean }> {
+  const db = env.DB;
   const nowIso = new Date().toISOString();
   const res = await db
     .prepare(
@@ -57,6 +73,9 @@ export async function settlePayment(
   } catch (e) {
     console.error('[settle:referral]', payment.reference, e);
   }
+
+  // Setelah akses diperpanjang agar email memuat masa akses terbaru.
+  await runInBackground(ctx, sendPaymentReceipt(env, payment.id));
   return { alreadyPaid: false };
 }
 
@@ -121,7 +140,7 @@ async function expirePending(db: D1Database, id: number): Promise<void> {
 // Cek satu payment pending ke API status gateway yang menanganinya:
 // settle bila completed, expire bila kedaluwarsa (gateway melapor, atau umur
 // transaksi lewat batas aplikasi). Aman dipanggil berkali-kali — settlePayment idempoten.
-async function reconcilePayment(env: Env, p: PaymentRow): Promise<void> {
+async function reconcilePayment(env: Env, p: PaymentRow, ctx?: BackgroundCtx): Promise<void> {
   if (!p.txn_id) return;
   const pastTtl = Date.parse(p.created_at) < Date.now() - PAYMENT_TTL_MS;
 
@@ -129,7 +148,7 @@ async function reconcilePayment(env: Env, p: PaymentRow): Promise<void> {
     if (p.gateway === 'duitku') {
       const st = await getDuitkuTransactionStatus(env, p.reference);
       if (st.state === 'completed') {
-        await settlePayment(env.DB, p);
+        await settlePayment(env, p, undefined, ctx);
       } else if (st.state === 'expired') {
         await expirePending(env.DB, p.id);
       } else if (pastTtl) {
@@ -140,7 +159,7 @@ async function reconcilePayment(env: Env, p: PaymentRow): Promise<void> {
 
     const txn = await getTransactionStatus(env, p.txn_id);
     if (txn.status === 'completed') {
-      await settlePayment(env.DB, p, txn.completed_at);
+      await settlePayment(env, p, txn.completed_at, ctx);
     } else if (pastTtl) {
       // Lewat batas bayar 24 jam dan gateway tidak melapor completed:
       // apa pun statusnya sekarang (canceled/expired/bahkan masih pending di
@@ -171,7 +190,11 @@ function anyGatewayConfigured(env: Env): boolean {
 // Dipanggil saat login//me sehingga user yang menutup halaman pembayaran sebelum selesai
 // tetap mendapat perpanjangan akses begitu membuka aplikasi lagi. Pakai rate limit
 // shouldCheckStatus yang sama dengan polling halaman pembayaran.
-export async function reconcilePendingPayments(env: Env, userId: number): Promise<void> {
+export async function reconcilePendingPayments(
+  env: Env,
+  userId: number,
+  ctx?: BackgroundCtx,
+): Promise<void> {
   if (!anyGatewayConfigured(env)) return;
   // Gate persisten lintas-isolate: maks 1 pass per user per 15 detik. Mencegah
   // /me yang dibanjiri memicu polling status gateway berlebih (throttle
@@ -185,7 +208,7 @@ export async function reconcilePendingPayments(env: Env, userId: number): Promis
     .all<PaymentRow>();
   for (const p of pendings.results ?? []) {
     if (!shouldCheckStatus(p.id, p.gateway === 'duitku' ? 15_000 : 4500)) continue;
-    await reconcilePayment(env, p);
+    await reconcilePayment(env, p, ctx);
   }
 }
 
@@ -240,4 +263,83 @@ export function effectiveExpiryIso(
   const appMs = Date.parse(createdAt) + PAYMENT_TTL_MS;
   const gatewayMs = gatewayExpiry ? Date.parse(gatewayExpiry) : Infinity;
   return new Date(Math.min(appMs, gatewayMs)).toISOString();
+}
+
+// ---------- Pengingat "pembayaran belum selesai" (cron 15 menit) ----------
+// Satu pengingat untuk transaksi QRIS yang ditinggal ±1 jam. Hanya transaksi
+// TERAKHIR user (mencoba 3x lalu bayar di percobaan ketiga = tidak ada
+// pengingat), maks satu pengingat per user per 24 jam, dan dilewati bila user
+// sudah membayar transaksi lain sejak itu. Batas umur 12 jam menampung
+// transaksi yang tertahan jam tenang malam.
+const REMINDER_MIN_AGE_MS = 60 * 60 * 1000;
+const REMINDER_MAX_AGE_MS = 12 * 3600 * 1000;
+const REMINDER_BATCH = 20;
+// Tagihan pending yang tersisa < 30 menit diperlakukan kedaluwarsa: user
+// belum tentu membuka email secepat itu.
+const REMINDER_MIN_PAY_WINDOW_MS = 30 * 60 * 1000;
+// Resend membatasi ±2 request/detik per akun (dipakai bersama trafik live).
+const REMINDER_SEND_GAP_MS = 600;
+
+// Jam tenang 22:00–07:00 WITA (UTC+8): pengingat ditahan sampai pagi.
+function inQuietHoursWita(now: Date): boolean {
+  const h = (now.getUTCHours() + 8) % 24;
+  return h >= 22 || h < 7;
+}
+
+export async function sendAbandonedPaymentReminders(env: Env): Promise<void> {
+  if (!env.RESEND_API_KEY) return;
+  const now = new Date();
+  if (inQuietHoursWita(now)) return;
+
+  const rows = await env.DB.prepare(
+    `SELECT pm.id, pm.user_id, pm.product_id, pm.reference, pm.txn_id, pm.amount, pm.method,
+            pm.gateway, pm.status, pm.paid_at, pm.created_at, pm.total_payment, pm.expires_at,
+            u.email, u.name, pr.name AS product_name, pr.duration_days
+     FROM payments pm
+     JOIN users u ON u.id = pm.user_id
+     LEFT JOIN products pr ON pr.id = pm.product_id
+     WHERE pm.status IN ('pending', 'expired') AND pm.method = 'qris' AND pm.txn_id IS NOT NULL
+       AND pm.created_at > ?1 AND pm.created_at <= ?2
+       AND u.role = 'user'
+       AND NOT EXISTS (SELECT 1 FROM payments p2
+                       WHERE p2.user_id = pm.user_id AND p2.id > pm.id AND p2.status != 'failed')
+       AND NOT EXISTS (SELECT 1 FROM payments p3
+                       WHERE p3.user_id = pm.user_id AND p3.status = 'paid' AND p3.paid_at >= pm.created_at)
+       AND NOT EXISTS (SELECT 1 FROM email_log e
+                       WHERE e.user_id = pm.user_id AND e.kind = 'reminder' AND e.created_at > ?3)
+     ORDER BY pm.id
+     LIMIT ?4`,
+  )
+    .bind(
+      new Date(now.getTime() - REMINDER_MAX_AGE_MS).toISOString(),
+      new Date(now.getTime() - REMINDER_MIN_AGE_MS).toISOString(),
+      new Date(now.getTime() - 24 * 3600 * 1000).toISOString(),
+      REMINDER_BATCH,
+    )
+    .all<PaymentRow & ReminderTarget>();
+
+  let first = true;
+  for (const p of rows.results ?? []) {
+    // Pending bisa saja sudah dibayar tapi webhook/callback belum sampai —
+    // cek gateway dulu agar pembeli tidak menerima "belum bayar" sekaligus
+    // bukti bayar.
+    if (p.status === 'pending') {
+      await reconcilePayment(env, p);
+      const fresh = await env.DB.prepare('SELECT status FROM payments WHERE id=?')
+        .bind(p.id)
+        .first<{ status: PaymentRow['status'] }>();
+      if (!fresh || fresh.status === 'paid') continue;
+      p.status = fresh.status;
+    }
+
+    let payUntil: string | null = null;
+    if (p.status === 'pending') {
+      const expiry = effectiveExpiryIso(p.expires_at, p.created_at);
+      if (Date.parse(expiry) - Date.now() > REMINDER_MIN_PAY_WINDOW_MS) payUntil = expiry;
+    }
+
+    if (!first) await new Promise((r) => setTimeout(r, REMINDER_SEND_GAP_MS));
+    first = false;
+    await sendPaymentReminder(env, p, payUntil);
+  }
 }

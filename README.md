@@ -38,7 +38,7 @@ npm run dev                      # http://localhost:8787
 | `SETUP_SECRET` | ⬜ (disarankan produksi) | Mengunci halaman `/setup` (bootstrap admin pertama). |
 | `TURNSTILE_SITE_KEY` | ⬜ (disarankan produksi) | Site key Cloudflare Turnstile untuk captcha register/login (publik, boleh di frontend). |
 | `TURNSTILE_SECRET_KEY` | ⬜ (disarankan produksi) | Secret key Turnstile — verifikasi token di server. Aktif hanya jika site key juga terisi. |
-| `RESEND_API_KEY` | ⬜ (wajib untuk lupa password) | API key Resend — kirim email reset password + sinkron pendaftar baru ke Contacts Resend (bahan broadcast). Domain pengirim `ditryout.in` harus Verified di Resend. Kosong = email tidak terkirim (respons tetap netral, error di log). |
+| `RESEND_API_KEY` | ⬜ (wajib untuk lupa password & notifikasi email) | API key Resend — kirim email reset password, sambutan pendaftaran, bukti bayar, pengingat belum bayar + sinkron pendaftar baru ke Contacts Resend (bahan broadcast). Domain pengirim `ditryout.in` harus Verified di Resend. Kosong = email tidak terkirim (alur tetap jalan, error di log). |
 
 Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 
@@ -51,6 +51,7 @@ Var non-rahasia diatur langsung di `wrangler.jsonc` → `vars`:
 | `DUITKU_MERCHANT_CODE` | merchantCode Duitku (sandbox `DS…`, produksi `D…`). |
 | `DUITKU_SANDBOX` | `true` = pakai sandbox.duitku.com. Sandbox **tidak pernah** dipakai untuk transaksi user di host produksi (diblokir di kode); uji penuh di localhost (preview `*.workers.dev` sudah dimatikan: `workers_dev: false`). |
 | `DUITKU_QRIS_METHOD` | Daftar preferensi channel QRIS Duitku, dipisah koma — default `SQ,NQ,SP` (`SQ` = Nusapay, `NQ` = Nobu, `SP` = ShopeePay — tiga channel TERPISAH di katalog Duitku walau NusaPay produk Bank Nobu; semua interoperabel antar app QRIS). Channel pertama yang tersedia yang dipakai — channel aktif per merchant bisa beda, cek `getpaymentmethod` via smoke test. |
+| `EMAIL_DAILY_LIMIT` | Kuota email harian paket Resend — default `100` (paket Free). Dasar penjaga kuota email notifikasi (lihat "Email notifikasi"). Naikkan bila paket Resend di-upgrade. |
 | `DUITKU_FEE_PCT` | Fee QRIS Duitku (%) yang ditanggung merchant — default `0.7` (MDR QRIS). Di-pass-through ke pembeli via gross-up: tagihan = harga + fee (dibulatkan ceil ke rupiah), dana masuk merchant tetap = harga produk; `payments.amount` menyimpan harga dasar, `total_payment`/`fee` nominal bayar (pola sama Pakasir). `0`/kosong = tanpa markup. |
 
 > **Jangan pernah** menaruh nilai rahasia di kode, wrangler.jsonc, atau file yang di-commit. Semua rahasia hanya hidup di `.dev.vars` (sudah di-gitignore) dan Cloudflare secrets.
@@ -68,7 +69,7 @@ wrangler secret put TURNSTILE_SITE_KEY     # opsional: captcha register/login
 wrangler secret put TURNSTILE_SECRET_KEY   # opsional: pasangan site key
 wrangler secret put DUITKU_API_KEY         # gateway alternatif (key sandbox dulu utk uji;
                                            # ganti key produksi saat go-live Duitku)
-wrangler secret put RESEND_API_KEY         # email lupa password + kontak broadcast
+wrangler secret put RESEND_API_KEY         # email lupa password, notifikasi + kontak broadcast
 
 # 2. migrasi database produksi
 npm run db:remote
@@ -152,7 +153,7 @@ Catatan: payment manual tidak pernah auto-expire — uang bisa saja sudah masuk 
 ```
 AGENTS.md / CLAUDE.md  Panduan AI agent (CLAUDE.md hanya meng-import AGENTS.md)
 docs/                  API.md (endpoint), DATABASE.md (skema D1)
-migrations/            Skema D1 berurutan 0001…0016 (detail: docs/DATABASE.md)
+migrations/            Skema D1 berurutan 0001…0017 (detail: docs/DATABASE.md)
 scripts/
   seed-local.sql       Data demo lokal
   duitku-smoke.mjs     Smoke test gateway Duitku (sandbox/produksi)
@@ -167,7 +168,8 @@ src/
                        questions,materials,settings}
   services/            payments (settle/akses/rekonsiliasi), pakasir, duitku,
                        settings (mode & gateway aktif), scoring, passing-grades,
-                       importer, referrals, resend (email), turnstile, qr (SVG)
+                       importer, referrals, resend (kirim email + kuota + template),
+                       notifications (sambutan, bukti bayar, pengingat), turnstile, qr (SVG)
   middleware/          auth (sesi & guard), security (CSRF + header), ratelimit
   do/ratelimit.ts      Durable Object counter rate limit
   utils/               hash (argon2id), session, validate, body (batas ukuran), response
@@ -218,13 +220,20 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Lupa password:** `POST /api/auth/forgot-password` mengirim tautan via Resend (`RESEND_API_KEY`) berisi token sekali pakai berlaku 1 jam (DB hanya menyimpan hash, tabel `password_reset_tokens`). Respons selalu netral. Reset sukses = semua sesi user dihapus + lockout dibuka.
 - **Program referral:** setiap user punya kode undangan (dibuat saat pertama dibuka di dashboard, link `register.html?ref=KODE`). Yang diundang mendapat diskon 10% pada pembelian pertama yang lunas; pengundang mendapat +3 hari akses saat transaksi pertama invitee lunas (bukan saat daftar — akun palsu tidak menghasilkan apa pun). Satu akun hanya bisa jadi invitee sekali (`referrals.invitee_id` UNIQUE). Konstanta di `src/services/referrals.ts`.
 - **Kontak broadcast:** pendaftar baru disinkron ke Contacts Resend (fire-and-forget, tidak pernah menggagalkan registrasi).
+- **Email notifikasi (Resend, `src/services/notifications.ts` + template di `src/services/resend.ts`):**
+  - *Sambutan* saat daftar (waitUntil): benefit platform + daftar paket aktif dan harga dari `products` (harga sudah dipotong bila daftar lewat undangan).
+  - *Bukti bayar* dari `settlePayment()` — hanya pemenang `UPDATE … WHERE status!='paid'`, jadi semua jalur settle (webhook, callback, polling, `/me`, cron, admin "Tandai Lunas") tercakup tanpa dobel. Isi: produk, referensi, total dibayar (`total_payment`), masa akses baru (WITA).
+  - *Pengingat belum bayar* via cron `*/15 * * * *`: transaksi QRIS berumur 1–12 jam yang belum lunas, hanya transaksi TERAKHIR user, maks 1 per user per 24 jam, dilewati bila user sudah membayar transaksi lain sejak itu. Pending dicek dulu ke gateway (cegah "belum bayar" untuk yang sebenarnya sudah lunas). Tagihan Pakasir yang masih aktif → tautan lanjut bayar; yang kedaluwarsa → tautan buat tagihan baru. Jam tenang 22:00–07:00 WITA (ditahan sampai pagi).
+  - *Penjaga kuota*: kuota Resend dipakai bersama semua jenis email. Dihitung rolling 24 jam dari tabel `email_log` terhadap `EMAIL_DAILY_LIMIT`: sambutan berhenti di 70%, pengingat 85%, bukti bayar 95%; reset password tidak pernah dibatasi aplikasi. Log `[resend] kuota <jenis> dilewati` = kuota menipis → pertimbangkan upgrade paket Resend.
+  - Anti-dobel = unique index `(kind, payment_id)` di `email_log`. Gagal kirim tidak di-retry (status `failed`) dan tidak pernah menggagalkan alur utama.
+  - Halaman daftar menampilkan keterangan "gunakan email aktif" + saran salah ketik domain (`gmial.com` → `gmail.com`) di browser — email salah = bounce yang merusak reputasi pengirim.
 - **Landing page dinamis:** statistik publik `/api/site-stats` (cache edge 3 jam) dan popup bukti sosial `/api/recent-results` (cache 60 detik; hanya nama depan, 30 hari terakhir).
 - **Animasi angka:** `TO.animateCounts()` dipakai harga paket di halaman bayar, harga & biaya per hari di landing, serta statistik paket/soal/kategori/pengguna. Count-up 0,9 detik dimulai sekali saat angka terlihat di layar, mengikuti format rupiah/pemisah ribuan Indonesia dan preferensi minim gerak. Pembaca layar selalu mendapat nilai final; nominal tagihan QRIS tidak dianimasikan.
 - **Artikel SEO:** halaman statis di `public/artikel/` (URL tanpa `.html`), didaftarkan di `public/artikel/index.html` dan `public/sitemap.xml`.
 - **Turnstile (captcha) register/login:** aktif otomatis jika `TURNSTILE_SITE_KEY`+`TURNSTILE_SECRET_KEY` terisi; dicek SEBELUM verifikasi argon2 agar request tanpa captcha tidak bisa membakar CPU.
 - **Batas ukuran body:** semua body JSON dibatasi 64 KB (`src/utils/body.ts`) — import soal admin 8 MB. Mencegah OOM isolate dari body raksasa.
 - **Satu admin maksimal:** partial unique index `users(role) WHERE role='admin'` (migrasi 0005) menutup race setup bersamaan.
-- **Bersih-bersih otomatis:** cron harian (03:17 WIB) menghapus session kedaluwarsa, merekonsiliasi payment pending, dan menyapu objek R2 materi yatim (unggah gagal di tengah / delete yang gagal bersih; objek < 1 jam dilewati agar tak bertabrakan dengan unggahan yang sedang berjalan).
+- **Bersih-bersih otomatis:** cron harian (03:17 WIB) menghapus session kedaluwarsa, menghapus `email_log` > 90 hari, merekonsiliasi payment pending, dan menyapu objek R2 materi yatim (unggah gagal di tengah / delete yang gagal bersih; objek < 1 jam dilewati agar tak bertabrakan dengan unggahan yang sedang berjalan).
 - **Materi bacaan PDF:** byte file di R2 (`MATERI_BUCKET`, key `materi/{uuid}.pdf` immutable), metadata di D1 (`material_categories` + `materials`, migrasi 0009). Semua user login boleh membaca (tanpa langganan); admin unggah/hapus lewat `/admin/materials.html`. File di-serve HANYA lewat `GET /api/materials/:id/file` yang cek sesi (aset statis mem-bypass Worker) dengan cache `private` browser-only — cache edge tidak peduli cookie dan akan membocorkan PDF ke anonim. ETag dari (id, ukuran) + dukungan Range. Unggah = satu-satunya endpoint multipart: pre-check Content-Length 26 MB, batas 25 MB/file, validasi magic bytes `%PDF-`; jumlah halaman dihitung pdf.js di klien sebelum unggah. Pembaca `/baca.html` memakai pdf.js v4 legacy yang di-vendor di `public/js/vendor/` (perbarui: `npm i -D pdfjs-dist@<versi>` lalu salin ulang `legacy/build/pdf*.min.mjs`).
 - **Batas transaksi pending:** maksimal 5 payment `pending` per user (anti-spam tulis D1).
 - **Pilihan paket di halaman pembayaran:** harga dasar Rp29.000 diberi label **Paling Populer**, Rp69.000 **Paling Hemat** (tetap sesuai meski ada diskon referral).

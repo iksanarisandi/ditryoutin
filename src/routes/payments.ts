@@ -278,7 +278,7 @@ payments.get('/:id', requireAuth, async (c) => {
         try {
           const st = await getDuitkuTransactionStatus(c.env, p.reference);
           if (st.state === 'completed') {
-            await settlePayment(c.env.DB, p);
+            await settlePayment(c.env, p, undefined, c.executionCtx);
             p.status = 'paid';
           } else if (st.state === 'expired') {
             await c.env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
@@ -294,7 +294,7 @@ payments.get('/:id', requireAuth, async (c) => {
       try {
         const txn = await getTransactionStatus(c.env, p.txn_id!);
         if (txn.status === 'completed') {
-          await settlePayment(c.env.DB, p, txn.completed_at);
+          await settlePayment(c.env, p, txn.completed_at, c.executionCtx);
           p.status = 'paid';
         } else if (txn.status === 'canceled' || txn.status === 'expired' || txn.status === 'failed') {
           await c.env.DB.prepare(`UPDATE payments SET status='expired', updated_at=? WHERE id=? AND status='pending'`)
@@ -405,7 +405,7 @@ payments.post('/webhook', async (c) => {
   }
 
   const completedAt = typeof body.completed_at === 'string' ? body.completed_at : undefined;
-  await settlePayment(c.env.DB, p, completedAt);
+  await settlePayment(c.env, p, completedAt, c.executionCtx);
   return ok(c, { ok: true });
 });
 
@@ -472,7 +472,7 @@ payments.post('/duitku/callback', async (c) => {
     return fail(c, 'Verifikasi status transaksi gagal', 400);
   }
 
-  await settlePayment(c.env.DB, p);
+  await settlePayment(c.env, p, undefined, c.executionCtx);
   return ok(c, { ok: true });
 });
 
