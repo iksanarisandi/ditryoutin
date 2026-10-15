@@ -55,44 +55,185 @@
   <header id="site-header"></header>
 
   <!-- ===== Hero ===== -->
-  <section class="hero">
+  <section class="lp-hero">
+    <div class="container lp-hero-inner">
+      <div class="lp-hero-copy">
+        <span class="lp-kicker">
+          <img src="/img/logo-192.png" alt="" width="22" height="22">
+          Tryout UPKP IMIPAS 2026
+        </span>
+        <h1>Jangan Sampai Gagal UPKP <span class="lp-mark">Menghambat Kariermu.</span></h1>
+        <p class="lp-lead">Latihan sekarang, ukur kesiapanmu sebelum hari ujian — simulasi UPKP yang dirancang khusus untuk ASN Kementerian Imigrasi dan Pemasyarakatan.</p>
+        <div class="lp-hero-cta">
+          <a class="btn btn-lg" href="/register.html" data-cta="start">Mulai Tryout
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
+          <a class="btn btn-lg btn-ghost lp-btn-quiet" href="/login.html" data-cta="login">Sudah punya akun</a>
+        </div>
+        <p class="lp-hero-note">Daftar akun gratis — ringkasan materi PDF langsung terbuka.</p>
+        <ul class="lp-trust">
+          <li><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span id="chip-packages">Paket Tryout</span></li>
+          <li><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span id="chip-questions">Soal Latihan</span></li>
+          <li><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Pembahasan tiap soal</li>
+          <li><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Aktif otomatis via QRIS</li>
+        </ul>
+      </div>
+
+      <!-- Mockup layar ujian murni HTML/CSS (tanpa gambar) — tiruan ringkas
+           halaman exam.html: topbar + timer, strip progres, soal, grid nomor. -->
+      <div class="lp-visual" role="img" aria-label="Contoh layar ujian: timer, soal pilihan ganda TWK, dan grid nomor soal, dengan kartu hasil per kategori berstatus lulus">
+        <div class="lp-phone" aria-hidden="true">
+          <div class="lp-screen">
+            <div class="lp-ex-top">
+              <span class="lp-ex-title"><img src="/img/logo-192.png" alt="" width="16" height="16">UPKP · Paket 3</span>
+              <span class="lp-ex-timer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M10 2h4"/></svg>01:24:37</span>
+            </div>
+            <div class="lp-ex-prog"><span class="lp-ex-prog-text">11/40 terjawab</span><span class="lp-ex-track"><i></i></span></div>
+            <div class="lp-ex-body">
+              <div class="lp-ex-card">
+                <div class="lp-ex-qhead"><b>Soal 12</b><span class="lp-ex-cat">TWK</span></div>
+                <p class="lp-ex-q">Rumusan Pancasila sebagai dasar negara disahkan oleh PPKI pada tanggal …</p>
+                <div class="lp-ex-opt"><b>A</b>1 Juni 1945</div>
+                <div class="lp-ex-opt"><b>B</b>22 Juni 1945</div>
+                <div class="lp-ex-opt is-on"><b>C</b>18 Agustus 1945</div>
+                <div class="lp-ex-opt"><b>D</b>17 Agustus 1945</div>
+                <div class="lp-ex-actions"><span class="lp-ex-mark">Ragu-ragu</span><span class="lp-ex-next">Selanjutnya</span></div>
+              </div>
+              <div class="lp-ex-card lp-ex-nav">
+                <div class="lp-ex-navhead"><b>TWK</b><span>11/20</span></div>
+                <div class="lp-ex-grid">
+                  <i class="a">1</i><i class="a">2</i><i class="a">3</i><i class="a">4</i><i class="m">5</i><i class="a">6</i><i class="a">7</i><i class="a">8</i><i class="a">9</i><i class="a">10</i><i class="a">11</i><i class="c">12</i><i>13</i><i>14</i><i>15</i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="lp-float lp-result" aria-hidden="true">
+          <div class="lp-result-head"><span>Hasil Tryout</span><span class="lp-pass">✓ Lulus</span></div>
+          <div class="lp-cat"><span class="lp-cat-name">TWK</span><span class="lp-bar"><i style="width:77%"></i><em style="left:67%"></em></span><span class="lp-cat-val">115<small>/100</small></span></div>
+          <div class="lp-cat"><span class="lp-cat-name">TKT</span><span class="lp-bar"><i style="width:70%"></i><em style="left:60%"></em></span><span class="lp-cat-val">70<small>/60</small></span></div>
+          <div class="lp-cat"><span class="lp-cat-name">TSI</span><span class="lp-bar"><i style="width:70%"></i><em style="left:60%"></em></span><span class="lp-cat-val">35<small>/30</small></span></div>
+          <div class="lp-cat"><span class="lp-cat-name">TKP</span><span class="lp-bar"><i style="width:83%"></i><em style="left:67%"></em></span><span class="lp-cat-val">25<small>/20</small></span></div>
+          <div class="lp-result-foot">Garis = passing grade per kategori</div>
+        </div>
+        <div class="lp-float lp-pill" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Pembahasan tiap soal
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Bukti: statistik live + testimoni ===== -->
+  <section class="lp-proof" id="testimoni">
     <div class="container">
-      <div class="hero-badge">
-        <img src="/img/logo-192.png" alt="" width="26" height="26">
-        <span>Tryout UPKP IMIPAS 2026</span>
+      <div class="lp-stats" id="lp-stats">
+        <div class="lp-stat"><div class="value" id="stat-packages">—</div><div class="label">Paket Tryout</div></div>
+        <div class="lp-stat"><div class="value" id="stat-questions">—</div><div class="label">Soal + Pembahasan</div></div>
+        <div class="lp-stat"><div class="value">5</div><div class="label">Kategori Ujian</div></div>
+        <!-- Ditampilkan via JS hanya bila statistik berhasil dimuat, supaya
+             fallback tanpa JS tidak memperlihatkan angka 0. -->
+        <div class="lp-stat" id="stat-users" hidden><div class="value">0</div><div class="label">Pengguna Terdaftar</div></div>
       </div>
-      <h1>Jangan Sampai Gagal UPKP<br>Menghambat Kariermu.</h1>
-      <p class="lead">Latihan sekarang, ukur kesiapanmu sebelum hari ujian —<br class="hide-sm"> simulasi UPKP yang dirancang khusus untuk ASN Kementerian Imigrasi dan Pemasyarakatan.</p>
-      <div class="hero-cta">
-        <a class="btn btn-lg btn-light" href="/register.html">Mulai Tryout
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-        </a>
-        <a class="btn btn-lg btn-ghost-light" href="/login.html">Sudah punya akun</a>
+
+      <div class="lp-quotes">
+        <figure class="lp-quote is-pass">
+          <blockquote>Mirip soal aslinya. Pelajari semua soalnya — sudah mantap!</blockquote>
+          <figcaption><span class="t-avatar" aria-hidden="true">H</span><span><strong>Hasyim</strong><span class="badge badge-success">✓ Lolos PI 2025</span></span></figcaption>
+        </figure>
+        <figure class="lp-quote is-pass">
+          <blockquote>Kalau dibandingkan, soal tryout di sini lebih sulit dari soal ujian yang sebenarnya.</blockquote>
+          <figcaption><span class="t-avatar" aria-hidden="true">R</span><span><strong>Rahmat</strong><span class="badge badge-success">✓ Lolos PI 2025</span></span></figcaption>
+        </figure>
+        <figure class="lp-quote">
+          <blockquote>Sudah bagus dan disertai penjelasan, jadi memudahkan untuk belajar.</blockquote>
+          <figcaption><span class="t-avatar" aria-hidden="true">M</span><span><strong>Marsela</strong><span class="badge">Pengguna</span></span></figcaption>
+        </figure>
+        <figure class="lp-quote">
+          <blockquote>Bagus, sangat membantu.</blockquote>
+          <figcaption><span class="t-avatar" aria-hidden="true">O</span><span><strong>Oris</strong><span class="badge">Pengguna</span></span></figcaption>
+        </figure>
       </div>
-      <p class="hero-note">Daftar akun gratis — ringkasan materi PDF langsung terbuka.</p>
-      <div class="hero-chips">
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg><span id="chip-packages">Paket Tryout</span></span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span id="chip-questions">Soal Latihan</span></span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>Timer Ujian</span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>Random Soal &amp; Pilihan</span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Pembahasan</span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>Ringkasan Materi PDF</span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>Ajak Teman, Dapat Bonus Akses</span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>Riwayat Nilai</span>
-        <span class="chip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Simulasi Passing Grade</span>
+      <p class="lp-proof-note">Testimoni asli dari pengguna — termasuk yang telah lolos ujian.</p>
+    </div>
+  </section>
+
+  <!-- ===== Tiga pilar ===== -->
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-title">
+        <span class="eyebrow">Kenapa Tryout Ini</span>
+        <h2>Latihan yang Terasa Seperti Hari-H.</h2>
+        <p id="copy-features">Paket tryout lengkap, bank soal yang terus bertambah, ringkasan materi PDF, timer ujian, random soal &amp; pilihan, pembahasan, riwayat nilai, serta simulasi passing grade.</p>
+      </div>
+      <div class="lp-pillars">
+        <article class="lp-pillar">
+          <div class="lp-pv" aria-hidden="true">
+            <div class="lp-pv-timer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M10 2h4"/></svg>01:24:37</div>
+            <div class="lp-pv-flow">
+              <span class="done">TWK</span><i></i><span class="now">TKT</span><i></i><span>TSI</span><i></i><span>TKP</span>
+            </div>
+            <div class="lp-pv-shuffle"><span>C</span><span>A</span><span>D</span><span>B</span><small>diacak tiap percobaan</small></div>
+          </div>
+          <h3>Rasakan suasana ujian asli</h3>
+          <p class="muted small">Kategori berurutan seperti ujian sungguhan, dengan durasi yang dijaga server.</p>
+          <ul class="lp-checks">
+            <li>Timer ujian tervalidasi server</li>
+            <li>Random soal &amp; pilihan di setiap percobaan</li>
+            <li>Tandai ragu-ragu &amp; lompat ke nomor mana pun</li>
+          </ul>
+        </article>
+        <article class="lp-pillar">
+          <div class="lp-pv" aria-hidden="true">
+            <div class="lp-pv-opt bad"><b>B</b>22 Juni 1945<span>Jawabanmu</span></div>
+            <div class="lp-pv-opt good"><b>C</b>18 Agustus 1945<span>Benar</span></div>
+            <div class="lp-pv-exp"><strong>Pembahasan:</strong> 22 Juni 1945 adalah tanggal Piagam Jakarta; pengesahan oleh PPKI terjadi 18 Agustus 1945.</div>
+          </div>
+          <h3>Belajar dari setiap kesalahan</h3>
+          <p class="muted small">Setiap soal disertai pembahasan, jadi kamu tahu kenapa jawabanmu keliru.</p>
+          <ul class="lp-checks">
+            <li>Pembahasan singkat untuk setiap soal</li>
+            <li>Ringkasan materi PDF, gratis untuk semua akun</li>
+            <li id="pillar-bank">Bank soal yang terus bertambah</li>
+          </ul>
+        </article>
+        <article class="lp-pillar">
+          <div class="lp-pv" aria-hidden="true">
+            <div class="lp-pv-chart">
+              <span style="height:57%"><b>80</b></span>
+              <span style="height:64%"><b>90</b></span>
+              <span class="up" style="height:75%"><b>105</b></span>
+              <span class="up" style="height:82%"><b>115</b></span>
+              <em style="bottom:71%"></em>
+            </div>
+            <div class="lp-pv-legend"><span>Skor TWK · percobaan 1–4</span><span class="pg">passing grade 100</span></div>
+          </div>
+          <h3>Tahu persis posisimu</h3>
+          <p class="muted small">Lihat skor per kategori dibanding passing grade, lalu pantau kemajuannya.</p>
+          <ul class="lp-checks">
+            <li>Simulasi passing grade per kategori</li>
+            <li>Riwayat nilai setiap percobaan</li>
+            <li>Ulangi tanpa batas selama akses aktif</li>
+          </ul>
+        </article>
       </div>
     </div>
   </section>
 
   <!-- ===== Demo Video ===== -->
   <section class="section">
-    <div class="container">
-      <div class="section-title">
+    <div class="container lp-demo">
+      <div class="lp-demo-copy">
         <span class="eyebrow">Demo</span>
         <h2>Lihat Sendiri Cara Kerjanya.</h2>
-        <p>Dari mulai ujian, mengerjakan soal dengan timer, sampai lihat skor &amp; pembahasan.</p>
+        <p class="muted">Dari mulai ujian, mengerjakan soal dengan timer, sampai lihat skor &amp; pembahasan.</p>
+        <ol class="lp-demo-list">
+          <li>Pilih paket &amp; mulai ujian</li>
+          <li>Kerjakan dengan timer dan grid nomor</li>
+          <li>Lihat skor, status lulus, dan pembahasan</li>
+        </ol>
       </div>
-      <div style="max-width:820px;margin:0 auto">
+      <div class="lp-demo-media">
         <button class="video-facade" id="demo-video" type="button" aria-label="Putar video demo pengerjaan soal">
           <img src="https://i.ytimg.com/vi/o5pF2dgCxeQ/maxresdefault.jpg" alt="Video demo pengerjaan soal tryout UPKP IMIPAS" loading="lazy" width="1280" height="720">
           <span class="video-play" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4.5v15l13-7.5Z"/></svg></span>
@@ -101,115 +242,13 @@
     </div>
   </section>
 
-  <!-- ===== Fitur ===== -->
-  <section class="section">
-    <div class="container">
-      <div class="section-title">
-        <span class="eyebrow">Fitur Platform</span>
-        <h2>Semua yang Kamu Butuhkan,<br class="hide-sm"> dalam Satu Platform.</h2>
-        <p id="copy-features">Paket tryout lengkap, bank soal yang terus bertambah, ringkasan materi PDF, timer ujian, random soal &amp; pilihan, pembahasan, riwayat nilai, serta simulasi passing grade.</p>
-      </div>
-      <div class="grid grid-4">
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></div>
-          <h3 id="feature-soal-title">Bank Soal Latihan</h3>
-          <p class="muted small" id="feature-soal-sub">Tersebar di seluruh paket simulasi pola UPKP Imipas — dan terus bertambah.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg></div>
-          <h3>Timer Ujian</h3>
-          <p class="muted small">Durasi seperti hari-H yang tervalidasi server — latih kecepatan dan manajemen waktumu.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg></div>
-          <h3>Random Soal &amp; Pilihan</h3>
-          <p class="muted small">Kategori berurutan seperti ujian asli, soal diacak di dalamnya di setiap percobaan — melatih pemahaman, bukan hafalan.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
-          <h3>Pembahasan Lengkap</h3>
-          <p class="muted small">Setiap soal disertai pembahasan singkat supaya kamu belajar dari setiap kesalahan.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></div>
-          <h3>Riwayat Nilai</h3>
-          <p class="muted small">Semua percobaan tersimpan — pantau perkembangan skormu dari waktu ke waktu.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
-          <h3>Simulasi Passing Grade</h3>
-          <p class="muted small">Langsung lihat estimasi status lulus lengkap dengan rincian nilai per kategori.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></div>
-          <h3>Ringkasan Materi PDF</h3>
-          <p class="muted small">Rangkuman materi siap baca langsung di aplikasi — nyaman di HP &amp; desktop, gratis untuk semua akun terdaftar.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></div>
-          <h3>Aktivasi Otomatis</h3>
-          <p class="muted small">Bayar via QRIS dan masa akses langsung aktif — tanpa konfirmasi manual, siap dipakai dalam hitungan detik.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== Testimoni ===== -->
-  <section class="section" id="testimoni">
-    <div class="container">
-      <div class="section-title">
-        <span class="eyebrow">Testimoni</span>
-        <h2>Kata Mereka yang Sudah Berlatih.</h2>
-        <p>Testimoni asli dari pengguna — termasuk yang telah lolos ujian.</p>
-      </div>
-      <div class="grid grid-2">
-        <figure class="card testimonial">
-          <blockquote>Mirip soal aslinya. Pelajari semua soalnya — sudah mantap!</blockquote>
-          <figcaption>
-            <span class="t-avatar" aria-hidden="true">H</span>
-            <div class="t-who"><strong>Hasyim</strong> <span class="badge badge-success">✓ Lolos PI 2025</span></div>
-          </figcaption>
-        </figure>
-        <figure class="card testimonial">
-          <blockquote>Kalau dibandingkan, soal tryout di sini lebih sulit dari soal ujian yang sebenarnya.</blockquote>
-          <figcaption>
-            <span class="t-avatar" aria-hidden="true">R</span>
-            <div class="t-who"><strong>Rahmat</strong> <span class="badge badge-success">✓ Lolos PI 2025</span></div>
-          </figcaption>
-        </figure>
-        <figure class="card testimonial">
-          <blockquote>Sudah bagus dan disertai penjelasan, jadi memudahkan untuk belajar.</blockquote>
-          <figcaption>
-            <span class="t-avatar" aria-hidden="true">M</span>
-            <div class="t-who"><strong>Marsela</strong> <span class="badge">Pengguna</span></div>
-          </figcaption>
-        </figure>
-        <figure class="card testimonial">
-          <blockquote>Bagus, sangat membantu.</blockquote>
-          <figcaption>
-            <span class="t-avatar" aria-hidden="true">O</span>
-            <div class="t-who"><strong>Oris</strong> <span class="badge">Pengguna</span></div>
-          </figcaption>
-        </figure>
-      </div>
-    </div>
-  </section>
-
   <!-- ===== Pilihan Akses ===== -->
-  <section class="section section-alt">
+  <section class="section section-alt" id="harga">
     <div class="container">
       <div class="section-title">
         <span class="eyebrow">Pilihan Akses</span>
         <h2>Satu Kali Beli, Akses Semua Paket.</h2>
         <p id="copy-access">Semua paket dan seluruh soal terbuka penuh selama masa aksesmu, tanpa biaya tambahan.</p>
-      </div>
-      <div class="grid grid-3" style="max-width:680px;margin:0 auto 22px">
-        <div class="card stat-card"><div class="label">Paket Tryout</div><div class="value" id="stat-packages">—</div></div>
-        <div class="card stat-card"><div class="label">Soal + Pembahasan</div><div class="value" id="stat-questions">—</div></div>
-        <div class="card stat-card"><div class="label">Bank Soal</div><div class="value">Terus Bertambah</div></div>
-        <!-- Kartu pengguna hanya ditampilkan via JS saat statistik berhasil dimuat
-             (bersama swap grid-3 -> grid-4) supaya fallback tanpa JS tetap rapi 3 kartu. -->
-        <div class="card stat-card" id="stat-users" hidden><div class="label">Pengguna Terdaftar</div><div class="value">0</div></div>
       </div>
       <div class="grid grid-3" id="pricing" style="max-width:840px;margin:0 auto">
         <div class="card price-card">
@@ -253,37 +292,34 @@
           <a class="btn" href="/payment.html">Pilih Paket</a>
         </div>
       </div>
-      <p class="muted small center" style="margin-top:18px">Pembayaran via QRIS. Paket &amp; soal baru otomatis bisa diakses selama masa akses aktif.<br>Ringkasan materi PDF terbuka gratis untuk semua akun terdaftar — bahkan sebelum membeli.<br>Dapat kode undangan dari teman? Pembelian pertamamu otomatis <a href="#undangan">diskon 10%</a> — atau ajak teman dan dapat +3 hari tiap mereka beli.</p>
+      <ul class="lp-assure">
+        <li><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>Bayar via QRIS, akses aktif otomatis</li>
+        <li><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>Materi PDF gratis, bahkan sebelum membeli</li>
+        <li><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Beli lagi = masa aktif ditambahkan ke sisa akses</li>
+      </ul>
+      <p class="muted small center">Paket &amp; soal baru otomatis bisa diakses selama masa akses aktif. Dapat kode undangan dari teman? Pembelian pertamamu otomatis <a href="#undangan">diskon 10%</a>.</p>
     </div>
   </section>
 
-  <!-- ===== Program Undangan ===== -->
-  <section class="section" id="undangan">
+  <!-- ===== Program Undangan (ringkas) ===== -->
+  <section class="section lp-ref-section" id="undangan">
     <div class="container">
-      <div class="section-title">
-        <span class="eyebrow">Program Undangan</span>
-        <h2>Ajak Teman Belajar,<br class="hide-sm"> Kamu Dapat Bonus, Temanmu Dapat Diskon.</h2>
-        <p>Teman yang daftar lewat kodemu dapat <strong>diskon 10%</strong> pembelian pertamanya — dan tiap teman yang beli memberimu <strong>+3 hari akses</strong>. 10 teman beli, 30 hari bonus.</p>
-      </div>
-      <div class="grid grid-3">
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-          <h3>Ambil Kode Undanganmu</h3>
-          <p class="muted small">Kode &amp; link undangan tersedia langsung di dashboard setelah daftar — tinggal salin satu klik.</p>
+      <div class="lp-ref">
+        <div class="lp-ref-copy">
+          <span class="eyebrow">Program Undangan</span>
+          <h2>Ajak Teman Belajar: Temanmu Diskon 10%, Kamu +3 Hari.</h2>
+          <p>Teman yang daftar lewat kodemu dapat <strong>diskon 10%</strong> pembelian pertamanya — dan tiap teman yang beli memberimu <strong>+3 hari akses</strong>. 10 teman beli, 30 hari bonus.</p>
         </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></div>
-          <h3>Bagikan ke Teman</h3>
-          <p class="muted small">Kirim lewat WhatsApp, grup kelas, atau media sosial — teman tinggal daftar lewat linkmu dan langsung berhak diskon 10%.</p>
-        </div>
-        <div class="card feature-card">
-          <div class="icon-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg></div>
-          <h3>Temanmu Diskon 10%, Kamu +3 Hari</h3>
-          <p class="muted small">Saat teman menyelesaikan pembelian pertamanya, bonus harimu langsung masuk — tanpa batas jumlah teman.</p>
+        <ol class="lp-ref-steps">
+          <li><b>1</b><span><strong>Ambil kode undanganmu</strong> di dashboard setelah daftar — salin satu klik.</span></li>
+          <li><b>2</b><span><strong>Bagikan ke teman</strong> lewat WhatsApp, grup kelas, atau media sosial.</span></li>
+          <li><b>3</b><span><strong>Bonus masuk otomatis</strong> saat teman menyelesaikan pembelian pertamanya — tanpa batas jumlah teman.</span></li>
+        </ol>
+        <div class="lp-ref-cta">
+          <a class="btn btn-light" href="/register.html" data-cta="start">Ambil Kode Undanganmu
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
         </div>
       </div>
-      <p class="center ref-cta" style="margin-top:22px"><a class="btn" href="/register.html">Ambil Kode Undanganmu
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></p>
     </div>
   </section>
 
@@ -294,24 +330,28 @@
         <span class="eyebrow">Cara Kerja</span>
         <h2>Mulai dalam 4 Langkah.</h2>
       </div>
-      <div class="steps">
-        <div class="step">
-          <div class="step-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 21a8 8 0 0 1 13.292-6"/><circle cx="10" cy="8" r="5"/><path d="M19 16v6"/><path d="M22 19h-6"/></svg></div>
-          <div><strong>Buat akun</strong><p class="muted small">Daftar dengan nama, email, dan password. Tanpa verifikasi email.</p></div>
-        </div>
-        <div class="step">
-          <div class="step-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div>
-          <div><strong>Beli masa akses</strong><p class="muted small">Pilih masa akses sesuai kebutuhan, bayar via QRIS — aktif otomatis.</p></div>
-        </div>
-        <div class="step">
-          <div class="step-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 9 5 12 1.8-5.2L21 14Z"/><path d="M7.2 2.2 8 5.1"/><path d="m5.1 8-2.9-.8"/><path d="M14 4.1 12 6"/><path d="m6 12-1.9 2"/></svg></div>
-          <div><strong>Kerjakan tryout</strong><p class="muted small">Pilih paket soal, kerjakan dengan timer, tandai soal ragu-ragu.</p></div>
-        </div>
-        <div class="step">
-          <div class="step-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
-          <div><strong>Lihat hasil &amp; pembahasan</strong><p class="muted small">Skor, status lulus, nilai per kategori, dan pembahasan setiap soal.</p></div>
-        </div>
-      </div>
+      <ol class="lp-steps">
+        <li class="lp-step">
+          <span class="lp-step-no">01</span>
+          <strong>Buat akun</strong>
+          <p class="muted small">Daftar dengan nama, email, dan password. Tanpa verifikasi email.</p>
+        </li>
+        <li class="lp-step">
+          <span class="lp-step-no">02</span>
+          <strong>Beli masa akses</strong>
+          <p class="muted small">Pilih masa akses sesuai kebutuhan, bayar via QRIS — aktif otomatis.</p>
+        </li>
+        <li class="lp-step">
+          <span class="lp-step-no">03</span>
+          <strong>Kerjakan tryout</strong>
+          <p class="muted small">Pilih paket soal, kerjakan dengan timer, tandai soal ragu-ragu.</p>
+        </li>
+        <li class="lp-step">
+          <span class="lp-step-no">04</span>
+          <strong>Lihat hasil &amp; pembahasan</strong>
+          <p class="muted small">Skor, status lulus, nilai per kategori, dan pembahasan setiap soal.</p>
+        </li>
+      </ol>
     </div>
   </section>
 
@@ -323,26 +363,32 @@
         <h2>Belajar Cara Cerdas Menghadapi UPKP.</h2>
         <p>Gratis, langsung dari perangkat Anda.</p>
       </div>
-      <div class="grid grid-3">
-        <div class="card article-link-card">
-          <h3><a href="/artikel/panduan-lengkap-persiapan-upkp-imipas">Panduan Lengkap Persiapan UPKP</a></h3>
+      <div class="lp-articles">
+        <a class="lp-article" href="/artikel/panduan-lengkap-persiapan-upkp-imipas">
+          <span class="lp-article-tag">Panduan</span>
+          <h3>Panduan Lengkap Persiapan UPKP</h3>
           <p class="muted small">Peta persiapan menyeluruh: format ujian, siklus belajar 30 hari, hingga simulasi.</p>
-        </div>
-        <div class="card article-link-card">
-          <h3><a href="/artikel/materi-twk-upkp">Materi TWK: Apa Saja yang Dipelajari?</a></h3>
+          <span class="lp-article-go">Baca artikel →</span>
+        </a>
+        <a class="lp-article" href="/artikel/materi-twk-upkp">
+          <span class="lp-article-tag">Materi</span>
+          <h3>Materi TWK: Apa Saja yang Dipelajari?</h3>
           <p class="muted small">Empat blok materi TWK dan strategi menguasainya.</p>
-        </div>
-        <div class="card article-link-card">
-          <h3><a href="/artikel/tips-lulus-upkp-imipas">10 Tips Lulus UPKP Imipas</a></h3>
+          <span class="lp-article-go">Baca artikel →</span>
+        </a>
+        <a class="lp-article" href="/artikel/tips-lulus-upkp-imipas">
+          <span class="lp-article-tag">Strategi</span>
+          <h3>10 Tips Lulus UPKP Imipas</h3>
           <p class="muted small">Kebiasaan belajar yang membedakan yang lulus dari yang mengulang.</p>
-        </div>
+          <span class="lp-article-go">Baca artikel →</span>
+        </a>
       </div>
-      <p class="center" style="margin-top:20px"><a class="btn btn-outline" href="/artikel/">Lihat Semua Artikel
+      <p class="center" style="margin-top:22px"><a class="btn btn-outline" href="/artikel/">Lihat Semua Artikel
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a></p>
     </div>
   </section>
 
-  <!-- ===== FAQ ===== -->
+  <!-- ===== FAQ (teks harus sama dengan JSON-LD FAQPage di <head>) ===== -->
   <section class="section">
     <div class="container" style="max-width:720px">
       <div class="section-title">
@@ -386,7 +432,7 @@
       <div class="cta-card">
         <p class="tagline">Latihan. Evaluasi. Perbaiki. Ulangi.</p>
         <p class="cta-sub">Ulangi siklusnya sampai kamu benar-benar siap — mulai latihan dan ukur kemampuanmu sekarang.</p>
-        <a class="btn btn-lg btn-light" href="/register.html">Mulai Tryout
+        <a class="btn btn-lg btn-light" href="/register.html" data-cta="start">Mulai Tryout
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </a>
       </div>
@@ -422,15 +468,12 @@
       const me = await TO.fetchMe();
       TO.renderHeader('/', me);
 
-      // Pengguna sudah login: tombol "Mulai Tryout" (hero & CTA penutup)
-      // langsung menuju dashboard tempat paket tryout diakses. Tautan
-      // "Sudah punya akun" disembunyikan karena tidak relevan lagi.
+      // Pengguna sudah login: semua CTA "mulai" (hero, undangan, penutup)
+      // langsung menuju dashboard tempat paket tryout & kode undangan berada.
+      // Tautan "Sudah punya akun" disembunyikan karena tidak relevan lagi.
       if (me) {
-        document
-          .querySelectorAll('.hero-cta a[href="/register.html"], .cta-card a[href="/register.html"], .ref-cta a[href="/register.html"]')
-          .forEach((a) => { a.href = '/dashboard.html'; });
-        const ghost = document.querySelector('.hero-cta a[href="/login.html"]');
-        if (ghost) ghost.hidden = true;
+        document.querySelectorAll('a[data-cta="start"]').forEach((a) => { a.href = '/dashboard.html'; });
+        document.querySelectorAll('a[data-cta="login"]').forEach((a) => { a.hidden = true; });
       }
 
       // Statistik live (paket/soal/pengguna) — untuk SEMUA pengunjung, anonim
@@ -441,11 +484,10 @@
       try { stats = await TO.api('/api/site-stats'); } catch (e) { /* fallback statis */ }
       if (stats) {
         const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-        set('chip-packages', stats.packages + ' Paket');
-        set('chip-questions', fmt(stats.questions) + '+ Soal');
+        set('chip-packages', stats.packages + ' paket tryout');
+        set('chip-questions', fmt(stats.questions) + '+ soal latihan');
         set('copy-features', stats.packages + ' paket, ' + fmt(stats.questions) + '+ soal, ringkasan materi PDF, timer ujian, random soal & pilihan, pembahasan, riwayat nilai, serta simulasi passing grade.');
-        set('feature-soal-title', fmt(stats.questions) + '+ Soal Latihan');
-        set('feature-soal-sub', 'Tersebar di ' + stats.packages + ' paket simulasi pola UPKP Imipas — dan terus bertambah.');
+        set('pillar-bank', fmt(stats.questions) + '+ soal di ' + stats.packages + ' paket — terus bertambah');
         set('copy-access', stats.packages + ' paket, ' + fmt(stats.questions) + '+ soal — semua terbuka penuh selama masa aksesmu, tanpa biaya tambahan.');
         set('stat-packages', String(stats.packages));
         set('stat-questions', fmt(stats.questions) + '+');
@@ -453,8 +495,6 @@
         if (card && stats.users > 0) {
           card.querySelector('.value').textContent = fmt(stats.users);
           card.hidden = false;
-          const grid = card.parentElement;
-          if (grid) { grid.classList.remove('grid-3'); grid.classList.add('grid-4'); }
         }
       }
 
