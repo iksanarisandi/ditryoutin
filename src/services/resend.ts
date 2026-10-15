@@ -11,6 +11,8 @@ const REPLY_TO = 'iksan10058@gmail.com';
 
 // Tautan di email notifikasi selalu ke domain produksi: cron tidak punya
 // request (tidak ada origin), dan email dibaca di luar sesi dev lokal.
+// Semua tautan harus ke domain ini (bukan wa.me dsb.) — URL yang tidak cocok
+// dengan domain pengirim memicu filter spam; tautan luar lewat redirect /wa.
 export const SITE_URL = 'https://ditryout.in';
 
 export type EmailKind = 'reset' | 'receipt' | 'reminder' | 'welcome';
@@ -329,7 +331,8 @@ export function reminderEmailHtml(opts: {
   payUntil: string | null;
   amountDue: number | null;
   payUrl: string;
-  supportWa: string;
+  // Tautan bantuan WA lewat domain sendiri (/wa), null = sembunyikan.
+  supportUrl: string | null;
 }): string {
   const stillOpen = !!opts.payUntil;
   const rows: [string, string][] = [['Paket', opts.productName]];
@@ -356,8 +359,8 @@ export function reminderEmailHtml(opts: {
     ${benefitList(BENEFITS.slice(0, 3))}
     <p style="margin:0;line-height:1.6;color:#64748b">
       Ada kendala saat membayar? Balas email ini${
-        opts.supportWa
-          ? ` atau hubungi <a href="https://wa.me/${esc(opts.supportWa)}" style="color:#2563eb">WhatsApp admin</a>`
+        opts.supportUrl
+          ? ` atau hubungi <a href="${esc(opts.supportUrl)}" style="color:#2563eb">WhatsApp admin</a>`
           : ''
       }.
       Sudah membayar? Abaikan email ini — akses aktif otomatis begitu pembayaran terverifikasi.

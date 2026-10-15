@@ -22,6 +22,7 @@ Semua endpoint di bawah `/api/*`, dilayani Worker (`src/index.ts` me-mount route
 | GET | `/api/products` | publik | Produk akses aktif + `manual_available`, `manual_forced` (mode pembayaran). Cache edge 60 dtk |
 | GET | `/api/site-stats` | publik | Jumlah paket aktif, soal, user (landing). Cache edge 3 jam (`SITE_STATS_TTL`) |
 | GET | `/api/recent-results` | publik | Feed bukti sosial: lulus / sedang mengerjakan / pembelian, 30 hari, hanya nama depan. Cache edge 60 dtk |
+| GET | `/wa?ref=` | publik | Redirect 302 ke `wa.me/<MANUAL_WA>` dengan pesan "kendala pembayaran" (+ `Ref:` bila `ref` berformat `TO-…`). Dipakai email agar semua tautan tetap di domain `ditryout.in`. Tanpa `MANUAL_WA` → `/` |
 
 ## Auth — `src/routes/auth.ts` (`/api/auth`)
 

@@ -92,6 +92,7 @@ export type ReminderTarget = {
   id: number;
   user_id: number;
   product_id: number;
+  reference: string;
   status: string;
   amount: number;
   total_payment: number | null;
@@ -124,7 +125,7 @@ export async function sendPaymentReminder(
         payUrl: payUntil
           ? `${SITE_URL}/payment.html?payment=${t.id}`
           : `${SITE_URL}/payment.html?product=${t.product_id}`,
-        supportWa: env.MANUAL_WA || '',
+        supportUrl: env.MANUAL_WA ? `${SITE_URL}/wa?ref=${encodeURIComponent(t.reference)}` : null,
       }),
     });
   } catch (e) {

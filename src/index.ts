@@ -247,6 +247,20 @@ app.get('/api/recent-results', async (c) => {
   return res;
 });
 
+// Tautan bantuan WhatsApp lewat domain sendiri: email memakai ditryout.in/wa,
+// bukan wa.me langsung (URL beda domain pengirim memicu filter spam).
+// Tujuan selalu nomor MANUAL_WA — bukan open redirect; `ref` hanya disisipkan
+// ke teks pesan bila berformat referensi transaksi.
+app.get('/wa', (c) => {
+  const wa = (c.env.MANUAL_WA || '').replace(/\D/g, '');
+  if (!wa) return c.redirect('/', 302);
+  const ref = (c.req.query('ref') || '').toUpperCase();
+  const lines = ['Halo admin Tryout UPKP, saya mengalami kendala saat membayar.'];
+  if (/^TO-[A-Z0-9-]{1,40}$/.test(ref)) lines.push('Ref: ' + ref);
+  lines.push('Mohon bantuannya. Terima kasih.');
+  return c.redirect(`https://wa.me/${wa}?text=${encodeURIComponent(lines.join('\n'))}`, 302);
+});
+
 // ================= ADMIN =================
 const admin = new Hono<AppEnv>();
 admin.use('*', requireAdmin);
