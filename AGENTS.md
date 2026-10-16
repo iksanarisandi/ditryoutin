@@ -54,6 +54,7 @@ Output: inquiry per channel (`--method=SQ,NQ,SP` menguji urutan tertentu), dafta
 | Skor & kelulusan | `src/services/scoring.ts`, `src/services/passing-grades.ts` | 5 poin/benar; hasil dibekukan saat submit |
 | Alur ujian (mulai, autosave, submit) | `src/routes/attempts.ts` | Jangan kirim `correct_answer` sebelum submit |
 | Hasil & pembahasan | `src/routes/results.ts` | Pembahasan hanya setelah submit |
+| Kartu "Bagikan Hasil" (gambar Story WA/IG) | `public/js/share-card.js`, tombol di `public/result.html` | Dirender di browser (canvas 1080x1920), tanpa beban Worker; teks bagikan memuat link referral dari `GET /api/referral` |
 | Auth, register, lupa password | `src/routes/auth.ts`, `src/utils/session.ts`, `src/utils/hash.ts` | Turnstile dicek sebelum argon2 |
 | Login dengan Google | `src/routes/google-auth.ts`, `src/services/google.ts`, `TO.renderGoogleAuth` di `public/js/app.js` | Efek samping akun baru lewat `afterSignup()` (`src/services/signup.ts`); redirect URI jangan dari `c.req.url` |
 | Referral | `src/services/referrals.ts`, `src/routes/referral.ts` | Diskon 10% invitee; bonus +3 hari saat lunas pertama |

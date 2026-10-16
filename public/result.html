@@ -29,6 +29,7 @@
   </div>
 
   <script src="/js/app.js"></script>
+  <script src="/js/share-card.js"></script>
   <script>
     (async function () {
       const me = await TO.requireUser();
@@ -80,6 +81,7 @@
             <div class="card"><div class="stat-card"><div class="label">Tidak Jawab</div><div class="value" style="color:var(--muted)">${r.unanswered_count}</div></div></div>
           </div>
           <div class="small muted mt">Skor: 5 poin per jawaban benar. Waktu pengerjaan: ${TO.fmtDur(r.duration_seconds)} &bull; Selesai: ${TO.fmtDateTime(r.submitted_at)} WITA</div>
+          <div class="mt"><button type="button" class="btn" id="btn-share">Bagikan Hasil</button></div>
           <div class="small mt" style="font-weight:600;color:var(--primary)">Klik nomor soal untuk melihat <a href="#pembahasan">pembahasan</a>.</div>
         </div>`;
 
@@ -178,6 +180,15 @@
         </div>`;
 
       root.innerHTML = html;
+
+      const shareBtn = document.getElementById('btn-share');
+      shareBtn.addEventListener('click', () => TO.busy(shareBtn, 'Menyiapkan…', async () => {
+        try {
+          await ShareCard.open(d);
+        } catch (e) {
+          TO.toast('Gagal membuat gambar hasil. Coba lagi.', 'error');
+        }
+      }));
     })();
   </script>
 </body>

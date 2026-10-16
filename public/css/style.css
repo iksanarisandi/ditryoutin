@@ -292,6 +292,15 @@ table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 }
 .modal h3 { margin-bottom: 12px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.share-modal { max-width: 400px; text-align: center; padding: 14px 18px 18px; }
+.share-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.share-head h3 { margin: 0; }
+.share-close { background: none; border: 0; font-size: 1.7rem; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 8px; }
+.share-close:hover { color: var(--text); }
+.share-preview { display: block; height: min(56vh, 540px); aspect-ratio: 9 / 16; max-width: 100%; margin: 0 auto 10px; border-radius: 12px; box-shadow: var(--shadow); object-fit: contain; }
+.share-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.share-actions .btn { justify-content: center; padding-left: 8px; padding-right: 8px; }
+.share-actions .btn-wide { grid-column: 1 / -1; }
 
 /* ===== Toast ===== */
 #toast-root { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; }
