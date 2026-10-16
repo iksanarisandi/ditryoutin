@@ -5,6 +5,7 @@ import { hashPassword } from '../../utils/hash';
 import { clamp, toInt, trimStr } from '../../utils/validate';
 import { readJson } from '../../utils/body';
 import { extendUserAccess } from '../../services/payments';
+import { CONTACT_SEGMENTS, contactsCsv, exportContacts, isContactSegment } from '../../services/contact-export';
 import type { AppEnv } from '../../types';
 
 const adminUsers = new Hono<AppEnv>();
@@ -48,6 +49,23 @@ adminUsers.get('/', async (c) => {
   ).all();
 
   return ok(c, { users: rows.results ?? [], total: totalRow?.n ?? 0, page, per_page: per });
+});
+
+// Daftarkan sebelum /:id agar "export" tidak dianggap ID pengguna.
+adminUsers.get('/export', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  const segment = c.req.query('segment') ?? '';
+  const format = c.req.query('format') ?? 'csv';
+  if (!isContactSegment(segment)) return fail(c, 'Kategori ekspor tidak valid.', 400);
+  if (format !== 'csv' && format !== 'preview') return fail(c, 'Format ekspor tidak valid.', 400);
+
+  const now = new Date().toISOString();
+  const contacts = await exportContacts(c.env.DB, segment, now);
+  if (format === 'preview') return ok(c, { total: contacts.length });
+
+  c.header('Content-Type', 'text/csv; charset=utf-8');
+  c.header('Content-Disposition', `attachment; filename="brevo-gmail-${CONTACT_SEGMENTS[segment]}-${now.slice(0, 10)}.csv"`);
+  return c.body(contactsCsv(contacts));
 });
 
 adminUsers.get('/:id', async (c) => {

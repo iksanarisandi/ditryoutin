@@ -17,6 +17,22 @@
     <aside id="admin-side"></aside>
     <main class="admin-main">
       <div class="admin-head"><h1>Users</h1></div>
+      <section class="card" style="margin-bottom:20px" aria-labelledby="export-title">
+        <h2 id="export-title">Ekspor Kontak Brevo</h2>
+        <p class="muted small">Khusus pengguna dengan alamat @gmail.com, tanpa akun admin. Ekspor seluruh kategori, tidak mengikuti pencarian atau halaman tabel.</p>
+        <div class="filter-bar">
+          <label for="export-segment">Kategori</label>
+          <select id="export-segment">
+            <option value="never_paid">Belum pernah membeli, akses tidak aktif</option>
+            <option value="expired">Pernah membeli, akses sudah berakhir</option>
+            <option value="active">Akses masih aktif</option>
+            <option value="all">Semua pengguna</option>
+          </select>
+          <button class="btn btn-outline" id="export-btn" type="button" disabled>Unduh CSV</button>
+        </div>
+        <p id="export-count" class="muted small" role="status" aria-live="polite">Menghitung kontak…</p>
+        <p class="muted small">CSV UTF-8: EMAIL, FIRSTNAME, LASTNAME. Saat impor Brevo, cocokkan kolom ke atribut kontak dan pilih daftar tujuan. Ekspor bukan bukti persetujuan marketing; jangan berlangganankan ulang kontak yang sudah unsubscribe atau diblokir.</p>
+      </section>
       <div class="filter-bar">
         <input type="text" id="q" placeholder="Cari nama / email…">
         <button class="btn" id="search-btn">Cari</button>
@@ -46,6 +62,53 @@
       let page = 1;
       const listEl = document.getElementById('list');
       const pagerEl = document.getElementById('pager');
+      const exportSegment = document.getElementById('export-segment');
+      const exportBtn = document.getElementById('export-btn');
+      const exportCount = document.getElementById('export-count');
+      let previewVersion = 0;
+
+      async function previewExport() {
+        const version = ++previewVersion;
+        exportBtn.disabled = true;
+        exportCount.textContent = 'Menghitung kontak…';
+        try {
+          const d = await TO.api('/api/admin/users/export?format=preview&segment=' + encodeURIComponent(exportSegment.value));
+          if (version !== previewVersion) return;
+          exportCount.textContent = d.total + ' kontak Gmail dapat diekspor. Status dihitung ulang saat unduh.';
+          exportBtn.disabled = d.total === 0;
+        } catch (e) {
+          if (version === previewVersion) exportCount.textContent = 'Gagal menghitung kontak: ' + e.message;
+        }
+      }
+
+      exportSegment.addEventListener('change', previewExport);
+      exportBtn.addEventListener('click', () => {
+        TO.busy(exportBtn, 'Menyiapkan…', async () => {
+          exportSegment.disabled = true;
+          try {
+            // TO.api hanya menerima JSON; unduhan CSV memakai fetch dengan sesi yang sama.
+            const res = await fetch('/api/admin/users/export?segment=' + encodeURIComponent(exportSegment.value), {
+              credentials: 'same-origin', cache: 'no-store',
+            });
+            if (!res.ok) {
+              const d = await res.json().catch(() => null);
+              throw new Error(d?.error || 'Gagal mengekspor kontak. Silakan coba lagi.');
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'brevo-gmail.csv';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            TO.toast('CSV berhasil diunduh. Siap diimpor ke Brevo.', 'success');
+          } finally {
+            exportSegment.disabled = false;
+          }
+        }).catch((e) => TO.toast(e.message, 'error'));
+      });
 
       async function load() {
         listEl.innerHTML = '<p class="muted">Memuat…</p>';
@@ -136,6 +199,7 @@
       document.getElementById('d-close').addEventListener('click', () => TO.closeModal('detail-modal'));
 
       load();
+      previewExport();
     })();
   </script>
 </body>

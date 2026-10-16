@@ -100,6 +100,7 @@ Navigasi top-level (bukan `fetch`): semua respons berupa redirect 302. Gagal →
 | GET / POST | `/settings/payment-mode` | Baca/ubah `{ mode: 'gateway' \| 'hybrid' \| 'manual' }` (alias lama `pakasir` diterima) |
 | GET / POST | `/settings/active-gateway` | Baca (+ status konfigurasi tiap gateway) / ubah `{ gateway: 'pakasir' \| 'duitku' }` |
 | GET | `/users` | `?q=&page=` (20/hal) |
+| GET | `/users/export` | Khusus Gmail (`@gmail.com`), tanpa admin, seluruh hasil tanpa paginasi/pencarian. `segment=never_paid` (belum ada transaksi lunas & akses tidak aktif), `expired` (pernah lunas & akses tidak aktif), `active` (akses aktif, termasuk akses manual/bonus), atau `all`. `format=preview` → JSON `{ total }`; default `format=csv` → unduhan CSV UTF-8 `EMAIL,FIRSTNAME,LASTNAME` (pengecualian format JSON API). Email dinormalisasi/deduplikasi; nama di-escape dan dilindungi dari formula spreadsheet. `Cache-Control: private, no-store`. Ekspor bukan bukti consent marketing |
 | GET | `/users/:id` | Detail + 20 payment + 20 attempt terakhir + statistik referral |
 | POST | `/users/:id/reset-password` | Password sementara (ditampilkan sekali) + hapus semua sesi |
 | POST | `/users/:id/extend-access` | `{ days: 1..3650 }` |

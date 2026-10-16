@@ -18,13 +18,13 @@ Komentar di `src/services/*` dan `src/routes/payments.ts` menjelaskan **mengapa*
 
 ```bash
 npm run dev         # wrangler dev (lihat jebakan di bawah) → http://localhost:8787
-npm run typecheck   # WAJIB lolos sebelum commit (satu-satunya pemeriksaan otomatis)
+npm run typecheck   # WAJIB lolos sebelum commit
 npm run deploy      # wrangler deploy = LANGSUNG PRODUKSI (uang nyata)
 npm run db:local    # migrasi D1 lokal    |  npm run db:remote  # migrasi D1 produksi
 npm run seed:local  # paket demo 10 soal (lokal saja)
 ```
 
-Tidak ada test suite otomatis. Verifikasi = `npm run typecheck` + uji manual via `npm run dev` (lihat "Verifikasi" di bawah).
+Belum ada test suite menyeluruh. Verifikasi = `npm run typecheck` + uji manual via `npm run dev` (lihat "Verifikasi" di bawah). Khusus ekspor kontak admin, jalankan `node scripts/test-contact-export.mjs` (Node ≥22.13, SQLite in-memory tanpa akses produksi).
 
 Smoke test Duitku (diagnostik utama gateway kedua):
 

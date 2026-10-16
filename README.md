@@ -147,7 +147,8 @@ Catatan: payment manual tidak pernah auto-expire — uang bisa saja sudah masuk 
 |---|---|
 | `npm run dev` | Server pengembangan lokal |
 | `npm run deploy` | Deploy ke Cloudflare Workers (**langsung produksi**) |
-| `npm run typecheck` | Cek tipe TypeScript — satu-satunya pemeriksaan otomatis (belum ada test suite) |
+| `npm run typecheck` | Cek tipe TypeScript wajib (belum ada test suite menyeluruh) |
+| `node scripts/test-contact-export.mjs` | Regresi khusus ekspor Gmail: SQLite in-memory, kategori, CSV, guard admin, preview & header (Node ≥22.13; tidak mengakses produksi) |
 | `npm run db:local` / `db:remote` | Terapkan migrasi D1 lokal/produksi |
 | `npm run seed:local` | Seed paket demo 10 soal (hanya lokal) |
 | `node scripts/duitku-smoke.mjs [--prod] [--method=SQ,NQ,SP]` | Smoke test Duitku (butuh env `DUITKU_MERCHANT_CODE` + `DUITKU_API_KEY`) |
@@ -252,6 +253,7 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 
 - **Reset password user:** Admin → Users → Reset Password. Password sementara 12 karakter **ditampilkan sekali** saja; semua session user tersebut dibatalkan.
 - **Perpanjang akses manual:** Admin → Users → detail → Perpanjang Akses (1–3650 hari).
+- **Ekspor kontak Brevo:** Admin → Users → Ekspor Kontak Brevo. Pilih belum pernah membeli & akses tidak aktif, pernah membeli & akses sudah berakhir, akses aktif, atau semua pengguna. Khusus `@gmail.com`, tanpa admin, tanpa mengikuti pencarian/paginasi; jumlah kontak tampil sebelum unduh. CSV UTF-8 berkolom `EMAIL`, `FIRSTNAME`, `LASTNAME` (nama satu kata → lastname kosong). Impor melalui dashboard Brevo, petakan kolom ke atribut yang sama dan pilih daftar sesuai kategori; jangan berlangganankan ulang kontak unsubscribe/blocklist. Ekspor tidak membuktikan persetujuan email marketing. Status pembelian berdasarkan transaksi `paid`; akses manual/bonus tidak dianggap pembelian. Tidak ada sinkronisasi otomatis atau pengiriman email dari fitur ini.
 - **Sembunyikan produk/paket:** matikan flag aktif (data histori tetap aman).
 - **Hapus soal:** soft delete — histori attempt tetap utuh.
 
