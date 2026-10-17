@@ -118,6 +118,7 @@ Poin = Σ skor percobaan pertama tiap paket aktif + 100 (`PASS_BONUS`) per paket
 | PUT / DELETE | `/products/:id` | Ubah / hapus (409 bila punya transaksi → nonaktifkan) |
 | GET / POST | `/packages` | Daftar (+ jumlah soal & attempt) / buat `{ title, exam_type, description?, duration_minutes, active?, passing_grade_total? }` |
 | PUT / DELETE | `/packages/:id` | Ubah / hapus (409 bila punya attempt) |
+| GET | `/packages/:id/export` | Unduhan JSON paket soal (`{ title, category, questions }`, soal aktif `deleted_at IS NULL`, urut `categories.sort_order`, `name`, `questions.id`) — identik dengan format `/questions/import` (pengecualian format JSON API) |
 | GET / PUT | `/packages/:id/passing-grades` | Aturan PG per kategori `{ rules: [{ category_id, minimum_score }] }` |
 | GET / POST | `/categories` | `?exam_type=` / buat `{ name, exam_type, active? }` |
 | PUT / DELETE | `/categories/:id` | Ubah / hapus (ditolak bila masih dipakai soal hidup) |

@@ -64,7 +64,7 @@ Output: inquiry per channel (`--method=SQ,NQ,SP` menguji urutan tertentu), dafta
 | Email notifikasi (sambutan, bukti bayar, pengingat belum bayar) | `src/services/notifications.ts`, `sendAbandonedPaymentReminders` di `src/services/payments.ts` | Bukti bayar dikirim dari `settlePayment`; kuota Resend Free 100/hari (`EMAIL_DAILY_LIMIT`) |
 | Rate limit | `src/middleware/ratelimit.ts` (angka), `src/do/ratelimit.ts` (counter DO) | Fail-open bila DO error |
 | CSRF / header keamanan | `src/middleware/security.ts`, `public/_headers` | Aset statis TIDAK lewat Worker |
-| Import soal JSON | `src/services/importer.ts`, `src/routes/admin/questions.ts` | Maks 500 soal, body 8 MB |
+| Import/export soal JSON | `src/services/importer.ts`, `src/routes/admin/questions.ts`, `src/routes/admin/catalog.ts` | Import maks 500 soal (8 MB); export `GET /api/admin/packages/:id/export` menghasilkan JSON identik format import |
 | Materi PDF (R2) | `src/routes/materials.ts`, `src/routes/admin/materials.ts`, `public/js/reader.js` | Cache `private` saja |
 | Cron | `scheduled` di akhir `src/index.ts`, jadwal di `wrangler.jsonc` | Harian 03:17 WIB (bersih-bersih + rekonsiliasi); `*/15` = pengingat belum bayar (string harus sama dengan `REMINDER_CRON`) |
 | Skema DB | `migrations/NNNN_*.sql` (file BARU) | Lihat aturan migrasi di bawah |

@@ -100,6 +100,7 @@
                   <td class="nowrap">
                     <button class="btn btn-sm btn-outline edit-btn" data-id="${p.id}">Edit</button>
                     <button class="btn btn-sm btn-outline pg-btn" data-id="${p.id}">Passing Grade</button>
+                    <button class="btn btn-sm btn-outline export-btn" data-id="${p.id}" ${p.question_count ? '' : 'disabled title="Paket belum memiliki soal"'}>Export JSON</button>
                     <button class="btn btn-sm btn-danger del-btn" data-id="${p.id}" data-n="${TO.esc(p.title)}">Hapus</button>
                   </td>
                 </tr>`).join('')}
@@ -107,6 +108,7 @@
             </table></div>`;
           listEl.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openForm(Number(b.dataset.id))));
           listEl.querySelectorAll('.pg-btn').forEach((b) => b.addEventListener('click', () => openPg(Number(b.dataset.id))));
+          listEl.querySelectorAll('.export-btn').forEach((b) => b.addEventListener('click', () => exportPkg(b, Number(b.dataset.id))));
           listEl.querySelectorAll('.del-btn').forEach((b) => b.addEventListener('click', () => {
             if (!confirm(`Hapus paket "${b.dataset.n}"? (hanya bisa jika belum ada yang mengerjakan)`)) return;
             TO.busy(b, 'Menghapus…', () => TO.api('/api/admin/packages/' + b.dataset.id, { method: 'DELETE' }))
@@ -127,6 +129,28 @@
         document.getElementById('fm-pgt').value = p && p.passing_grade_total != null ? p.passing_grade_total : '';
         document.getElementById('fm-active').checked = p ? !!p.active : true;
         TO.openModal('form-modal');
+      }
+
+      async function exportPkg(btn, id) {
+        await TO.busy(btn, 'Mengekspor…', async () => {
+          const res = await fetch('/api/admin/packages/' + id + '/export', {
+            credentials: 'same-origin', cache: 'no-store',
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => null);
+            throw new Error(d?.error || 'Gagal mengekspor paket soal.');
+          }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || ('paket-' + id + '.json');
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          TO.toast('JSON paket soal berhasil diunduh.', 'success');
+        }).catch((e) => TO.toast(e.message, 'error'));
       }
 
       async function openPg(id) {

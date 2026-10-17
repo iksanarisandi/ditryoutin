@@ -144,6 +144,70 @@ adminPackages.delete('/:id', async (c) => {
 });
 
 // Passing grade per paket: per kategori (poin, prioritas) atau total paket (fallback).
+adminPackages.get('/:id/export', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  const id = toInt(c.req.param('id'), 0);
+  const pkg = await c.env.DB.prepare(
+    'SELECT id, title, exam_type FROM exam_packages WHERE id=?',
+  )
+    .bind(id)
+    .first<{ id: number; title: string; exam_type: string }>();
+  if (!pkg) return fail(c, 'Paket tidak ditemukan', 404);
+
+  // Format identik dengan POST /api/admin/questions/import agar file hasil
+  // backup bisa langsung diimpor ulang (mode replace maupun paket baru).
+  const rows = await c.env.DB.prepare(
+    `SELECT q.question, q.option_a, q.option_b, q.option_c, q.option_d, q.option_e,
+            q.correct_answer, q.explanation, c.name AS category
+     FROM questions q
+     JOIN categories c ON c.id = q.category_id
+     WHERE q.package_id = ? AND q.deleted_at IS NULL
+     ORDER BY c.sort_order ASC, c.name ASC, q.id ASC`,
+  )
+    .bind(id)
+    .all<{
+      question: string;
+      option_a: string;
+      option_b: string;
+      option_c: string;
+      option_d: string;
+      option_e: string;
+      correct_answer: string;
+      explanation: string | null;
+      category: string;
+    }>();
+
+  const payload = {
+    title: pkg.title,
+    category: pkg.exam_type,
+    questions: (rows.results ?? []).map((q) => ({
+      question: q.question,
+      options: {
+        A: q.option_a,
+        B: q.option_b,
+        C: q.option_c,
+        D: q.option_d,
+        E: q.option_e,
+      },
+      answer: q.correct_answer,
+      category: q.category,
+      explanation: q.explanation ?? '',
+    })),
+  };
+
+  const slug =
+    pkg.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80) || `paket-${pkg.id}`;
+  const date = new Date().toISOString().slice(0, 10);
+
+  c.header('Content-Type', 'application/json; charset=utf-8');
+  c.header('Content-Disposition', `attachment; filename="${slug}-${date}.json"`);
+  return c.body(JSON.stringify(payload, null, 2) + '\n');
+});
+
 adminPackages.get('/:id/passing-grades', async (c) => {
   const id = toInt(c.req.param('id'), 0);
   const pkg = await c.env.DB.prepare('SELECT id, exam_type, passing_grade_total FROM exam_packages WHERE id=?')

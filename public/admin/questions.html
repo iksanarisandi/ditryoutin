@@ -18,7 +18,7 @@
     <main class="admin-main">
       <div class="admin-head">
         <h1>Soal</h1>
-        <div class="right"><a class="btn" href="/admin/import.html">Import JSON</a><button class="btn" id="add-btn">+ Tambah Soal</button></div>
+        <div class="right"><button class="btn btn-outline" id="export-btn" type="button" disabled title="Pilih paket pada filter untuk mengekspor JSON">Export JSON Paket</button><a class="btn" href="/admin/import.html">Import JSON</a><button class="btn" id="add-btn">+ Tambah Soal</button></div>
       </div>
       <div class="filter-bar">
         <select id="f-package"><option value="">Semua Paket</option></select>
@@ -71,9 +71,19 @@
 
       const listEl = document.getElementById('list');
       const pagerEl = document.getElementById('pager');
+      const pkgFilterEl = document.getElementById('f-package');
+      const exportBtn = document.getElementById('export-btn');
       let page = 1;
       let editId = 0;
       let cache = [];
+
+      function syncExportBtn() {
+        const hasPkg = !!pkgFilterEl.value;
+        exportBtn.disabled = !hasPkg;
+        exportBtn.title = hasPkg
+          ? 'Unduh semua soal aktif di paket terpilih sebagai JSON backup'
+          : 'Pilih paket pada filter untuk mengekspor JSON';
+      }
 
       async function load() {
         listEl.innerHTML = '<p class="muted">Memuat…</p>';
@@ -151,6 +161,30 @@
         TO.openModal('form-modal');
       }
 
+      pkgFilterEl.addEventListener('change', () => { syncExportBtn(); page = 1; load(); });
+      exportBtn.addEventListener('click', () => {
+        const pkgId = Number(pkgFilterEl.value);
+        if (!pkgId) return;
+        TO.busy(exportBtn, 'Mengekspor…', async () => {
+          const res = await fetch('/api/admin/packages/' + pkgId + '/export', {
+            credentials: 'same-origin', cache: 'no-store',
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => null);
+            throw new Error(d?.error || 'Gagal mengekspor paket soal.');
+          }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || ('paket-' + pkgId + '.json');
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          TO.toast('JSON paket soal berhasil diunduh.', 'success');
+        }).catch((e) => TO.toast(e.message, 'error'));
+      });
       document.getElementById('add-btn').addEventListener('click', () => openForm(0));
       document.getElementById('filter-btn').addEventListener('click', () => { page = 1; load(); });
       document.getElementById('f-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { page = 1; load(); } });
