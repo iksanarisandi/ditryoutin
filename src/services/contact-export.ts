@@ -16,6 +16,7 @@ export async function exportContacts(
   db: D1Database,
   segment: ContactSegment,
   now: string,
+  googleOnly = false,
 ): Promise<Contact[]> {
   // Status bayar berasal dari ledger, bukan akses yang bisa diberikan manual/referral.
   const paid = `EXISTS (SELECT 1 FROM payments p WHERE p.user_id=u.id AND p.status='paid')`;
@@ -30,6 +31,7 @@ export async function exportContacts(
     `SELECT lower(trim(u.email)) AS email, u.name FROM users u
      WHERE u.role='user' AND lower(trim(u.email)) LIKE '%@gmail.com'
        AND ${filters[segment]}
+       ${googleOnly ? 'AND u.google_sub IS NOT NULL' : ''}
      ORDER BY u.id ASC`,
   );
   const rows = await (segment === 'all' ? query : query.bind(now)).all<Contact>();

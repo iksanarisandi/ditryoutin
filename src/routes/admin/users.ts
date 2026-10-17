@@ -56,15 +56,17 @@ adminUsers.get('/export', async (c) => {
   c.header('Cache-Control', 'private, no-store');
   const segment = c.req.query('segment') ?? '';
   const format = c.req.query('format') ?? 'csv';
+  const googleOnly = c.req.query('google_only') ?? '0';
   if (!isContactSegment(segment)) return fail(c, 'Kategori ekspor tidak valid.', 400);
   if (format !== 'csv' && format !== 'preview') return fail(c, 'Format ekspor tidak valid.', 400);
+  if (googleOnly !== '0' && googleOnly !== '1') return fail(c, 'Filter login Google tidak valid.', 400);
 
   const now = new Date().toISOString();
-  const contacts = await exportContacts(c.env.DB, segment, now);
+  const contacts = await exportContacts(c.env.DB, segment, now, googleOnly === '1');
   if (format === 'preview') return ok(c, { total: contacts.length });
 
   c.header('Content-Type', 'text/csv; charset=utf-8');
-  c.header('Content-Disposition', `attachment; filename="brevo-gmail-${CONTACT_SEGMENTS[segment]}-${now.slice(0, 10)}.csv"`);
+  c.header('Content-Disposition', `attachment; filename="brevo-gmail-${CONTACT_SEGMENTS[segment]}${googleOnly === '1' ? '-login-google' : ''}-${now.slice(0, 10)}.csv"`);
   return c.body(contactsCsv(contacts));
 });
 

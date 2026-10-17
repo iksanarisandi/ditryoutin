@@ -30,6 +30,10 @@
           </select>
           <button class="btn btn-outline" id="export-btn" type="button" disabled>Unduh CSV</button>
         </div>
+        <div class="form-group">
+          <label class="checkbox-line"><input type="checkbox" id="export-google-only"> Hanya pengguna yang pernah login dengan Google</label>
+          <p class="muted small">Alamat Gmail saja tidak berarti pernah login Google. Jika dicentang, filter ini berlaku bersama kategori di atas.</p>
+        </div>
         <p id="export-count" class="muted small" role="status" aria-live="polite">Menghitung kontak…</p>
         <p class="muted small">CSV UTF-8: EMAIL, FIRSTNAME, LASTNAME. Saat impor Brevo, cocokkan kolom ke atribut kontak dan pilih daftar tujuan. Ekspor bukan bukti persetujuan marketing; jangan berlangganankan ulang kontak yang sudah unsubscribe atau diblokir.</p>
       </section>
@@ -63,18 +67,26 @@
       const listEl = document.getElementById('list');
       const pagerEl = document.getElementById('pager');
       const exportSegment = document.getElementById('export-segment');
+      const exportGoogleOnly = document.getElementById('export-google-only');
       const exportBtn = document.getElementById('export-btn');
       const exportCount = document.getElementById('export-count');
       let previewVersion = 0;
+
+      function exportQuery() {
+        return new URLSearchParams({
+          segment: exportSegment.value,
+          google_only: exportGoogleOnly.checked ? '1' : '0',
+        }).toString();
+      }
 
       async function previewExport() {
         const version = ++previewVersion;
         exportBtn.disabled = true;
         exportCount.textContent = 'Menghitung kontak…';
         try {
-          const d = await TO.api('/api/admin/users/export?format=preview&segment=' + encodeURIComponent(exportSegment.value));
+          const d = await TO.api('/api/admin/users/export?format=preview&' + exportQuery());
           if (version !== previewVersion) return;
-          exportCount.textContent = d.total + ' kontak Gmail dapat diekspor. Status dihitung ulang saat unduh.';
+          exportCount.textContent = d.total + ' kontak Gmail' + (exportGoogleOnly.checked ? ' yang pernah login Google' : '') + ' dapat diekspor. Status dihitung ulang saat unduh.';
           exportBtn.disabled = d.total === 0;
         } catch (e) {
           if (version === previewVersion) exportCount.textContent = 'Gagal menghitung kontak: ' + e.message;
@@ -82,12 +94,14 @@
       }
 
       exportSegment.addEventListener('change', previewExport);
+      exportGoogleOnly.addEventListener('change', previewExport);
       exportBtn.addEventListener('click', () => {
         TO.busy(exportBtn, 'Menyiapkan…', async () => {
           exportSegment.disabled = true;
+          exportGoogleOnly.disabled = true;
           try {
             // TO.api hanya menerima JSON; unduhan CSV memakai fetch dengan sesi yang sama.
-            const res = await fetch('/api/admin/users/export?segment=' + encodeURIComponent(exportSegment.value), {
+            const res = await fetch('/api/admin/users/export?' + exportQuery(), {
               credentials: 'same-origin', cache: 'no-store',
             });
             if (!res.ok) {
@@ -106,6 +120,7 @@
             TO.toast('CSV berhasil diunduh. Siap diimpor ke Brevo.', 'success');
           } finally {
             exportSegment.disabled = false;
+            exportGoogleOnly.disabled = false;
           }
         }).catch((e) => TO.toast(e.message, 'error'));
       });
