@@ -19,6 +19,7 @@ import { verifyTurnstile } from '../services/turnstile';
 import { finalizeUserExpiredAttempts } from '../services/scoring';
 import { reconcilePendingPayments } from '../services/payments';
 import { googleEnabled } from '../services/google';
+import { effectiveStreak } from '../services/streak';
 import type { AppEnv } from '../types';
 
 const auth = new Hono<AppEnv>();
@@ -186,10 +187,16 @@ auth.get('/me', requireAuth, async (c) => {
   // Rekonsiliasi pembayaran pending (fallback saat webhook belum dikonfigurasi).
   await reconcilePendingPayments(c.env, user.id, c.executionCtx);
   const fresh = await c.env.DB.prepare(
-    'SELECT access_expires_at, access_started_at FROM users WHERE id=?',
+    'SELECT access_expires_at, access_started_at, streak_current, streak_best, streak_last_day FROM users WHERE id=?',
   )
     .bind(user.id)
-    .first<{ access_expires_at: string | null; access_started_at: string | null }>();
+    .first<{
+      access_expires_at: string | null;
+      access_started_at: string | null;
+      streak_current: number;
+      streak_best: number;
+      streak_last_day: string | null;
+    }>();
 
   const exp = fresh?.access_expires_at ?? null;
   const active = !!exp && Date.parse(exp) > Date.now();
@@ -203,6 +210,7 @@ auth.get('/me', requireAuth, async (c) => {
     },
     is_admin: user.role === 'admin',
     has_access: user.role === 'admin' || accessActive(user),
+    streak: effectiveStreak(fresh?.streak_current, fresh?.streak_best, fresh?.streak_last_day),
   });
 });
 

@@ -26,6 +26,8 @@ Akun peserta & admin.
 | `access_started_at` | Awal periode akses berjalan (direset bila akses sempat habis) |
 | `failed_attempts`, `locked_until` | Lockout login (5 gagal → 15 menit) |
 | `referral_code` | Dibuat malas saat `GET /api/referral`; unique bila tidak NULL |
+| `streak_current`, `streak_best`, `streak_last_day` | Day streak (`src/services/streak.ts`). `streak_last_day` = tanggal **WITA** `YYYY-MM-DD` (pengecualian format timestamp: batas hari streak 00:00 WITA). Diperbarui satu `UPDATE` atomik maks 1x/hari saat submit tryout (≥10 soal terjawab) atau buka materi. Nilai tersimpan bisa basi — streak tampil = 0 bila `streak_last_day` < kemarin (dihitung saat dibaca, tanpa cron) |
+| `leaderboard_hidden` | 1 = nama tampil "Peserta" di papan peringkat (posisi tetap dihitung) |
 
 ### `sessions`
 Satu baris per login. `token_hash` = HMAC-SHA256(token, `SESSION_SECRET`) — token mentah hanya di cookie. TTL 30 hari. Login baru menghapus sesi lama user (satu perangkat). Cron harian menghapus yang kedaluwarsa.
@@ -76,6 +78,8 @@ Aturan minimal skor per (paket, kategori) dalam poin (0–1000). Prioritas kelul
 
 Satu user hanya boleh punya satu attempt `in_progress`.
 
+Papan peringkat (`src/services/leaderboard.ts`) hanya membaca tabel ini: percobaan pertama = `MIN(id)` per `(user_id, package_id)` berstatus `submitted`, lewat covering index `idx_attempts_user_status_package`.
+
 ### `attempt_questions`
 Snapshot urutan soal per attempt (UNIQUE `(attempt_id, question_order)`): `user_answer` (A–E/NULL), `marked_review` (ragu-ragu), `is_correct` (dibekukan saat submit). Tabel terbesar (~93 baris per attempt).
 
@@ -111,6 +115,7 @@ Metadata materi PDF; byte file di R2 `MATERI_BUCKET` dengan key `materi/{uuid}.p
 |---|---|
 | `idx_attempts_user_status_package` | Semua query "attempt milik user" (dashboard, riwayat, finalisasi malas) |
 | `idx_attempts_status` | Hitung attempt per status (dashboard admin) |
+| `idx_attempts_package_status_user` | Peringkat per paket (percobaan pertama tiap user di satu paket) — covering index |
 | `idx_questions_package_id`, `idx_questions_category_id` | Soal per paket/kategori |
 | `idx_payments_user_id`, `idx_payments_status` | Pending per user, statistik |
 | `idx_payments_status_created` | Cron pengingat belum bayar (status + rentang umur) |
@@ -140,8 +145,9 @@ Metadata materi PDF; byte file di R2 `MATERI_BUCKET` dengan key `materi/{uuid}.p
 | `0016_payments_payment_url` | `payments.payment_url` (Duitku) |
 | `0017_email_log` | Tabel `email_log` (kuota & anti-dobel email notifikasi) + index `payments(status, created_at)` |
 | `0018_google_login` | `users.google_sub` (+ unique parsial), `users.email_verified_at` — Login dengan Google |
+| `0019_streak_leaderboard` | `users.streak_current/streak_best/streak_last_day`, `users.leaderboard_hidden`; index `attempts(package_id, status, user_id)` menggantikan `idx_attempts_package_id` |
 
-Catatan: ada **dua file bernomor `0004`** (sejarah) — wrangler melacak migrasi per nama file di tabel `d1_migrations`, jadi keduanya sudah diterapkan dan tidak boleh di-rename. Migrasi berikutnya: `0019_…`.
+Catatan: ada **dua file bernomor `0004`** (sejarah) — wrangler melacak migrasi per nama file di tabel `d1_migrations`, jadi keduanya sudah diterapkan dan tidak boleh di-rename. Migrasi berikutnya: `0020_…`.
 
 Aturan menulis migrasi:
 - Selalu file baru; jangan mengedit migrasi yang sudah diterapkan (komentar lama di dalamnya boleh tertinggal — mis. `0012` masih menyebut mode `pakasir`).

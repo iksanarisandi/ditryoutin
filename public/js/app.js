@@ -218,6 +218,7 @@
       ['/materi.html', 'Materi', true],
       ['/dashboard.html', 'Dashboard', true],
       ['/history.html', 'Riwayat', true],
+      ['/leaderboard.html', 'Peringkat', true],
     ];
     const nav = links
       .map(([href, label, needAuth]) => {
@@ -327,9 +328,16 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPwToggles);
   else initPwToggles();
 
+  // ---- Ikon gamifikasi (streak, peringkat) — dipakai dashboard, hasil, papan peringkat ----
+  const ICONS = {
+    flame: '<svg class="ico-flame" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+    crown: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.5 7.5l5 4 4.5-7 4.5 7 5-4-2 11h-15l-2-11zM5 20h14v2H5z"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0V4z"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>',
+  };
+
   window.TO = {
     api, esc, rupiah, animateCounts, fmtDate, fmtDateTime, fmtDur, fmtClock, qs, safeNext, daysLeft, snippet,
     toast, busy, copy, fetchMe, requireUser, requireAdmin, logout,
-    renderHeader, openModal, closeModal, WA_ADMIN, renderGoogleAuth, googleErrorMessage,
+    renderHeader, openModal, closeModal, WA_ADMIN, renderGoogleAuth, googleErrorMessage, ICONS,
   };
 })();

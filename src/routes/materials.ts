@@ -3,6 +3,7 @@ import { fail, ok } from '../utils/response';
 import { requireAuth } from '../middleware/auth';
 import { limitOr429 } from '../middleware/ratelimit';
 import { toInt, trimStr } from '../utils/validate';
+import { recordStreakSafe } from '../services/streak';
 import type { AppEnv } from '../types';
 
 // Materi bacaan PDF — bisa dibaca SEMUA user yang login (tidak perlu
@@ -43,7 +44,9 @@ materials.get('/', async (c) => {
   return ok(c, { materials: rows.results ?? [], categories: cats.results ?? [] });
 });
 
-// Metadata satu materi (header halaman pembaca).
+// Metadata satu materi (header halaman pembaca). Dipanggil sekali per buka
+// pembaca, jadi di sinilah "membuka materi" dicatat untuk day streak — bukan
+// di /:id/file yang dipanggil berkali-kali oleh range-request pdf.js.
 materials.get('/:id', async (c) => {
   const id = toInt(c.req.param('id'), 0);
   const row = await c.env.DB.prepare(
@@ -54,6 +57,7 @@ materials.get('/:id', async (c) => {
     .bind(id)
     .first();
   if (!row) return fail(c, 'Materi tidak ditemukan', 404);
+  c.executionCtx.waitUntil(recordStreakSafe(c.env.DB, c.get('user').id));
   return ok(c, { material: row });
 });
 

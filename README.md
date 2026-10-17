@@ -169,11 +169,12 @@ src/
                        recent-results), mount router, cron `scheduled`
   types.ts             Tipe Env (semua binding + env var) & SessionUser
   routes/              auth, setup, packages, attempts, results, payments,
-                       materials, referral, admin/{overview,users,catalog,
+                       materials, referral, leaderboard, admin/{overview,users,catalog,
                        questions,materials,settings}
   services/            payments (settle/akses/rekonsiliasi), pakasir, duitku,
                        settings (mode & gateway aktif), scoring, passing-grades,
-                       importer, referrals, resend (kirim email + kuota + template),
+                       importer, referrals, streak, leaderboard,
+                       resend (kirim email + kuota + template),
                        notifications (sambutan, bukti bayar, pengingat), turnstile, qr (SVG)
   middleware/          auth (sesi & guard), security (CSRF + header), ratelimit
   do/ratelimit.ts      Durable Object counter rate limit
@@ -225,6 +226,7 @@ Field `category` pada soal opsional (kategori turunan); `answer` harus `A`–`E`
 - **Lupa password:** `POST /api/auth/forgot-password` mengirim tautan via Resend (`RESEND_API_KEY`) berisi token sekali pakai berlaku 1 jam (DB hanya menyimpan hash, tabel `password_reset_tokens`). Respons selalu netral. Reset sukses = semua sesi user dihapus + lockout dibuka.
 - **Login dengan Google (`src/routes/google-auth.ts`, `src/services/google.ts`):** OAuth authorization code + PKCE di server, scope `openid email profile` saja, tanpa SDK Google di frontend dan tanpa menyimpan token Google. Hanya email `email_verified` yang diterima → `users.email_verified_at`. Akun dicocokkan via `google_sub`, lalu email: akun lama ditautkan otomatis hanya bila Google otoritatif atas email itu (`@gmail.com`/`@googlemail.com` atau akun Workspace ber-klaim `hd`; alamat lain diminta masuk dengan password — panduan account linking Google); bila email akun lama belum pernah terbukti (tidak pernah login Google/reset password), password-nya dimatikan (`!google-only`) agar pendaftar palsu dengan email orang lain tidak ikut memegang akun — pemilik bisa membuat password baru via Lupa password (admin dikecualikan). Akun baru melewati alur yang sama dengan register (referral, kontak Resend, sambutan) via `afterSignup()` (`src/services/signup.ts`). Browser in-app (Instagram/TikTok/Facebook) diblokir Google (`disallowed_useragent`) — halaman menampilkan ajakan buka di Chrome/Safari, login email tetap tersedia. Redirect URI tidak diturunkan dari `c.req.url` (jebakan rewrite host wrangler dev).
 - **Program referral:** setiap user punya kode undangan (dibuat saat pertama dibuka di dashboard, link `register.html?ref=KODE`). Yang diundang mendapat diskon 10% pada pembelian pertama yang lunas; pengundang mendapat +3 hari akses saat transaksi pertama invitee lunas (bukan saat daftar — akun palsu tidak menghasilkan apa pun). Satu akun hanya bisa jadi invitee sekali (`referrals.invitee_id` UNIQUE). Konstanta di `src/services/referrals.ts`.
+- **Day streak & papan peringkat:** streak = hari berturut-turut (batas 00:00 WITA) peserta submit tryout dengan ≥10 soal terjawab atau membuka materi; disimpan di kolom `users.streak_*`, maks 1 tulis/user/hari, putus dihitung saat dibaca (tanpa cron). Papan peringkat (`/leaderboard.html`) sepanjang waktu, dipisah UPKP / Ujian Dinas: poin = skor percobaan pertama tiap paket aktif + 100 bonus per paket lulus, tanpa penalti; mengulang paket tidak mengubah poin (anti-hafalan). Top 50 di-cache edge 10 menit; nama "Depan I." dan bisa disembunyikan peserta. Konstanta di `src/services/streak.ts` & `src/services/leaderboard.ts`.
 - **Kontak broadcast:** pendaftar baru disinkron ke Contacts Resend (fire-and-forget, tidak pernah menggagalkan registrasi).
 - **Email notifikasi (Resend, `src/services/notifications.ts` + template di `src/services/resend.ts`):**
   - *Sambutan* saat daftar (waitUntil): benefit platform + daftar paket aktif dan harga dari `products` (harga sudah dipotong bila daftar lewat undangan).

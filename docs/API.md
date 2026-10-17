@@ -32,7 +32,7 @@ Semua endpoint di bawah `/api/*`, dilayani Worker (`src/index.ts` me-mount route
 | POST | `/register` | publik, 6/mnt/IP | `{ name, email, password, turnstile_token?, ref? }` — buat akun + sesi; `ref` = kode referral (salah = diabaikan diam-diam); sinkron kontak Resend + email sambutan (waitUntil) |
 | POST | `/login` | publik, 12/mnt/IP | `{ email, password, turnstile_token? }` — lockout 5 gagal/15 mnt (password benar tetap bisa masuk); email tak terdaftar dikunci virtual (anti-enumeration) |
 | POST | `/logout` | user | Hapus sesi ini |
-| GET | `/me` | user | Profil + status akses (`access.active`, `days_left`, `is_admin`, `has_access`). Efek samping: finalisasi attempt kedaluwarsa + rekonsiliasi payment pending (maks 1x/15 dtk/user) |
+| GET | `/me` | user | Profil + status akses (`access.active`, `days_left`, `is_admin`, `has_access`) + `streak` (`current`, `best`, `last_day`, `active_today`, `today` — tanggal WITA). Efek samping: finalisasi attempt kedaluwarsa + rekonsiliasi payment pending (maks 1x/15 dtk/user) |
 | POST | `/heartbeat` | user | Cek sesi masih valid (dipakai halaman ujian; tanpa efek samping) |
 | POST | `/forgot-password` | publik, 5/15 mnt/IP + 3/15 mnt/email | `{ email }` — kirim tautan reset (Resend). Respons selalu netral |
 | POST | `/reset-password` | publik, 6/10 mnt/IP | `{ token, password }` — token sekali pakai 1 jam; sukses = hapus semua sesi user + buka lockout + tandai `email_verified_at` |
@@ -65,9 +65,9 @@ Navigasi top-level (bukan `fetch`): semua respons berupa redirect 302. Gagal →
 | GET | `/api/attempts/active` | user | Ujian yang sedang berjalan (tombol "Lanjutkan") atau `null` |
 | GET | `/api/attempts/:id` | user (pemilik/admin) | Soal + jawaban tersimpan + sisa waktu — TANPA kunci jawaban. Bila sudah selesai → `{ status: 'submitted', result_id }` |
 | POST | `/api/attempts/:id/answer` | user (pemilik/admin) | `{ question_id, answer: 'A'..'E' \| null, marked_review? }` — autosave. 410 + auto-submit bila waktu habis |
-| POST | `/api/attempts/:id/submit` | user (pemilik/admin) | Selesaikan + hitung skor di server (idempoten) |
+| POST | `/api/attempts/:id/submit` | user (pemilik/admin) | Selesaikan + hitung skor di server (idempoten). Minimal 10 soal terjawab (atau semua soal bila paket < 10) → hari ini tercatat di day streak |
 | GET | `/api/results` | user | Riwayat attempt `submitted` milik sendiri |
-| GET | `/api/results/:id` | user (pemilik/admin) | Hasil + skor per kategori + pembahasan (hanya setelah submit) |
+| GET | `/api/results/:id` | user (pemilik/admin) | Hasil + skor per kategori + pembahasan (hanya setelah submit) + `ranking` `{ rank, total, first_attempt_id, first_score, is_first }` = peringkat percobaan pertama pemilik di paket ini (`null` untuk admin) |
 
 ## Pembayaran — `src/routes/payments.ts` (`/api/payments`)
 
@@ -84,8 +84,18 @@ Navigasi top-level (bukan `fetch`): semua respons berupa redirect 302. Gagal →
 |---|---|---|---|
 | GET | `/api/referral` | user | Kode undangan (dibuat malas), link `register.html?ref=…`, jumlah diundang/membeli, hari bonus, `invitee_discount` |
 | GET | `/api/materials` | user | `?category_id=&q=` — daftar materi aktif + kategori |
-| GET | `/api/materials/:id` | user | Metadata satu materi |
+| GET | `/api/materials/:id` | user | Metadata satu materi. Efek samping: hari ini tercatat di day streak (waitUntil) |
 | GET | `/api/materials/:id/file` | user, 150/mnt/user | Byte PDF dari R2 (Range + ETag, cache `private`); `?download=1` = attachment |
+
+## Papan peringkat — `src/routes/leaderboard.ts` (`/api/leaderboard`)
+
+Poin = Σ skor percobaan pertama tiap paket aktif + 100 (`PASS_BONUS`) per paket yang lulus di percobaan itu; papan dipisah `upkp` / `udin` / `lainnya`; admin tidak ikut. Logika di `src/services/leaderboard.ts`.
+
+| Method | Path | Guard | Fungsi |
+|---|---|---|---|
+| GET | `/` | user | `{ boards: [{ key, label, total, entries: [{ rank, name, hidden, points, passed_count, package_count, streak }] }], top, pass_bonus, refresh_minutes, generated_at }` — top 50 per papan, nama "Depan I." / "Peserta". Tanpa user_id. Cache edge 10 menit lewat key internal `/__cache/leaderboard-v1`; respons ke browser `private, no-store` |
+| GET | `/me` | user | `{ is_admin, hidden, standings: { <board>: { rank, total, points, passed_count, package_count } }, streak }` — tanpa cache |
+| PUT | `/me` | user | `{ hidden: boolean }` — sembunyikan/tampilkan nama; hapus cache top-N di colo ini |
 
 ## Admin — semua `requireAdmin`, prefix `/api/admin`
 
@@ -126,7 +136,8 @@ Navigasi top-level (bukan `fetch`): semua respons berupa redirect 302. Gagal →
 | semua halaman login | `/api/auth/me` (via `TO.requireUser()` / `TO.fetchMe()` di `public/js/app.js`) |
 | `index.html` (landing) | `/api/products`, `/api/site-stats`, `/api/recent-results` (via `public/js/social-proof.js`) |
 | `register.html`, `login.html`, `forgot.html`, `reset.html` | `/api/auth/captcha` + endpoint auth masing-masing |
-| `dashboard.html` | `/api/packages`, `/api/products`, `/api/attempts/active`, `/api/referral`, `POST /api/attempts` |
+| `dashboard.html` | `/api/packages`, `/api/products`, `/api/attempts/active`, `/api/referral`, `POST /api/attempts` (kartu streak dari `/api/auth/me`) |
+| `leaderboard.html` | `/api/leaderboard`, `/api/leaderboard/me`, `PUT /api/leaderboard/me` |
 | `exam.html` | `/api/attempts/:id`, `/answer`, `/submit`, `/api/auth/heartbeat` |
 | `result.html`, `history.html` | `/api/results`, `/api/results/:id` |
 | `payment.html` | `/api/products`, `/api/referral`, `/api/payments/create`, `/api/payments/:id` |

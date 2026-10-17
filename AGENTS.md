@@ -58,6 +58,8 @@ Output: inquiry per channel (`--method=SQ,NQ,SP` menguji urutan tertentu), dafta
 | Auth, register, lupa password | `src/routes/auth.ts`, `src/utils/session.ts`, `src/utils/hash.ts` | Turnstile dicek sebelum argon2 |
 | Login dengan Google | `src/routes/google-auth.ts`, `src/services/google.ts`, `TO.renderGoogleAuth` di `public/js/app.js` | Efek samping akun baru lewat `afterSignup()` (`src/services/signup.ts`); redirect URI jangan dari `c.req.url` |
 | Referral | `src/services/referrals.ts`, `src/routes/referral.ts` | Diskon 10% invitee; bonus +3 hari saat lunas pertama |
+| Day streak | `src/services/streak.ts`, dicatat di `scoreAndFinalize` (`src/services/scoring.ts`) & `GET /api/materials/:id`, kartu di `public/dashboard.html` | Tanggal WITA; satu `UPDATE` atomik maks 1x/hari; gagal tidak boleh menggagalkan submit |
+| Papan peringkat | `src/services/leaderboard.ts`, `src/routes/leaderboard.ts`, `public/leaderboard.html`, chip peringkat di `public/result.html` | Percobaan pertama per paket aktif + bonus lulus; top-N di-cache edge (tanpa data per-user) |
 | Email (transport, kuota, template, reset password, kontak broadcast) | `src/services/resend.ts` | Semua email lewat `sendEmail()` (kuota + `email_log`); gagal tidak boleh membatalkan alur |
 | Email notifikasi (sambutan, bukti bayar, pengingat belum bayar) | `src/services/notifications.ts`, `sendAbandonedPaymentReminders` di `src/services/payments.ts` | Bukti bayar dikirim dari `settlePayment`; kuota Resend Free 100/hari (`EMAIL_DAILY_LIMIT`) |
 | Rate limit | `src/middleware/ratelimit.ts` (angka), `src/do/ratelimit.ts` (counter DO) | Fail-open bila DO error |
@@ -94,9 +96,9 @@ Format respons API SELALU `{ success: true, data }` atau `{ success: false, erro
 - **Perpanjangan akses atomik**: `extendUserAccess()` = satu statement SQL (`MAX(expiry, now) + hari`). Jangan diganti baca-lalu-tulis di JS.
 - **Anti-cheat**: `correct_answer` & `explanation` tidak pernah dikirim sebelum attempt `submitted`. Skor hanya dihitung server.
 - **Hasil immutable**: `attempt_questions.is_correct`, `attempts.score`, `category_scores` dibekukan saat submit; edit soal tidak boleh mengubah hasil lama. Soal dihapus = soft delete (`deleted_at`).
-- **Timestamp**: semua TEXT ISO-8601 UTC dari `new Date().toISOString()` (lebar tetap → perbandingan string = perbandingan waktu). UI menampilkan WITA (`Asia/Makassar`); "hari ini" admin = WIB. Jangan simpan format lain.
+- **Timestamp**: semua TEXT ISO-8601 UTC dari `new Date().toISOString()` (lebar tetap → perbandingan string = perbandingan waktu). UI menampilkan WITA (`Asia/Makassar`); "hari ini" admin = WIB. Jangan simpan format lain (satu pengecualian terdokumentasi: `users.streak_last_day` = tanggal WITA `YYYY-MM-DD`).
 - **Sandbox Duitku tidak pernah dipakai di host produksi** (`duitkuUsable` + `guardHost`). Host non-produksi memaksa gateway Duitku.
-- **Cache edge tidak peduli cookie**: hanya cache respons yang identik untuk semua orang (`/api/products`, `/api/site-stats`, `/api/recent-results`). Data per-user / PDF materi = `private` atau tanpa cache.
+- **Cache edge tidak peduli cookie**: hanya cache respons yang identik untuk semua orang (`/api/products`, `/api/site-stats`, `/api/recent-results`, top-N `/api/leaderboard` lewat key internal). Data per-user / PDF materi = `private` atau tanpa cache.
 - **Rahasia**: hanya di `.dev.vars` (gitignored) dan `wrangler secret`. Jangan pernah menulis nilai key di kode, commit, log, atau output. `backups/` berisi data user — jangan pernah di-commit.
 - **Satu admin**: partial unique index; `/setup` hanya hidup selama belum ada admin.
 - **Rate limit fail-open**: error DO tidak boleh mematikan situs.
@@ -111,7 +113,7 @@ Format respons API SELALU `{ success: true, data }` atau `{ success: false, erro
 5. Perbarui `docs/API.md`.
 
 **Tambah/ubah skema (migrasi)**
-1. File BARU `migrations/NNNN_deskripsi.sql`, nomor = terbesar + 1 (saat ini terakhir `0018`). Jangan pernah mengedit migrasi yang sudah diterapkan.
+1. File BARU `migrations/NNNN_deskripsi.sql`, nomor = terbesar + 1 (saat ini terakhir `0019`). Jangan pernah mengedit migrasi yang sudah diterapkan.
 2. Hindari `CASE … END` dan compound `SELECT … UNION ALL` panjang di file migrasi (splitter wrangler/D1 bermasalah — lihat `0007`). Satu statement per aturan.
 3. `npm run db:local` → uji → perbarui `docs/DATABASE.md`. `npm run db:remote` hanya setelah user setuju (produksi).
 4. Kode harus aman berjalan **sebelum** migrasi remote diterapkan bila deploy & migrasi tidak bersamaan — atau terapkan migrasi dulu, lalu deploy.

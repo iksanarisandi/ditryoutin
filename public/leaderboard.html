@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VZMGZFN4KX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-VZMGZFN4KX');
+  </script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Papan Peringkat — Tryout UPKP</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" sizes="48x48" href="/img/favicon-48.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <section class="lb-hero">
+    <div class="container">
+      <div class="lb-hero-head">
+        <div>
+          <div class="lb-eyebrow">Papan Peringkat</div>
+          <h1>Siapa paling siap ujian?</h1>
+          <p class="lb-lead">Poin = skor percobaan pertama di setiap paket + <strong id="lb-bonus">100</strong> bonus untuk tiap paket yang lulus.</p>
+        </div>
+        <div class="lb-streak-pill" id="lb-streak" hidden></div>
+      </div>
+      <div class="lb-tabs" id="lb-tabs" hidden></div>
+      <div class="podium" id="podium" aria-label="Tiga besar"></div>
+    </div>
+  </section>
+
+  <div class="container lb-body mb">
+    <div class="card lb-me" id="lb-me" hidden></div>
+
+    <div class="card lb-list-card">
+      <div class="lb-list" id="lb-list"><p class="muted">Memuat papan peringkat…</p></div>
+      <div class="lb-foot small muted" id="lb-foot"></div>
+    </div>
+
+    <div class="card lb-settings" id="lb-settings" hidden>
+      <label class="switch-line">
+        <span class="switch"><input type="checkbox" id="lb-show-name"><span class="switch-track" aria-hidden="true"></span></span>
+        <span>
+          <strong>Tampilkan namaku di papan peringkat</strong>
+          <span class="small muted d-block">Bila dimatikan, namamu tampil sebagai "Peserta". Posisi dan poinmu tetap dihitung.</span>
+        </span>
+      </label>
+    </div>
+
+    <details class="card lb-howto">
+      <summary>Cara menghitung poin</summary>
+      <ul>
+        <li>Setiap paket hanya dihitung <strong>sekali</strong>, yaitu dari <strong>percobaan pertamamu</strong>. Mengulang paket tetap bagus untuk latihan, tapi tidak mengubah poin.</li>
+        <li>Poin paket = skor percobaan pertama (5 poin per jawaban benar) + <strong class="js-bonus">100</strong> bonus bila lulus passing grade.</li>
+        <li>Tidak ada pengurangan poin bila belum lulus. Semakin banyak paket yang kamu selesaikan, semakin banyak poinmu.</li>
+        <li>Hanya paket yang masih aktif yang dihitung, jadi semua peserta punya peluang yang sama.</li>
+        <li>Bila poin sama, peserta dengan paket lulus lebih banyak di atas; bila masih sama, yang lebih dulu mencapai poin itu.</li>
+        <li>Papan UPKP dan Ujian Dinas dipisah karena jumlah soal dan passing grade-nya berbeda.</li>
+      </ul>
+    </details>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async function () {
+      const me = await TO.requireUser();
+      if (!me) return;
+      TO.renderHeader('/leaderboard.html', me);
+
+      const ICON = TO.ICONS;
+      const nf = (n) => Number(n || 0).toLocaleString('id-ID');
+      const tabsEl = document.getElementById('lb-tabs');
+      const podiumEl = document.getElementById('podium');
+      const listEl = document.getElementById('lb-list');
+      const meEl = document.getElementById('lb-me');
+      const footEl = document.getElementById('lb-foot');
+
+      let lb = null;      // { boards, top, pass_bonus, refresh_minutes }
+      let mine = null;    // { hidden, standings, streak, is_admin }
+      let active = null;  // key papan aktif
+
+      // Warna avatar stabil per nama (bukan per orang — data publik tanpa ID).
+      const PALETTE = ['#2563eb', '#7c3aed', '#db2777', '#0d9488', '#ea580c', '#0891b2', '#4f46e5', '#16a34a'];
+      function avatar(name, hidden, cls = '') {
+        if (hidden) return `<span class="lb-avatar ${cls} anon" aria-hidden="true">?</span>`;
+        let h = 0;
+        for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+        return `<span class="lb-avatar ${cls}" style="background:${PALETTE[h % PALETTE.length]}" aria-hidden="true">${TO.esc(name.charAt(0))}</span>`;
+      }
+      const streakTag = (n) => n > 0 ? `<span class="lb-fire" title="${n} hari beruntun">${ICON.flame}${n}</span>` : '';
+
+      function board() { return lb.boards.find((b) => b.key === active) || null; }
+      function myStanding() { return (mine && mine.standings && mine.standings[active]) || null; }
+
+      function renderTabs() {
+        tabsEl.hidden = lb.boards.length <= 1;
+        tabsEl.innerHTML = lb.boards.map((b) =>
+          `<button type="button" class="lb-tab${b.key === active ? ' active' : ''}" data-key="${b.key}">${TO.esc(b.label)} <span>${nf(b.total)}</span></button>`
+        ).join('');
+        tabsEl.querySelectorAll('.lb-tab').forEach((btn) => btn.addEventListener('click', () => {
+          active = btn.dataset.key;
+          render();
+        }));
+      }
+
+      function renderPodium(b, myRank) {
+        const slot = (rank) => {
+          const e = b.entries.find((x) => x.rank === rank);
+          const medal = ['', 'gold', 'silver', 'bronze'][rank];
+          if (!e) {
+            return `<div class="podium-col ${medal} empty">
+              <span class="lb-avatar lg anon" aria-hidden="true">?</span>
+              <div class="podium-name">Belum ada</div>
+              <div class="podium-pts">&nbsp;</div>
+              <div class="podium-base"><span>${rank}</span></div>
+            </div>`;
+          }
+          const isMe = myRank === rank;
+          return `<div class="podium-col ${medal}${isMe ? ' is-me' : ''}">
+            ${rank === 1 ? `<span class="podium-crown" aria-hidden="true">${ICON.crown}</span>` : ''}
+            ${avatar(e.name, e.hidden, 'lg')}
+            <div class="podium-name">${TO.esc(e.name)}${isMe ? ' <span class="lb-you">Kamu</span>' : ''}</div>
+            <div class="podium-pts">${nf(e.points)} <small>poin</small></div>
+            <div class="podium-meta">${e.passed_count} lulus · ${e.package_count} paket ${streakTag(e.streak)}</div>
+            <div class="podium-base"><span>${rank}</span></div>
+          </div>`;
+        };
+        podiumEl.innerHTML = slot(2) + slot(1) + slot(3);
+      }
+
+      function renderList(b, myRank) {
+        const rest = b.entries.filter((e) => e.rank > 3);
+        if (!b.entries.length) {
+          listEl.innerHTML = '<p class="muted center">Belum ada peserta di papan ini.</p>';
+        } else if (!rest.length) {
+          listEl.innerHTML = '<p class="muted center">Baru ' + b.entries.length + ' peserta di papan ini. Ajak temanmu ikut bersaing!</p>';
+        } else {
+          listEl.innerHTML = rest.map((e) => `
+            <div class="lb-row${e.rank === myRank ? ' is-me' : ''}">
+              <span class="lb-rank">${e.rank}</span>
+              ${avatar(e.name, e.hidden)}
+              <div class="lb-name">
+                <div class="lb-name-main">${TO.esc(e.name)}${e.rank === myRank ? ' <span class="lb-you">Kamu</span>' : ''}</div>
+                <div class="lb-sub">${e.passed_count} lulus · ${e.package_count} paket</div>
+              </div>
+              ${streakTag(e.streak)}
+              <div class="lb-points">${nf(e.points)}<span>poin</span></div>
+            </div>`).join('');
+        }
+        footEl.textContent = `Menampilkan ${nf(Math.min(b.entries.length, lb.top))} besar dari ${nf(b.total)} peserta. Diperbarui setiap ${lb.refresh_minutes} menit.`;
+      }
+
+      function renderMe(b) {
+        if (!mine) { meEl.hidden = true; return; }
+        meEl.hidden = false;
+        if (mine.is_admin) {
+          meEl.innerHTML = '<div class="lb-me-msg">Akun admin tidak ikut papan peringkat.</div>';
+          return;
+        }
+        const s = myStanding();
+        if (!s) {
+          meEl.innerHTML = `
+            <div class="lb-me-grid">
+              <div class="lb-me-rank muted">—</div>
+              <div class="lb-me-text">
+                <div class="lb-me-title">Kamu belum masuk papan ${TO.esc(b ? b.label : '')}</div>
+                <div class="lb-me-msg">Selesaikan satu paket untuk mendapatkan poin pertamamu.</div>
+              </div>
+              <a class="btn btn-sm" href="/dashboard.html">Mulai Tryout</a>
+            </div>`;
+          return;
+        }
+        let msg;
+        if (s.rank === 1) {
+          msg = 'Kamu di puncak! Pertahankan dengan menyelesaikan paket yang belum dikerjakan.';
+        } else if (b && s.rank <= b.entries.length) {
+          const above = b.entries.find((e) => e.rank === s.rank - 1);
+          const gap = above ? above.points - s.points : 0;
+          msg = gap > 0
+            ? `<strong>${nf(gap)} poin</strong> lagi untuk menyalip peringkat #${s.rank - 1}.`
+            : `Poinmu sama dengan peringkat #${s.rank - 1}. Lulus satu paket lagi untuk menyalipnya.`;
+        } else if (b && b.entries.length) {
+          const last = b.entries[b.entries.length - 1];
+          msg = `<strong>${nf(Math.max(1, last.points - s.points + 1))} poin</strong> lagi untuk masuk ${nf(lb.top)} besar.`;
+        } else {
+          msg = 'Terus kerjakan paket baru untuk menambah poin.';
+        }
+        meEl.innerHTML = `
+          <div class="lb-me-grid">
+            <div class="lb-me-rank">#${nf(s.rank)}<small>dari ${nf(s.total)}</small></div>
+            <div class="lb-me-text">
+              <div class="lb-me-title">Posisi kamu${mine.hidden ? ' <span class="badge">nama disembunyikan</span>' : ''}</div>
+              <div class="lb-me-msg">${msg}</div>
+            </div>
+            <div class="lb-me-stats">
+              <div><strong>${nf(s.points)}</strong><span>poin</span></div>
+              <div><strong>${s.passed_count}</strong><span>lulus</span></div>
+              <div><strong>${s.package_count}</strong><span>paket</span></div>
+            </div>
+          </div>`;
+      }
+
+      function renderStreak() {
+        const el = document.getElementById('lb-streak');
+        const st = mine && mine.streak;
+        if (!st) return;
+        el.hidden = false;
+        el.classList.toggle('off', !st.current);
+        el.innerHTML = `${ICON.flame}<span><strong>${st.current}</strong> hari beruntun</span>`;
+        el.title = 'Rekor: ' + st.best + ' hari';
+      }
+
+      function render() {
+        const b = board();
+        renderTabs();
+        const myRank = myStanding() ? myStanding().rank : null;
+        if (!b) {
+          podiumEl.innerHTML = '';
+          listEl.innerHTML = '<div class="lb-empty"><div class="lb-empty-ico">' + ICON.trophy + '</div><strong>Papan peringkat masih kosong</strong><p class="muted">Jadilah peserta pertama: selesaikan satu paket tryout dan namamu langsung tampil di sini.</p><a class="btn" href="/dashboard.html">Mulai Tryout</a></div>';
+          footEl.textContent = '';
+          renderMe(null);
+          return;
+        }
+        renderPodium(b, myRank);
+        renderList(b, myRank);
+        renderMe(b);
+      }
+
+      async function load() {
+        const [boards, meData] = await Promise.all([
+          TO.api('/api/leaderboard'),
+          TO.api('/api/leaderboard/me').catch(() => null),
+        ]);
+        lb = boards;
+        mine = meData;
+        document.getElementById('lb-bonus').textContent = lb.pass_bonus;
+        document.querySelectorAll('.js-bonus').forEach((x) => { x.textContent = lb.pass_bonus; });
+        if (!active || !lb.boards.some((b) => b.key === active)) {
+          // Default: papan tempat peserta paling banyak mengerjakan paket.
+          const st = (mine && mine.standings) || {};
+          const ownBoards = Object.keys(st).sort((x, y) => st[y].package_count - st[x].package_count);
+          active = ownBoards.find((k) => lb.boards.some((b) => b.key === k)) || (lb.boards[0] && lb.boards[0].key) || null;
+        }
+        render();
+        renderStreak();
+      }
+
+      try {
+        await load();
+      } catch (e) {
+        listEl.innerHTML = '<div class="alert alert-danger">' + TO.esc(e.message) + '</div>';
+        return;
+      }
+
+      // Pengaturan tampil nama (bukan untuk admin — admin tidak ikut peringkat).
+      if (mine && !mine.is_admin) {
+        const settings = document.getElementById('lb-settings');
+        const cb = document.getElementById('lb-show-name');
+        cb.checked = !mine.hidden;
+        settings.hidden = false;
+        cb.addEventListener('change', async () => {
+          cb.disabled = true;
+          try {
+            await TO.api('/api/leaderboard/me', { method: 'PUT', body: { hidden: !cb.checked } });
+            TO.toast(cb.checked ? 'Namamu akan tampil di papan peringkat.' : 'Namamu disembunyikan dari papan peringkat.', 'success');
+            await load();
+          } catch (e) {
+            cb.checked = !cb.checked;
+            TO.toast(e.message, 'error');
+          } finally {
+            cb.disabled = false;
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

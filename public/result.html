@@ -75,6 +75,12 @@
           <div style="margin:10px 0">${statusBadge}</div>
           ${r.passing_mode === 'total' ? `<div class="small muted">Minimum kelulusan: <strong>${r.passing_grade_total}</strong> poin (skor keseluruhan)</div>` : ''}
           ${r.auto_submitted ? '<div class="small muted">Waktu habis — ujian otomatis disubmit.</div>' : ''}
+          ${d.ranking ? `
+          <a class="rank-chip" href="/leaderboard.html">
+            <span class="rank-chip-ico">${TO.ICONS.trophy}</span>
+            <span>Peringkat <strong>#${d.ranking.rank.toLocaleString('id-ID')}</strong> dari ${d.ranking.total.toLocaleString('id-ID')} peserta di paket ini</span>
+          </a>
+          ${d.ranking.is_first ? '' : `<div class="small muted">Peringkat memakai percobaan pertamamu (skor ${d.ranking.first_score}). Percobaan ulang tetap berguna untuk latihan.</div>`}` : ''}
           <div class="grid grid-3 mt" style="max-width:520px;margin:14px auto 0">
             <div class="card"><div class="stat-card"><div class="label">Benar <span class="muted small">(+5 poin)</span></div><div class="value" style="color:var(--green)">${r.correct_count}</div></div></div>
             <div class="card"><div class="stat-card"><div class="label">Salah</div><div class="value" style="color:var(--red)">${r.wrong_count}</div></div></div>

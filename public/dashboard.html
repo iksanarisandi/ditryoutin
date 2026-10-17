@@ -43,6 +43,8 @@
       </div>
     </div>
 
+    <div class="card mb streak-card" id="streak-card" hidden></div>
+
     <div class="card mb" id="referral-card" hidden>
       <h2>Ajak Teman, Dapat Bonus</h2>
       <p class="muted small">Teman yang daftar lewat kodemu dapat <strong>diskon 10%</strong> pembelian
@@ -100,6 +102,53 @@
           : '<div><span class="k">Status</span><span class="v">Belum pernah berlangganan</span></div>';
         if (locked) document.getElementById('buy-section').hidden = false;
       }
+
+      // Kartu day streak — dari /me (tanpa request tambahan).
+      (function renderStreak(st) {
+        const card = document.getElementById('streak-card');
+        if (!st) return;
+        const dayMs = 86400000;
+        const toMs = (d) => Date.parse(d + 'T00:00:00Z');
+        const dayName = new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', weekday: 'short' });
+        const todayMs = toMs(st.today);
+        const lastMs = st.last_day ? toMs(st.last_day) : null;
+        const firstMs = lastMs !== null && st.current > 0 ? lastMs - (st.current - 1) * dayMs : null;
+        let week = '';
+        for (let i = 6; i >= 0; i--) {
+          const t = todayMs - i * dayMs;
+          const on = firstMs !== null && t >= firstMs && t <= lastMs;
+          const isToday = i === 0;
+          week += `<div class="sd${on ? ' on' : ''}${isToday ? ' today' : ''}"><span class="sd-dot">${on ? TO.ICONS.flame : ''}</span><span class="sd-name">${isToday ? 'Hari ini' : dayName.format(new Date(t)).replace('.', '')}</span></div>`;
+        }
+        let msg, cta = '';
+        if (st.active_today) {
+          msg = 'Mantap! Aktivitas hari ini sudah tercatat. Sampai jumpa besok untuk melanjutkan streak.';
+        } else if (st.current > 0) {
+          msg = 'Streak-mu belum tercatat hari ini. Kerjakan tryout atau baca materi sebelum pukul 24.00 WITA agar tidak putus.';
+          cta = '<a class="btn btn-sm" href="/materi.html">Baca Materi</a>';
+        } else if (st.best > 0) {
+          msg = 'Streak terputus. Mulai lagi hari ini, rekormu ' + st.best + ' hari. Kerjakan tryout (min. 10 soal dijawab) atau baca materi.';
+          cta = '<a class="btn btn-sm" href="/materi.html">Baca Materi</a>';
+        } else {
+          msg = 'Mulai streak pertamamu: kerjakan tryout (min. 10 soal dijawab) atau baca materi hari ini.';
+          cta = '<a class="btn btn-sm" href="/materi.html">Baca Materi</a>';
+        }
+        card.classList.toggle('off', !st.current);
+        card.innerHTML = `
+          <div class="streak-main">
+            <div class="streak-flame">${TO.ICONS.flame}</div>
+            <div class="streak-text">
+              <div class="streak-num"><strong>${st.current}</strong> hari beruntun</div>
+              <div class="streak-msg">${msg}</div>
+            </div>
+          </div>
+          <div class="streak-week" aria-label="Aktivitas 7 hari terakhir">${week}</div>
+          <div class="streak-side">
+            <div class="streak-best">Rekor<strong>${st.best} hari</strong></div>
+            <div class="streak-actions">${cta}<a class="btn btn-sm btn-outline" href="/leaderboard.html">${TO.ICONS.trophy} Peringkat</a></div>
+          </div>`;
+        card.hidden = false;
+      })(me.streak);
 
       // Kartu referral — kode undangan + link + statistik. Dijalankan tanpa await
       // (fire-and-forget) supaya panggilan pertama — yang bisa memicu pembuatan

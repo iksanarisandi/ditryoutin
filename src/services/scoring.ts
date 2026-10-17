@@ -2,6 +2,8 @@
 // Skor total & skor kategori dalam poin; maksimum = jumlah soal x 5.
 // Seluruh perhitungan di server; hasil disimpan agar immutable.
 
+import { recordStreakSafe, STREAK_MIN_ANSWERED } from './streak';
+
 // Poin per jawaban benar.
 export const POINTS_PER_CORRECT = 5;
 
@@ -134,6 +136,11 @@ export async function scoreAndFinalize(
       db.prepare('UPDATE attempt_questions SET is_correct=? WHERE id=?').bind(ok, aqId),
     ),
   ]);
+
+  // Day streak: dihitung pada hari ujian berakhir (bukan hari finalisasi malas).
+  if (total > 0 && correct + wrong >= Math.min(STREAK_MIN_ANSWERED, total)) {
+    await recordStreakSafe(db, attempt.user_id, Math.min(Date.now(), Date.parse(attempt.expires_at)));
+  }
 }
 
 // Finalisasi malas (lazy): attempt in_progress yang sudah lewat expires_at langsung di-auto-submit.

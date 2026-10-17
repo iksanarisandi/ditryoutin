@@ -3,6 +3,7 @@ import { fail, ok } from '../utils/response';
 import { requireAuth } from '../middleware/auth';
 import { toInt } from '../utils/validate';
 import { finalizeIfExpired, POINTS_PER_CORRECT } from '../services/scoring';
+import { packageRank, type PackageRank } from '../services/leaderboard';
 import type { AppEnv } from '../types';
 
 const results = new Hono<AppEnv>();
@@ -138,6 +139,22 @@ results.get('/:id', async (c) => {
   const maxScore =
     ((a.correct_count ?? 0) + (a.wrong_count ?? 0) + (a.unanswered_count ?? 0)) * POINTS_PER_CORRECT;
 
+  // Peringkat di paket ini (percobaan pertama pemilik attempt). Admin tidak
+  // ikut papan peringkat; gagal hitung tidak boleh menahan halaman hasil.
+  let ranking: (PackageRank & { is_first: boolean }) | null = null;
+  try {
+    const ownerRole =
+      a.user_id === user.id
+        ? user.role
+        : (await c.env.DB.prepare('SELECT role FROM users WHERE id=?').bind(a.user_id).first<{ role: string }>())?.role;
+    if (ownerRole === 'user') {
+      const pr = await packageRank(c.env.DB, a.user_id, a.package_id);
+      if (pr) ranking = { ...pr, is_first: pr.first_attempt_id === a.id };
+    }
+  } catch (e) {
+    console.error('[leaderboard] packageRank', e);
+  }
+
   return ok(c, {
     result: {
       id: a.id,
@@ -157,6 +174,7 @@ results.get('/:id', async (c) => {
       started_at: a.started_at,
       submitted_at: a.submitted_at,
     },
+    ranking,
     category_scores: categoryScores,
     passing_grades: (rules.results ?? []).map((r) => {
       const score = catByName.has(r.name) ? catByName.get(r.name)! : null;
