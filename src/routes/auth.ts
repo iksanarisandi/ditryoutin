@@ -236,7 +236,7 @@ auth.post('/forgot-password', async (c) => {
 
   const email = normalizeEmail(body?.email);
   if (email) {
-    // Anti mail-bomb lintas IP: maks 3 email ke SATU alamat per 15 menit
+    // Anti mail-bomb lintas IP: maks 3 email ke SATU alamat per 24 jam
     // (penyerang bisa rotasi IP, alamat korban tidak bisa). Dihitung juga
     // untuk email yang tidak terdaftar dan dicek DIAM-DIAM — respons tetap
     // netral 200 supaya batas ini tidak jadi oracle keberadaan email.

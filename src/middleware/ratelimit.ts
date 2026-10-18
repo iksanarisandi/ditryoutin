@@ -41,10 +41,13 @@ const LIMITS: Record<LimiterName, { limit: number; period: number }> = {
   // orang lain, dan sebaliknya. Manusia minta reset 1-2x — 5x/15 menit per IP
   // cukup longgar untuk retry typo, cukup ketat untuk melindungi kuota Resend.
   RATE_LIMIT_FORGOT: { limit: 5, period: 900 },
-  // Penyerang yang rotasi IP tetap tidak bisa membanjiri inbox SATU korban:
-  // maks 3 email per alamat per 15 menit. Window per (email) di DO, jadi
-  // strongly-consistent lintas IP/colo.
-  RATE_LIMIT_FORGOT_EMAIL: { limit: 3, period: 900 },
+  // Penyerang yang rotasi IP tetap tidak bisa membanjiri inbox SATU korban
+  // atau menghabiskan kuota Resend lewat satu alamat: maks 3 email per alamat
+  // per 24 jam (window 15 menit lama masih membolehkan ~288/hari). 3, bukan 1:
+  // tautan hanya berlaku 1 jam & email bisa masuk spam — user butuh ruang
+  // mencoba ulang, dan responsnya netral sehingga ia tidak tahu kena batas.
+  // Window per (email) di DO, jadi strongly-consistent lintas IP/colo.
+  RATE_LIMIT_FORGOT_EMAIL: { limit: 3, period: 86400 },
   RATE_LIMIT_REGISTER: { limit: 6, period: 60 },
   // Token kedaluwarsa ditolak murah (baca D1 dulu, argon2 hanya untuk token
   // valid); batas ini menahan flood tulis D1 + penggunaan argon2 berulang.

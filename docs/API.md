@@ -34,7 +34,7 @@ Semua endpoint di bawah `/api/*`, dilayani Worker (`src/index.ts` me-mount route
 | POST | `/logout` | user | Hapus sesi ini |
 | GET | `/me` | user | Profil + status akses (`access.active`, `days_left`, `is_admin`, `has_access`) + `streak` (`current`, `best`, `last_day`, `active_today`, `today` — tanggal WITA). Efek samping: finalisasi attempt kedaluwarsa + rekonsiliasi payment pending (maks 1x/15 dtk/user) |
 | POST | `/heartbeat` | user | Cek sesi masih valid (dipakai halaman ujian; tanpa efek samping) |
-| POST | `/forgot-password` | publik, 5/15 mnt/IP + 3/15 mnt/email | `{ email }` — kirim tautan reset (Resend). Respons selalu netral |
+| POST | `/forgot-password` | publik, 5/15 mnt/IP + 3/24 jam/email | `{ email }` — kirim tautan reset (Resend). Respons selalu netral |
 | POST | `/reset-password` | publik, 6/10 mnt/IP | `{ token, password }` — token sekali pakai 1 jam; sukses = hapus semua sesi user + buka lockout + tandai `email_verified_at` |
 
 ## Login dengan Google — `src/routes/google-auth.ts` (`/api/auth/google`)
